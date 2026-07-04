@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StudyMate Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div>
+      <p class="eyebrow">StudyMate</p>
+      <h1>Today&apos;s study dashboard</h1>
+      <p class="header-text">Plan a focused session, track your goals, and keep your study day organized.</p>
+    </div>
+
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode">
+      Dark Mode
+    </button>
+  </header>
+
+  <main class="dashboard">
+    <section class="stats-grid" aria-label="Today&apos;s statistics">
+      <article class="stat-card">
+        <span class="stat-label">Study Time</span>
+        <strong id="study-time-stat">0h 00m</strong>
+        <span class="stat-note">Tracked today</span>
+      </article>
+
+      <article class="stat-card">
+        <span class="stat-label">Pomodoros</span>
+        <strong id="pomodoro-stat">0</strong>
+        <span class="stat-note">Completed sessions</span>
+      </article>
+
+      <article class="stat-card">
+        <span class="stat-label">Daily Goal</span>
+        <strong>0%</strong>
+        <span class="stat-note">Progress so far</span>
+      </article>
+
+      <article class="stat-card">
+        <span class="stat-label">Streak</span>
+        <strong>0 days</strong>
+        <span class="stat-note">Keep it going</span>
+      </article>
+    </section>
+
+    <section class="main-grid">
+      <article class="panel timer-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Focus Timer</p>
+            <h2>Ready when you are</h2>
+          </div>
+          <span class="status-pill" id="timer-status">Not started</span>
+        </div>
+
+        <div class="timer-display" id="timer-display" aria-label="Timer display">25:00</div>
+
+        <div class="timer-actions" aria-label="Timer controls">
+          <button type="button" id="start-timer">Start</button>
+          <button type="button" class="secondary-button" id="pause-timer">Pause</button>
+          <button type="button" class="secondary-button" id="reset-timer">Reset</button>
+        </div>
+      </article>
+
+      <article class="panel goal-panel">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Daily Goal</p>
+            <h2>Set your target</h2>
+          </div>
+        </div>
+
+        <div class="progress-bar" aria-label="Daily goal progress">
+          <span style="width: 0%;"></span>
+        </div>
+
+        <p class="muted-text">Choose a study goal later, then this card will show your progress.</p>
+      </article>
+
+      <article class="panel todo-panel">
+        <form class="task-form" id="task-form">
+          <div>
+            <p class="eyebrow">To-Do List</p>
+            <h2>Study tasks</h2>
+          </div>
+
+          <div class="task-input-row">
+            <label class="sr-only" for="task-input">New task</label>
+            <input id="task-input" type="text" placeholder="Add a study task">
+            <button type="submit" class="icon-button" aria-label="Add task">+</button>
+          </div>
+        </form>
+
+        <ul class="task-list" id="task-list"></ul>
+      </article>
+
+      <article class="panel quote-panel">
+        <p class="eyebrow">Motivation</p>
+        <blockquote>
+          Small steps every day turn into strong study habits.
+        </blockquote>
+      </article>
+    </section>
+
+    <section class="feature-grid" aria-label="More StudyMate features">
+      <article class="panel compact-panel">
+        <h2>Theme Colors</h2>
+        <div class="color-swatches" aria-label="Theme color placeholders">
+          <span class="swatch teal"></span>
+          <span class="swatch coral"></span>
+          <span class="swatch gold"></span>
+        </div>
+      </article>
+
+      <article class="panel compact-panel">
+        <h2>Background Music</h2>
+        <p class="muted-text">Music controls will go here.</p>
+      </article>
+
+      <article class="panel compact-panel">
+        <h2>Leaderboard</h2>
+        <ol class="leaderboard-list">
+          <li>You <span>0 min</span></li>
+          <li>Friend <span>0 min</span></li>
+        </ol>
+      </article>
+
+      <article class="panel compact-panel">
+        <h2>Distraction Log</h2>
+        <p class="muted-text">Track distractions after we add the feature.</p>
+      </article>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
