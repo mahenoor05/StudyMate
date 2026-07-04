@@ -12,74 +12,97 @@
       <span class="brand-mark">SM</span>
       <div>
         <p class="eyebrow">StudyMate</p>
-        <h1>Focus Hub</h1>
+        <h1>Focus OS</h1>
       </div>
     </div>
 
     <nav class="sidebar-nav" aria-label="StudyMate sections">
-      <button class="nav-link active" type="button" data-section="dashboard">Dashboard</button>
-      <button class="nav-link" type="button" data-section="overall-timer">Overall Timer</button>
-      <button class="nav-link" type="button" data-section="subject-timers">Subject Timers</button>
-      <button class="nav-link" type="button" data-section="pomodoro">Pomodoro</button>
-      <button class="nav-link" type="button" data-section="tasks">Tasks</button>
-      <button class="nav-link" type="button" data-section="daily-goal">Daily Goal</button>
-      <button class="nav-link" type="button" data-section="stats">Stats</button>
-      <button class="nav-link" type="button" data-section="leaderboard">Leaderboard</button>
-      <button class="nav-link" type="button" data-section="groups">Groups / Group Chat</button>
-      <button class="nav-link" type="button" data-section="distraction-log">Distraction Log</button>
-      <button class="nav-link" type="button" data-section="settings">Settings</button>
+      <button class="nav-link active" type="button" data-section="home"><span>Home</span></button>
+      <button class="nav-link" type="button" data-section="focus-hub"><span>Focus Hub</span></button>
+      <button class="nav-link" type="button" data-section="subject-studio"><span>Subject Studio</span></button>
+      <button class="nav-link" type="button" data-section="pomodoro-lab"><span>Pomodoro Lab</span></button>
+      <button class="nav-link" type="button" data-section="task-board"><span>Task Board</span></button>
+      <button class="nav-link" type="button" data-section="goals"><span>Goals</span></button>
+      <button class="nav-link" type="button" data-section="insights"><span>Insights</span></button>
+      <button class="nav-link" type="button" data-section="study-circle"><span>Study Circle</span></button>
+      <button class="nav-link" type="button" data-section="leaderboard"><span>Leaderboard</span></button>
+      <button class="nav-link" type="button" data-section="distraction-log"><span>Distraction Log</span></button>
+      <button class="nav-link" type="button" data-section="appearance"><span>Appearance</span></button>
     </nav>
   </aside>
 
   <main class="app-main">
-    <section class="app-section active" id="dashboard">
-      <div class="section-header">
+    <section class="app-section active" id="home">
+      <div class="hero-panel">
         <div>
-          <p class="eyebrow">Dashboard</p>
-          <h2>Today&apos;s overview</h2>
+          <p class="eyebrow">Welcome back</p>
+          <h2>Build a calmer study rhythm.</h2>
+          <p class="hero-copy">Plan your focus, track your time, and keep momentum without crowding your screen.</p>
+        </div>
+        <div class="date-card">
+          <span>Today</span>
+          <strong id="today-date">Loading...</strong>
         </div>
       </div>
 
-      <div class="summary-grid">
-        <article class="summary-card">
-          <span>Total Study Time</span>
-          <strong id="dashboard-total-time">0h 00m</strong>
-          <p>Overall timer plus subject timers</p>
-        </article>
-
-        <article class="summary-card">
-          <span>Top Subject Today</span>
-          <strong id="dashboard-top-subject">None</strong>
-          <p>Your most studied subject</p>
-        </article>
-
-        <article class="summary-card">
-          <span>Tasks Completed</span>
-          <strong id="dashboard-tasks-completed">0/0</strong>
-          <p>Checked tasks today</p>
-        </article>
-
-        <article class="summary-card">
-          <span>Current Streak</span>
-          <strong id="dashboard-streak">0 days</strong>
-          <p>Placeholder for streak tracking</p>
-        </article>
-
-        <article class="summary-card">
-          <span>Daily Goal Progress</span>
-          <strong id="dashboard-goal-progress">0%</strong>
-          <div class="progress-bar" aria-label="Daily goal progress">
-            <span id="dashboard-goal-bar"></span>
+      <div class="home-grid">
+        <article class="feature-card wide-card">
+          <div class="card-heading">
+            <div>
+              <p class="eyebrow">Today&apos;s Focus</p>
+              <h3 id="home-focus-title">No active subject yet</h3>
+            </div>
+            <span class="status-pill" id="home-active-status">Idle</span>
           </div>
+          <p class="muted-text" id="home-focus-detail">Start the Focus Hub or a Subject Studio timer to begin tracking.</p>
+        </article>
+
+        <article class="metric-card">
+          <span>Deep Work Time</span>
+          <strong id="home-total-time">0h 00m</strong>
+          <p>Tracked today</p>
+        </article>
+
+        <article class="metric-card">
+          <span>Focus Streak</span>
+          <strong id="home-streak">0 days</strong>
+          <p>Consistency meter</p>
+        </article>
+
+        <article class="feature-card">
+          <p class="eyebrow">Goal Progress</p>
+          <h3 id="home-goal-percent">0%</h3>
+          <div class="progress-bar" aria-label="Daily goal progress">
+            <span id="home-goal-bar"></span>
+          </div>
+          <p class="muted-text" id="home-goal-copy">Set a daily goal to see your progress.</p>
+        </article>
+
+        <article class="feature-card">
+          <p class="eyebrow">Next Up</p>
+          <ul class="preview-list" id="home-task-preview"></ul>
+        </article>
+
+        <article class="feature-card">
+          <p class="eyebrow">Momentum</p>
+          <blockquote id="quote-text">Small, honest sessions beat perfect plans.</blockquote>
+        </article>
+
+        <article class="feature-card wide-card">
+          <p class="eyebrow">Weekly Snapshot</p>
+          <div class="mini-week">
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <p class="muted-text">A real weekly chart will come later when reports are added.</p>
         </article>
       </div>
     </section>
 
-    <section class="app-section" id="overall-timer">
+    <section class="app-section" id="focus-hub">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Overall Timer</p>
-          <h2>Total study tracking</h2>
+          <p class="eyebrow">Focus Hub</p>
+          <h2>Overall study timer</h2>
         </div>
         <span class="status-pill" id="overall-status">Not started</span>
       </div>
@@ -94,18 +117,18 @@
       </article>
     </section>
 
-    <section class="app-section" id="subject-timers">
+    <section class="app-section" id="subject-studio">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Subject Timers</p>
-          <h2>Track time by subject</h2>
+          <p class="eyebrow">Subject Studio</p>
+          <h2>Study time by subject</h2>
         </div>
       </div>
 
       <article class="panel">
         <form class="inline-form" id="subject-form">
           <label class="sr-only" for="subject-input">Subject name</label>
-          <input id="subject-input" type="text" placeholder="Add a subject, for example Math">
+          <input id="subject-input" type="text" placeholder="Add a subject, for example Biology">
           <button type="submit">Add Subject</button>
         </form>
       </article>
@@ -113,11 +136,11 @@
       <div class="subject-list" id="subject-list"></div>
     </section>
 
-    <section class="app-section" id="pomodoro">
+    <section class="app-section" id="pomodoro-lab">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Pomodoro</p>
-          <h2>25-minute focus session</h2>
+          <p class="eyebrow">Pomodoro Lab</p>
+          <h2>25-minute focus sprint</h2>
         </div>
         <span class="status-pill" id="pomodoro-status">Not started</span>
       </div>
@@ -132,11 +155,11 @@
       </article>
     </section>
 
-    <section class="app-section" id="tasks">
+    <section class="app-section" id="task-board">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Tasks</p>
-          <h2>Study to-do list</h2>
+          <p class="eyebrow">Task Board</p>
+          <h2>Plan the next useful step</h2>
         </div>
       </div>
 
@@ -146,16 +169,24 @@
           <input id="task-input" type="text" placeholder="Add a study task">
           <button type="submit">Add Task</button>
         </form>
-
-        <ul class="task-list" id="task-list"></ul>
+        <div class="task-columns">
+          <div>
+            <h3>Pending</h3>
+            <ul class="task-list" id="pending-task-list"></ul>
+          </div>
+          <div>
+            <h3>Completed</h3>
+            <ul class="task-list" id="completed-task-list"></ul>
+          </div>
+        </div>
       </article>
     </section>
 
-    <section class="app-section" id="daily-goal">
+    <section class="app-section" id="goals">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Daily Goal</p>
-          <h2>Set a time goal</h2>
+          <p class="eyebrow">Goals</p>
+          <h2>Daily study target</h2>
         </div>
       </div>
 
@@ -165,33 +196,81 @@
           <input id="goal-input" type="number" min="1" step="1">
           <button type="submit">Save Goal</button>
         </form>
-
-        <p class="muted-text" id="goal-summary">Your goal progress will appear here.</p>
+        <div class="goal-panel">
+          <strong id="goal-summary">0% complete</strong>
+          <div class="progress-bar" aria-label="Goal progress">
+            <span id="goal-bar"></span>
+          </div>
+        </div>
       </article>
     </section>
 
-    <section class="app-section" id="stats">
+    <section class="app-section" id="insights">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Stats</p>
-          <h2>Today&apos;s statistics</h2>
+          <p class="eyebrow">Insights</p>
+          <h2>Study pulse</h2>
         </div>
       </div>
 
-      <div class="stats-grid">
-        <article class="summary-card">
-          <span>Overall Timer</span>
-          <strong id="stats-overall-time">0h 00m</strong>
+      <div class="summary-grid compact-grid">
+        <article class="metric-card">
+          <span>Today&apos;s Total</span>
+          <strong id="insight-total-time">0h 00m</strong>
         </article>
-
-        <article class="summary-card">
-          <span>Subject Timer Total</span>
-          <strong id="stats-subject-time">0h 00m</strong>
+        <article class="metric-card">
+          <span>Tasks Completed</span>
+          <strong id="insight-tasks">0</strong>
         </article>
+        <article class="metric-card">
+          <span>Streak</span>
+          <strong id="insight-streak">0 days</strong>
+        </article>
+      </div>
 
-        <article class="summary-card">
-          <span>Pomodoros Completed</span>
-          <strong id="stats-pomodoros">0</strong>
+      <article class="panel">
+        <h3>Subject Breakdown</h3>
+        <div class="insight-list" id="subject-insights"></div>
+      </article>
+
+      <article class="panel">
+        <h3>Weekly Placeholder</h3>
+        <div class="mini-week large-week">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </article>
+    </section>
+
+    <section class="app-section" id="study-circle">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Study Circle</p>
+          <h2>Future group focus space</h2>
+        </div>
+      </div>
+
+      <div class="circle-grid">
+        <article class="panel">
+          <h3>Study Rooms</h3>
+          <p class="muted-text">Create focused rooms for shared sessions later.</p>
+          <div class="button-row left-row">
+            <button type="button">Create Room</button>
+            <button type="button" class="secondary-button">Join Room</button>
+          </div>
+        </article>
+        <article class="panel">
+          <h3>Friends Studying</h3>
+          <p class="mock-line">Ayesha is in Deep Work</p>
+          <p class="mock-line">Ray is reviewing Physics</p>
+        </article>
+        <article class="panel">
+          <h3>Group Progress</h3>
+          <div class="progress-bar"><span style="width: 48%;"></span></div>
+        </article>
+        <article class="panel chat-preview">
+          <h3>Group Chat</h3>
+          <p class="mock-bubble">Future chat messages will appear here.</p>
+          <p class="mock-bubble muted-bubble">Backend support will come later.</p>
         </article>
       </div>
     </section>
@@ -200,28 +279,12 @@
       <div class="section-header">
         <div>
           <p class="eyebrow">Leaderboard</p>
-          <h2>Basic placeholder</h2>
+          <h2>Friendly ranking preview</h2>
         </div>
       </div>
 
       <article class="panel">
-        <ol class="leaderboard-list">
-          <li>You <span id="leaderboard-you">0h 00m</span></li>
-          <li>Friend <span>0h 00m</span></li>
-        </ol>
-      </article>
-    </section>
-
-    <section class="app-section" id="groups">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Groups / Group Chat</p>
-          <h2>Coming later</h2>
-        </div>
-      </div>
-
-      <article class="panel">
-        <p class="muted-text">This section is a placeholder for future group study and chat features.</p>
+        <div class="leaderboard-table" id="leaderboard-table"></div>
       </article>
     </section>
 
@@ -229,25 +292,49 @@
       <div class="section-header">
         <div>
           <p class="eyebrow">Distraction Log</p>
-          <h2>Coming later</h2>
+          <h2>Notice interruptions, then reset</h2>
         </div>
       </div>
 
       <article class="panel">
-        <p class="muted-text">This section will later help you record distractions during study sessions.</p>
+        <form class="inline-form" id="distraction-form">
+          <label class="sr-only" for="distraction-category">Category</label>
+          <select id="distraction-category">
+            <option>Phone</option>
+            <option>Social Media</option>
+            <option>Noise</option>
+            <option>Sleepy</option>
+            <option>Food</option>
+            <option>Other</option>
+          </select>
+          <label class="sr-only" for="distraction-input">Distraction reason</label>
+          <input id="distraction-input" type="text" placeholder="What pulled your focus?">
+          <button type="submit">Log</button>
+        </form>
+        <ul class="log-list" id="distraction-list"></ul>
       </article>
     </section>
 
-    <section class="app-section" id="settings">
+    <section class="app-section" id="appearance">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Settings</p>
-          <h2>App preferences</h2>
+          <p class="eyebrow">Appearance</p>
+          <h2>Make the workspace yours</h2>
         </div>
       </div>
 
       <article class="panel">
-        <button class="secondary-button" id="theme-toggle" type="button">Dark Mode</button>
+        <h3>Themes</h3>
+        <div class="theme-grid" id="theme-grid"></div>
+      </article>
+
+      <article class="panel">
+        <h3>Accent Color</h3>
+        <div class="accent-row">
+          <input id="accent-input" type="color" value="#7c5cff">
+          <button type="button" id="save-accent">Save Accent</button>
+        </div>
+        <p class="muted-text">Future options: card style, background style, and animation intensity.</p>
       </article>
     </section>
   </main>
