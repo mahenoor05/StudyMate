@@ -698,6 +698,7 @@ body.sidebar-collapsed .app-main {
 .task-list li {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 0.65rem;
 }
@@ -799,6 +800,205 @@ body.sidebar-collapsed .app-main {
   width: 1px;
 }
 
+.timer-mode-switcher {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: auto 1fr auto;
+  text-align: center;
+}
+
+.timer-mode-switcher h3 {
+  margin: 0;
+}
+
+.icon-only-button {
+  min-height: 2.4rem;
+  padding: 0;
+  width: 2.4rem;
+}
+
+.timer-progress {
+  margin-bottom: 1rem;
+}
+
+.mode-indicators,
+.analytics-tabs,
+.leaderboard-tabs,
+.history-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.mode-dot {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.35rem 0.6rem;
+}
+
+.mode-dot.active {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  color: var(--primary-dark);
+}
+
+.custom-timer-settings {
+  display: none;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.custom-timer-settings.active {
+  display: grid;
+}
+
+.custom-timer-settings label {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.plan-layout,
+.planner-layout,
+.exam-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
+  margin-top: 1rem;
+}
+
+.plan-goal-card,
+.planner-item,
+.exam-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.plan-goal-card strong {
+  display: block;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.calendar-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.calendar-grid {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-top: 0.75rem;
+}
+
+.calendar-weekdays span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.calendar-day {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  min-height: 5rem;
+  padding: 0.55rem;
+  text-align: left;
+}
+
+.calendar-day.today {
+  border-color: var(--primary);
+}
+
+.calendar-day.active {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.calendar-day-empty {
+  background: transparent;
+  border-color: transparent;
+}
+
+.calendar-day.muted-day {
+  opacity: 0.38;
+}
+
+.calendar-dots {
+  display: flex;
+  gap: 0.2rem;
+  margin-top: 0.5rem;
+}
+
+.calendar-dot {
+  background: var(--primary);
+  border-radius: 50%;
+  height: 0.4rem;
+  width: 0.4rem;
+}
+
+.planner-items,
+.exam-list,
+.syllabus-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.task-meta {
+  color: var(--muted);
+  flex-basis: 100%;
+  font-size: 0.78rem;
+  margin-left: 1.85rem;
+}
+
+.syllabus-list li {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.syllabus-list li.completed span {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.bar-chart {
+  align-items: end;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(1rem, 1fr));
+  min-height: 160px;
+}
+
+.bar-column {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-rows: 1fr auto;
+  min-height: 150px;
+}
+
+.bar-fill {
+  align-self: end;
+  background: linear-gradient(180deg, var(--primary), var(--accent));
+  border-radius: 999px 999px 4px 4px;
+  min-height: 0.4rem;
+}
+
+.bar-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
 @media (max-width: 1100px) {
   .dashboard-layout {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -816,7 +1016,10 @@ body.sidebar-collapsed .app-main {
   .session-layout,
   .summary-grid,
   .circle-grid,
-  .theme-grid {
+  .theme-grid,
+  .plan-layout,
+  .planner-layout,
+  .exam-layout {
     grid-template-columns: 1fr;
   }
 }
@@ -867,6 +1070,11 @@ body.sidebar-collapsed .app-main {
   .task-columns,
   .leaderboard-row,
   .session-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .timer-mode-switcher,
+  .custom-timer-settings {
     grid-template-columns: 1fr;
   }
 

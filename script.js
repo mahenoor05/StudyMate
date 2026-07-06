@@ -12,6 +12,13 @@ const themes = [
   { id: "light", name: "Minimal Light", accent: "#2563eb" }
 ];
 
+const timerModes = [
+  { id: "stopwatch", name: "Stopwatch", description: "Count up while you study.", focusMinutes: null, breakMinutes: 0 },
+  { id: "pomodoro", name: "Pomodoro", description: "25 minutes focus, then a 5 minute break.", focusMinutes: 25, breakMinutes: 5 },
+  { id: "deep-focus", name: "Deep Focus", description: "50 minutes focus, then a 10 minute break.", focusMinutes: 50, breakMinutes: 10 },
+  { id: "custom", name: "Custom Timer", description: "Choose your own focus and break duration.", focusMinutes: 30, breakMinutes: 0 }
+];
+
 const menuToggle = document.getElementById("menu-toggle");
 const navButtons = document.querySelectorAll(".nav-link");
 const sections = document.querySelectorAll(".app-section");
@@ -38,13 +45,24 @@ const homeTaskPreview = document.getElementById("home-task-preview");
 
 const sessionStatus = document.getElementById("session-status");
 const sessionDisplay = document.getElementById("session-display");
+const sessionProgressBar = document.getElementById("session-progress-bar");
+const timerModePrev = document.getElementById("timer-mode-prev");
+const timerModeNext = document.getElementById("timer-mode-next");
+const timerModeTitle = document.getElementById("timer-mode-title");
+const timerModeDescription = document.getElementById("timer-mode-description");
+const timerModeIndicators = document.getElementById("timer-mode-indicators");
+const customTimerSettings = document.getElementById("custom-timer-settings");
+const customFocusInput = document.getElementById("custom-focus-input");
+const customBreakInput = document.getElementById("custom-break-input");
 const sessionSubjectSelect = document.getElementById("session-subject-select");
 const sessionStartButton = document.getElementById("session-start");
 const sessionPauseButton = document.getElementById("session-pause");
 const sessionResetButton = document.getElementById("session-reset");
+const sessionSkipButton = document.getElementById("session-skip");
 const sessionTotalToday = document.getElementById("session-total-today");
 const sessionSubjectBreakdown = document.getElementById("session-subject-breakdown");
 const recentSessionList = document.getElementById("recent-session-list");
+const historyTabs = document.querySelectorAll(".history-tab");
 const subjectForm = document.getElementById("subject-form");
 const subjectInput = document.getElementById("subject-input");
 const intentionForm = document.getElementById("intention-form");
@@ -53,20 +71,48 @@ const intentionCount = document.getElementById("intention-count");
 
 const taskForm = document.getElementById("task-form");
 const taskInput = document.getElementById("task-input");
+const taskDateInput = document.getElementById("task-date-input");
+const taskSubjectInput = document.getElementById("task-subject-input");
 const pendingTaskList = document.getElementById("pending-task-list");
 const completedTaskList = document.getElementById("completed-task-list");
+const planGoalProgress = document.getElementById("plan-goal-progress");
+const planGoalCopy = document.getElementById("plan-goal-copy");
+const planGoalBar = document.getElementById("plan-goal-bar");
 
 const goalForm = document.getElementById("goal-form");
 const goalInput = document.getElementById("goal-input");
 const goalSummary = document.getElementById("goal-summary");
 const goalBar = document.getElementById("goal-bar");
 const goalTarget = document.getElementById("goal-target");
+const plannerPrev = document.getElementById("planner-prev");
+const plannerNext = document.getElementById("planner-next");
+const plannerMonthLabel = document.getElementById("planner-month-label");
+const calendarGrid = document.getElementById("calendar-grid");
+const selectedDateLabel = document.getElementById("selected-date-label");
+const plannerForm = document.getElementById("planner-form");
+const plannerTypeInput = document.getElementById("planner-type-input");
+const plannerTitleInput = document.getElementById("planner-title-input");
+const plannerItems = document.getElementById("planner-items");
 
 const insightTotalTime = document.getElementById("insight-total-time");
 const insightTasks = document.getElementById("insight-tasks");
 const insightStreak = document.getElementById("insight-streak");
 const subjectInsights = document.getElementById("subject-insights");
+const analyticsTabs = document.querySelectorAll(".analytics-tab");
+const analyticsTotalLabel = document.getElementById("analytics-total-label");
+const analyticsChartTitle = document.getElementById("analytics-chart-title");
+const analyticsChart = document.getElementById("analytics-chart");
 const leaderboardTable = document.getElementById("leaderboard-table");
+const leaderboardTabs = document.querySelectorAll(".leaderboard-tab");
+
+const examForm = document.getElementById("exam-form");
+const examNameInput = document.getElementById("exam-name-input");
+const examSubjectInput = document.getElementById("exam-subject-input");
+const examDateInput = document.getElementById("exam-date-input");
+const examTimeInput = document.getElementById("exam-time-input");
+const examTopicsInput = document.getElementById("exam-topics-input");
+const examNotesInput = document.getElementById("exam-notes-input");
+const examList = document.getElementById("exam-list");
 
 const distractionForm = document.getElementById("distraction-form");
 const distractionCategory = document.getElementById("distraction-category");
@@ -128,10 +174,21 @@ function createDefaultData() {
     streak: 0,
     focusIntention: "",
     selectedSubjectId: generalSubject.id,
+    timerModeIndex: 0,
+    customFocusMinutes: 30,
+    customBreakMinutes: 0,
+    selectedHistoryRange: "today",
+    selectedAnalyticsRange: "today",
+    selectedLeaderboardRange: "today",
+    plannerMonth: new Date().getMonth(),
+    plannerYear: new Date().getFullYear(),
+    selectedPlannerDate: getTodayKey(),
     activeSession: null,
     tasks: [],
     subjects: [generalSubject],
     sessions: [],
+    plannerItems: [],
+    exams: [],
     distractions: [],
     studyCircles: [createDefaultStudyCircle()],
     selectedCircleId: null,
@@ -260,6 +317,8 @@ function normalizeData() {
   if (!Array.isArray(appData.tasks)) appData.tasks = [];
   if (!Array.isArray(appData.subjects) || appData.subjects.length === 0) appData.subjects = [createSubject("General Study")];
   if (!Array.isArray(appData.sessions)) appData.sessions = [];
+  if (!Array.isArray(appData.plannerItems)) appData.plannerItems = [];
+  if (!Array.isArray(appData.exams)) appData.exams = [];
   if (!Array.isArray(appData.distractions)) appData.distractions = [];
   if (!Array.isArray(appData.studyCircles) || appData.studyCircles.length === 0) appData.studyCircles = [createDefaultStudyCircle()];
 
@@ -267,7 +326,20 @@ function normalizeData() {
   appData.goalHours = Number(appData.goalHours) || 2;
   appData.streak = Number(appData.streak) || 0;
   appData.focusIntention = appData.focusIntention || "";
+  appData.timerModeIndex = Number(appData.timerModeIndex) || 0;
+  appData.timerModeIndex = appData.timerModeIndex % timerModes.length;
+  appData.customFocusMinutes = Number(appData.customFocusMinutes) || 30;
+  appData.customBreakMinutes = Number(appData.customBreakMinutes) || 0;
+  appData.selectedHistoryRange = appData.selectedHistoryRange || "today";
+  appData.selectedAnalyticsRange = appData.selectedAnalyticsRange || "today";
+  appData.selectedLeaderboardRange = appData.selectedLeaderboardRange || "today";
+  appData.plannerMonth = Number.isInteger(appData.plannerMonth) ? appData.plannerMonth : new Date().getMonth();
+  appData.plannerYear = Number(appData.plannerYear) || new Date().getFullYear();
+  appData.selectedPlannerDate = appData.selectedPlannerDate || getTodayKey();
   appData.selectedSubjectId = getSubjectById(appData.selectedSubjectId) ? appData.selectedSubjectId : appData.subjects[0].id;
+  appData.tasks = appData.tasks.map(normalizeTask);
+  appData.plannerItems = appData.plannerItems.map(normalizePlannerItem);
+  appData.exams = appData.exams.map(normalizeExam);
   appData.studyCircles = appData.studyCircles.map(normalizeCircle);
 
   if (!getCircleById(appData.selectedCircleId)) {
@@ -277,6 +349,49 @@ function normalizeData() {
   if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) {
     appData.activeRoomId = null;
   }
+}
+
+function normalizeTask(task) {
+  return {
+    id: task.id || createId(),
+    text: task.text || "Untitled task",
+    completed: Boolean(task.completed),
+    date: task.date || "",
+    subjectId: task.subjectId || ""
+  };
+}
+
+function normalizePlannerItem(item) {
+  return {
+    id: item.id || createId(),
+    date: item.date || getTodayKey(),
+    type: item.type || "task",
+    title: item.title || "Untitled plan"
+  };
+}
+
+function normalizeExam(exam) {
+  const topics = Array.isArray(exam.topics) ? exam.topics : [];
+
+  return {
+    id: exam.id || createId(),
+    name: exam.name || "Untitled Exam",
+    subject: exam.subject || "General Study",
+    date: exam.date || getTodayKey(),
+    time: exam.time || "",
+    notes: exam.notes || "",
+    topics: topics.map(function (topic) {
+      if (typeof topic === "string") {
+        return { id: createId(), title: topic, completed: false };
+      }
+
+      return {
+        id: topic.id || createId(),
+        title: topic.title || "Untitled topic",
+        completed: Boolean(topic.completed)
+      };
+    })
+  };
 }
 
 function normalizeCircle(circle) {
@@ -380,6 +495,71 @@ function formatClockTime(dateString) {
   return new Date(dateString).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
+function getSelectedTimerMode() {
+  return timerModes[appData.timerModeIndex] || timerModes[0];
+}
+
+function getTimerFocusSeconds() {
+  const mode = getSelectedTimerMode();
+  const focusMinutes = mode.id === "custom" ? appData.customFocusMinutes : mode.focusMinutes;
+  return focusMinutes ? focusMinutes * 60 : null;
+}
+
+function getTimerBreakSeconds() {
+  const mode = getSelectedTimerMode();
+  const breakMinutes = mode.id === "custom" ? appData.customBreakMinutes : mode.breakMinutes;
+  return breakMinutes ? breakMinutes * 60 : 0;
+}
+
+function getDateKeyFromDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getRangeStart(range) {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+  if (range === "week") {
+    start.setDate(start.getDate() - 6);
+  }
+
+  if (range === "month") {
+    start.setDate(1);
+  }
+
+  return start;
+}
+
+function getSessionsForRange(range) {
+  const start = getRangeStart(range);
+  return appData.sessions.filter(function (session) {
+    return new Date(session.startedAt) >= start;
+  });
+}
+
+function getTasksForRange(range) {
+  if (range === "today") {
+    return appData.tasks.filter(function (task) {
+      return !task.date || task.date === getTodayKey();
+    });
+  }
+
+  const start = getRangeStart(range);
+  return appData.tasks.filter(function (task) {
+    if (!task.date) return true;
+    return new Date(`${task.date}T00:00:00`) >= start;
+  });
+}
+
+function getRangeLabel(range) {
+  if (range === "week") return "This Week";
+  if (range === "month") return "This Month";
+  return "Today";
+}
+
 function getCompletedTaskCount() {
   return appData.tasks.filter(function (task) {
     return task.completed;
@@ -390,6 +570,17 @@ function getGoalPercent() {
   const goalSeconds = appData.goalHours * 3600;
   if (goalSeconds <= 0) return 0;
   return Math.min(Math.round((appData.studySeconds / goalSeconds) * 100), 100);
+}
+
+function getSecondsFromSessions(sessions) {
+  return sessions.reduce(function (total, session) {
+    return total + Number(session.durationSeconds || 0);
+  }, 0);
+}
+
+function getSubjectName(subjectId) {
+  const subject = getSubjectById(subjectId);
+  return subject ? subject.name : "No subject";
 }
 
 function getSubjectById(subjectId) {
@@ -413,7 +604,10 @@ function updateAllDisplays() {
   updateGoal();
   updateInsights();
   renderSubjectOptions();
+  renderTaskSubjectOptions();
   renderRecentSessions();
+  renderPlanner();
+  renderExams();
   renderLeaderboard();
 }
 
@@ -468,12 +662,39 @@ function getGreeting() {
 }
 
 function updateSessionPage() {
-  sessionDisplay.textContent = formatLongTime(getSessionElapsedSeconds());
-  sessionStatus.textContent = appData.activeSession ? "Studying" : "Not started";
+  const mode = getSelectedTimerMode();
+  const elapsed = getSessionElapsedSeconds();
+  const focusSeconds = appData.activeSession ? appData.activeSession.focusSeconds : getTimerFocusSeconds();
+  const isCountdown = Boolean(focusSeconds);
+  const remaining = isCountdown ? Math.max(focusSeconds - elapsed, 0) : elapsed;
+  const progressPercent = isCountdown ? Math.min((elapsed / focusSeconds) * 100, 100) : 0;
+
+  timerModeTitle.textContent = mode.name;
+  timerModeDescription.textContent = mode.description;
+  customTimerSettings.classList.toggle("active", mode.id === "custom");
+  customFocusInput.value = appData.customFocusMinutes;
+  customBreakInput.value = appData.customBreakMinutes;
+  sessionDisplay.textContent = isCountdown ? formatLongTime(remaining) : formatLongTime(elapsed);
+  sessionStatus.textContent = appData.activeSession
+    ? appData.activeSession.phase === "break" ? "Break" : "Studying"
+    : "Not started";
+  sessionProgressBar.style.width = `${progressPercent}%`;
   sessionTotalToday.textContent = formatShortTime(appData.studySeconds);
   intentionInput.value = appData.focusIntention;
   intentionCount.textContent = `${appData.focusIntention.length}/180`;
+  renderTimerModeIndicators();
   renderSubjectBreakdown(sessionSubjectBreakdown);
+}
+
+function renderTimerModeIndicators() {
+  timerModeIndicators.innerHTML = "";
+  timerModes.forEach(function (mode, index) {
+    const dot = document.createElement("span");
+    dot.className = "mode-dot";
+    dot.classList.toggle("active", index === appData.timerModeIndex);
+    dot.textContent = mode.name;
+    timerModeIndicators.appendChild(dot);
+  });
 }
 
 function updateGoal() {
@@ -482,13 +703,29 @@ function updateGoal() {
   goalTarget.textContent = formatGoalHours(appData.goalHours);
   goalSummary.textContent = `${goalPercent}% complete`;
   goalBar.style.width = `${goalPercent}%`;
+  planGoalProgress.textContent = `${goalPercent}%`;
+  planGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
+  planGoalBar.style.width = `${goalPercent}%`;
 }
 
 function updateInsights() {
-  insightTotalTime.textContent = formatShortTime(appData.studySeconds);
-  insightTasks.textContent = getCompletedTaskCount();
+  const range = appData.selectedAnalyticsRange;
+  const sessions = getSessionsForRange(range);
+  const tasks = getTasksForRange(range);
+  const totalSeconds = range === "today" ? appData.studySeconds : getSecondsFromSessions(sessions);
+
+  analyticsTabs.forEach(function (tab) {
+    const isActive = tab.dataset.analyticsRange === range;
+    tab.classList.toggle("active", isActive);
+    tab.classList.toggle("secondary-button", !isActive);
+  });
+
+  analyticsTotalLabel.textContent = `${getRangeLabel(range)} Total`;
+  insightTotalTime.textContent = formatShortTime(totalSeconds);
+  insightTasks.textContent = tasks.filter(function (task) { return task.completed; }).length;
   insightStreak.textContent = `${appData.streak} days`;
-  renderSubjectBreakdown(subjectInsights);
+  renderAnalyticsSubjectBreakdown(sessions, range);
+  renderAnalyticsChart(range);
 }
 
 function renderSubjectOptions() {
@@ -503,6 +740,27 @@ function renderSubjectOptions() {
   });
 
   sessionSubjectSelect.value = getSubjectById(currentValue) ? currentValue : appData.selectedSubjectId;
+}
+
+function renderTaskSubjectOptions() {
+  if (!taskSubjectInput) return;
+
+  const currentValue = taskSubjectInput.value;
+  taskSubjectInput.innerHTML = "";
+
+  const emptyOption = document.createElement("option");
+  emptyOption.value = "";
+  emptyOption.textContent = "No subject";
+  taskSubjectInput.appendChild(emptyOption);
+
+  appData.subjects.forEach(function (subject) {
+    const option = document.createElement("option");
+    option.value = subject.id;
+    option.textContent = subject.name;
+    taskSubjectInput.appendChild(option);
+  });
+
+  taskSubjectInput.value = getSubjectById(currentValue) ? currentValue : "";
 }
 
 function renderSubjectBreakdown(container) {
@@ -532,21 +790,108 @@ function renderSubjectBreakdown(container) {
     });
 }
 
+function renderAnalyticsSubjectBreakdown(sessions, range) {
+  subjectInsights.innerHTML = "";
+
+  if (range === "today") {
+    renderSubjectBreakdown(subjectInsights);
+    return;
+  }
+
+  const totalsBySubject = {};
+  sessions.forEach(function (session) {
+    const subjectName = session.subjectName || getSubjectName(session.subjectId);
+    totalsBySubject[subjectName] = (totalsBySubject[subjectName] || 0) + Number(session.durationSeconds || 0);
+  });
+
+  const rows = Object.keys(totalsBySubject).map(function (subjectName) {
+    return { name: subjectName, seconds: totalsBySubject[subjectName] };
+  });
+
+  if (rows.length === 0) {
+    appendSimpleItem(subjectInsights, "No subject time for this range yet.");
+    return;
+  }
+
+  rows
+    .sort(function (first, second) { return second.seconds - first.seconds; })
+    .forEach(function (rowData) {
+      const row = document.createElement("div");
+      row.className = "insight-row";
+      const name = document.createElement("span");
+      const time = document.createElement("strong");
+      name.textContent = rowData.name;
+      time.textContent = formatShortTime(rowData.seconds);
+      row.appendChild(name);
+      row.appendChild(time);
+      subjectInsights.appendChild(row);
+    });
+}
+
+function renderAnalyticsChart(range) {
+  analyticsChart.innerHTML = "";
+  const days = range === "month" ? 30 : 7;
+  const labels = [];
+  const totals = [];
+
+  for (let index = days - 1; index >= 0; index -= 1) {
+    const date = new Date();
+    date.setDate(date.getDate() - index);
+    const dateKey = getDateKeyFromDate(date);
+    const dayTotal = appData.sessions
+      .filter(function (session) { return session.date === dateKey; })
+      .reduce(function (total, session) { return total + Number(session.durationSeconds || 0); }, 0);
+
+    labels.push(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+    totals.push(dateKey === getTodayKey() ? Math.max(dayTotal, appData.studySeconds) : dayTotal);
+  }
+
+  const maxSeconds = Math.max(...totals, 1);
+  analyticsChartTitle.textContent = `${getRangeLabel(range)} Study Chart`;
+
+  totals.forEach(function (seconds, index) {
+    const column = document.createElement("div");
+    column.className = "bar-column";
+
+    const fill = document.createElement("span");
+    fill.className = "bar-fill";
+    fill.style.height = `${Math.max((seconds / maxSeconds) * 100, seconds > 0 ? 8 : 2)}%`;
+    fill.title = `${labels[index]}: ${formatShortTime(seconds)}`;
+
+    const label = document.createElement("small");
+    label.className = "bar-label";
+    label.textContent = range === "month" ? String(index + 1) : labels[index].split(" ")[1];
+
+    column.appendChild(fill);
+    column.appendChild(label);
+    analyticsChart.appendChild(column);
+  });
+}
+
 function renderRecentSessions() {
   recentSessionList.innerHTML = "";
+  const sessions = appData.selectedHistoryRange === "previous"
+    ? appData.sessions.filter(function (session) { return session.date !== getTodayKey(); })
+    : appData.sessions.filter(function (session) { return session.date === getTodayKey(); });
 
-  if (appData.sessions.length === 0) {
+  historyTabs.forEach(function (tab) {
+    const isActive = tab.dataset.historyRange === appData.selectedHistoryRange;
+    tab.classList.toggle("active", isActive);
+    tab.classList.toggle("secondary-button", !isActive);
+  });
+
+  if (sessions.length === 0) {
     appendSimpleItem(recentSessionList, "No saved sessions yet.");
     return;
   }
 
-  appData.sessions.slice(0, 5).forEach(function (session) {
+  sessions.slice(0, 8).forEach(function (session) {
     const item = document.createElement("article");
     item.className = "session-history-item";
     const title = document.createElement("strong");
     const detail = document.createElement("span");
-    title.textContent = session.subjectName;
-    detail.textContent = `${session.mode} • ${formatClockTime(session.startedAt)} to ${formatClockTime(session.endedAt)} • ${formatShortTime(session.durationSeconds)}`;
+    title.textContent = session.subjectName || getSubjectName(session.subjectId);
+    detail.textContent = `${session.mode} - ${formatClockTime(session.startedAt)} to ${formatClockTime(session.endedAt)} - ${formatShortTime(session.durationSeconds)}`;
     item.appendChild(title);
     item.appendChild(detail);
     recentSessionList.appendChild(item);
@@ -556,13 +901,20 @@ function renderRecentSessions() {
 function startSession() {
   if (appData.activeSession) return;
 
+  appData.customFocusMinutes = Math.max(1, Number(customFocusInput.value) || appData.customFocusMinutes);
+  appData.customBreakMinutes = Math.max(0, Number(customBreakInput.value) || 0);
   appData.selectedSubjectId = sessionSubjectSelect.value || appData.selectedSubjectId;
+  const mode = getSelectedTimerMode();
   appData.activeSession = {
     id: createId(),
-    mode: "Stopwatch",
+    mode: mode.name,
+    modeId: mode.id,
+    phase: "focus",
     subjectId: appData.selectedSubjectId,
     startedAt: new Date().toISOString(),
-    elapsedSeconds: 0
+    elapsedSeconds: 0,
+    focusSeconds: getTimerFocusSeconds(),
+    breakSeconds: getTimerBreakSeconds()
   };
 
   saveData();
@@ -584,6 +936,14 @@ function tickStudySession() {
 
   updateSessionPage();
   updateHome();
+
+  if (appData.activeSession.focusSeconds && getSessionElapsedSeconds() >= appData.activeSession.focusSeconds) {
+    if (appData.activeSession.phase === "focus") {
+      completeFocusPhase();
+    } else {
+      completeBreakPhase();
+    }
+  }
 }
 
 function pauseSession(shouldRecordSession = true) {
@@ -592,10 +952,12 @@ function pauseSession(shouldRecordSession = true) {
   const durationSeconds = getSessionElapsedSeconds();
   const subject = getSubjectById(appData.activeSession.subjectId) || getSelectedSubject();
 
-  appData.studySeconds += durationSeconds;
-  subject.seconds += durationSeconds;
+  if (appData.activeSession.phase === "focus") {
+    appData.studySeconds += durationSeconds;
+    subject.seconds += durationSeconds;
+  }
 
-  if (shouldRecordSession && durationSeconds > 0) {
+  if (shouldRecordSession && durationSeconds > 0 && appData.activeSession.phase === "focus") {
     appData.sessions.unshift({
       id: appData.activeSession.id,
       date: getTodayKey(),
@@ -615,10 +977,70 @@ function pauseSession(shouldRecordSession = true) {
   updateAllDisplays();
 }
 
+function completeFocusPhase() {
+  const activeSession = appData.activeSession;
+  if (!activeSession) return;
+
+  pauseSession(true);
+
+  if (activeSession.breakSeconds > 0) {
+    appData.activeSession = {
+      id: createId(),
+      mode: activeSession.mode,
+      modeId: activeSession.modeId,
+      phase: "break",
+      subjectId: activeSession.subjectId,
+      startedAt: new Date().toISOString(),
+      elapsedSeconds: 0,
+      focusSeconds: activeSession.breakSeconds,
+      breakSeconds: 0
+    };
+    saveData();
+    resumeSessionTimer();
+  }
+
+  updateAllDisplays();
+}
+
+function completeBreakPhase() {
+  if (!appData.activeSession) return;
+  appData.activeSession = null;
+  clearInterval(sessionTimerId);
+  sessionTimerId = null;
+  saveData();
+  updateAllDisplays();
+}
+
+function skipSession() {
+  if (!appData.activeSession) return;
+
+  if (appData.activeSession.phase === "focus") {
+    completeFocusPhase();
+  } else {
+    completeBreakPhase();
+  }
+}
+
+function changeTimerMode(direction) {
+  if (appData.activeSession) return;
+  appData.timerModeIndex = (appData.timerModeIndex + direction + timerModes.length) % timerModes.length;
+  saveData();
+  updateSessionPage();
+}
+
+function saveCustomTimerSettings() {
+  if (appData.activeSession) return;
+  appData.customFocusMinutes = Math.max(1, Number(customFocusInput.value) || 1);
+  appData.customBreakMinutes = Math.max(0, Number(customBreakInput.value) || 0);
+  saveData();
+  updateSessionPage();
+}
+
 function resetSession() {
   pauseSession(false);
   sessionDisplay.textContent = "0h 00m 00s";
   sessionStatus.textContent = "Not started";
+  sessionProgressBar.style.width = "0%";
 }
 
 function changeSessionSubject() {
@@ -662,11 +1084,13 @@ function saveIntention(event) {
   updateAllDisplays();
 }
 
-function createTask(text) {
+function createTask(text, date, subjectId) {
   return {
     id: createId(),
     text,
-    completed: false
+    completed: false,
+    date,
+    subjectId
   };
 }
 
@@ -675,8 +1099,10 @@ function addTask(event) {
   const taskText = taskInput.value.trim();
   if (!taskText) return;
 
-  appData.tasks.push(createTask(taskText));
+  appData.tasks.push(createTask(taskText, taskDateInput.value, taskSubjectInput.value));
   taskInput.value = "";
+  taskDateInput.value = "";
+  taskSubjectInput.value = "";
   saveData();
   renderTasks();
   updateAllDisplays();
@@ -727,6 +1153,13 @@ function renderTaskGroup(listElement, tasks) {
     taskText.className = "task-text";
     taskText.textContent = task.text;
 
+    const taskMeta = document.createElement("small");
+    taskMeta.className = "task-meta";
+    const metaParts = [];
+    if (task.date) metaParts.push(task.date);
+    if (task.subjectId) metaParts.push(getSubjectName(task.subjectId));
+    taskMeta.textContent = metaParts.join(" - ");
+
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "delete-button";
@@ -735,6 +1168,7 @@ function renderTaskGroup(listElement, tasks) {
 
     listItem.appendChild(checkbox);
     listItem.appendChild(taskText);
+    if (taskMeta.textContent) listItem.appendChild(taskMeta);
     listItem.appendChild(deleteButton);
     listElement.appendChild(listItem);
   });
@@ -748,6 +1182,266 @@ function saveGoal(event) {
   appData.goalHours = goalHours;
   saveData();
   updateAllDisplays();
+}
+
+function renderPlanner() {
+  renderCalendar();
+  renderPlannerItems();
+}
+
+function renderCalendar() {
+  const monthDate = new Date(appData.plannerYear, appData.plannerMonth, 1);
+  const firstDay = monthDate.getDay();
+  const daysInMonth = new Date(appData.plannerYear, appData.plannerMonth + 1, 0).getDate();
+
+  plannerMonthLabel.textContent = monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  calendarGrid.innerHTML = "";
+
+  for (let blank = 0; blank < firstDay; blank += 1) {
+    const spacer = document.createElement("span");
+    spacer.className = "calendar-day calendar-day-empty";
+    calendarGrid.appendChild(spacer);
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = getDateKeyFromDate(new Date(appData.plannerYear, appData.plannerMonth, day));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "calendar-day";
+    button.classList.toggle("active", dateKey === appData.selectedPlannerDate);
+    button.classList.toggle("today", dateKey === getTodayKey());
+    button.textContent = day;
+
+    const itemsForDay = appData.plannerItems.filter(function (item) { return item.date === dateKey; });
+    const examsForDay = appData.exams.filter(function (exam) { return exam.date === dateKey; });
+    if (itemsForDay.length > 0 || examsForDay.length > 0) {
+      const dots = document.createElement("span");
+      dots.className = "calendar-dots";
+      if (itemsForDay.length > 0) dots.appendChild(createCalendarDot("Plan"));
+      if (examsForDay.length > 0) dots.appendChild(createCalendarDot("Exam"));
+      button.appendChild(dots);
+    }
+
+    button.addEventListener("click", function () {
+      appData.selectedPlannerDate = dateKey;
+      saveData();
+      renderPlanner();
+    });
+
+    calendarGrid.appendChild(button);
+  }
+}
+
+function createCalendarDot(label) {
+  const dot = document.createElement("span");
+  dot.className = "calendar-dot";
+  dot.title = label;
+  return dot;
+}
+
+function addPlannerItem(event) {
+  event.preventDefault();
+  const title = plannerTitleInput.value.trim();
+  if (!title) return;
+
+  appData.plannerItems.push({
+    id: createId(),
+    date: appData.selectedPlannerDate,
+    type: plannerTypeInput.value,
+    title
+  });
+
+  plannerTitleInput.value = "";
+  saveData();
+  renderPlanner();
+}
+
+function renderPlannerItems() {
+  const selectedDate = new Date(`${appData.selectedPlannerDate}T00:00:00`);
+  const itemsForDay = appData.plannerItems.filter(function (item) {
+    return item.date === appData.selectedPlannerDate;
+  });
+  const examsForDay = appData.exams.filter(function (exam) {
+    return exam.date === appData.selectedPlannerDate;
+  });
+
+  selectedDateLabel.textContent = selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  plannerItems.innerHTML = "";
+
+  if (itemsForDay.length === 0 && examsForDay.length === 0) {
+    appendSimpleItem(plannerItems, "Nothing planned for this date yet.");
+    return;
+  }
+
+  itemsForDay.forEach(function (item) {
+    const card = document.createElement("article");
+    card.className = "planner-item";
+    const title = document.createElement("strong");
+    const type = document.createElement("small");
+    const deleteButton = document.createElement("button");
+
+    title.textContent = item.title;
+    type.textContent = item.type;
+    deleteButton.type = "button";
+    deleteButton.className = "delete-button";
+    deleteButton.textContent = "Delete";
+    deleteButton.addEventListener("click", function () { deletePlannerItem(item.id); });
+
+    card.appendChild(title);
+    card.appendChild(type);
+    card.appendChild(deleteButton);
+    plannerItems.appendChild(card);
+  });
+
+  examsForDay.forEach(function (exam) {
+    const card = document.createElement("article");
+    card.className = "planner-item";
+    const title = document.createElement("strong");
+    const type = document.createElement("small");
+    title.textContent = exam.name;
+    type.textContent = `Exam - ${exam.subject}`;
+    card.appendChild(title);
+    card.appendChild(type);
+    plannerItems.appendChild(card);
+  });
+}
+
+function deletePlannerItem(itemId) {
+  appData.plannerItems = appData.plannerItems.filter(function (item) {
+    return item.id !== itemId;
+  });
+  saveData();
+  renderPlanner();
+}
+
+function changePlannerMonth(direction) {
+  const nextDate = new Date(appData.plannerYear, appData.plannerMonth + direction, 1);
+  appData.plannerMonth = nextDate.getMonth();
+  appData.plannerYear = nextDate.getFullYear();
+  saveData();
+  renderPlanner();
+}
+
+function addExam(event) {
+  event.preventDefault();
+  const topics = examTopicsInput.value
+    .split("\n")
+    .map(function (topic) { return topic.trim(); })
+    .filter(Boolean)
+    .map(function (topic) {
+      return { id: createId(), title: topic, completed: false };
+    });
+
+  appData.exams.push({
+    id: createId(),
+    name: examNameInput.value.trim(),
+    subject: examSubjectInput.value.trim(),
+    date: examDateInput.value,
+    time: examTimeInput.value,
+    topics,
+    notes: examNotesInput.value.trim()
+  });
+
+  examForm.reset();
+  saveData();
+  renderExams();
+  renderPlanner();
+}
+
+function renderExams() {
+  examList.innerHTML = "";
+
+  if (appData.exams.length === 0) {
+    appendSimpleItem(examList, "No exams saved yet.");
+    return;
+  }
+
+  appData.exams
+    .slice()
+    .sort(function (first, second) {
+      return new Date(first.date) - new Date(second.date);
+    })
+    .forEach(function (exam) {
+      const card = document.createElement("article");
+      card.className = "exam-card";
+
+      const title = document.createElement("h3");
+      const meta = document.createElement("p");
+      const countdown = document.createElement("strong");
+      const topicList = document.createElement("ul");
+      const notes = document.createElement("p");
+      const deleteButton = document.createElement("button");
+
+      title.textContent = exam.name;
+      meta.className = "muted-text";
+      meta.textContent = `${exam.subject} - ${exam.date}${exam.time ? ` at ${exam.time}` : ""}`;
+      countdown.textContent = getExamCountdown(exam.date);
+      topicList.className = "syllabus-list";
+      notes.className = "muted-text";
+      notes.textContent = exam.notes;
+      deleteButton.type = "button";
+      deleteButton.className = "delete-button";
+      deleteButton.textContent = "Delete Exam";
+      deleteButton.addEventListener("click", function () { deleteExam(exam.id); });
+
+      exam.topics.forEach(function (topic) {
+        const item = document.createElement("li");
+        const checkbox = document.createElement("input");
+        const label = document.createElement("span");
+        checkbox.type = "checkbox";
+        checkbox.checked = topic.completed;
+        checkbox.addEventListener("change", function () { toggleExamTopic(exam.id, topic.id); });
+        label.textContent = topic.title;
+        item.classList.toggle("completed", topic.completed);
+        item.appendChild(checkbox);
+        item.appendChild(label);
+        topicList.appendChild(item);
+      });
+
+      card.appendChild(title);
+      card.appendChild(meta);
+      card.appendChild(countdown);
+      if (exam.topics.length > 0) card.appendChild(topicList);
+      if (exam.notes) card.appendChild(notes);
+      card.appendChild(deleteButton);
+      examList.appendChild(card);
+    });
+}
+
+function getExamCountdown(dateKey) {
+  const today = new Date(`${getTodayKey()}T00:00:00`);
+  const examDate = new Date(`${dateKey}T00:00:00`);
+  const daysLeft = Math.round((examDate - today) / 86400000);
+
+  if (daysLeft < 0) return "Completed";
+  if (daysLeft === 0) return "Today";
+  if (daysLeft === 1) return "1 day left";
+  return `${daysLeft} days left`;
+}
+
+function toggleExamTopic(examId, topicId) {
+  appData.exams = appData.exams.map(function (exam) {
+    if (exam.id !== examId) return exam;
+
+    return {
+      ...exam,
+      topics: exam.topics.map(function (topic) {
+        return topic.id === topicId ? { ...topic, completed: !topic.completed } : topic;
+      })
+    };
+  });
+
+  saveData();
+  renderExams();
+}
+
+function deleteExam(examId) {
+  appData.exams = appData.exams.filter(function (exam) {
+    return exam.id !== examId;
+  });
+  saveData();
+  renderExams();
+  renderPlanner();
 }
 
 function addDistraction(event) {
@@ -790,8 +1484,19 @@ function renderDistractions() {
 
 function renderLeaderboard() {
   leaderboardTable.innerHTML = "";
+  const range = appData.selectedLeaderboardRange;
+  const sessions = getSessionsForRange(range);
+  const rangeSeconds = range === "today" ? appData.studySeconds : getSecondsFromSessions(sessions);
+  const rangeTasks = getTasksForRange(range).filter(function (task) { return task.completed; }).length;
+
+  leaderboardTabs.forEach(function (tab) {
+    const isActive = tab.dataset.leaderboardRange === range;
+    tab.classList.toggle("active", isActive);
+    tab.classList.toggle("secondary-button", !isActive);
+  });
+
   const users = [
-    { rank: 1, name: "You", time: formatShortTime(appData.studySeconds), streak: `${appData.streak} days`, tasks: getCompletedTaskCount(), source: "Your local data" },
+    { rank: 1, name: "You", time: formatShortTime(rangeSeconds), streak: `${appData.streak} days`, tasks: rangeTasks, source: "Your local data" },
     { rank: 2, name: "Demo Maya", time: "3h 20m", streak: "5 days", tasks: 6, source: "Demo data" },
     { rank: 3, name: "Demo Arif", time: "2h 45m", streak: "3 days", tasks: 4, source: "Demo data" }
   ];
@@ -1210,6 +1915,11 @@ homeOpenSession.addEventListener("click", function () { showSection("focus-hub")
 sessionStartButton.addEventListener("click", startSession);
 sessionPauseButton.addEventListener("click", function () { pauseSession(true); });
 sessionResetButton.addEventListener("click", resetSession);
+sessionSkipButton.addEventListener("click", skipSession);
+timerModePrev.addEventListener("click", function () { changeTimerMode(-1); });
+timerModeNext.addEventListener("click", function () { changeTimerMode(1); });
+customFocusInput.addEventListener("change", saveCustomTimerSettings);
+customBreakInput.addEventListener("change", saveCustomTimerSettings);
 sessionSubjectSelect.addEventListener("change", changeSessionSubject);
 subjectForm.addEventListener("submit", addSubject);
 intentionForm.addEventListener("submit", saveIntention);
@@ -1218,6 +1928,10 @@ intentionInput.addEventListener("input", function () {
 });
 taskForm.addEventListener("submit", addTask);
 goalForm.addEventListener("submit", saveGoal);
+plannerPrev.addEventListener("click", function () { changePlannerMonth(-1); });
+plannerNext.addEventListener("click", function () { changePlannerMonth(1); });
+plannerForm.addEventListener("submit", addPlannerItem);
+examForm.addEventListener("submit", addExam);
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
 resetAccentButton.addEventListener("click", resetAccentColor);
@@ -1226,6 +1940,30 @@ circleForm.addEventListener("submit", saveCircle);
 roomForm.addEventListener("submit", createFocusRoom);
 leaveRoomButton.addEventListener("click", function () { leaveFocusRoom(true); });
 menuToggle.addEventListener("click", toggleSidebar);
+
+historyTabs.forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    appData.selectedHistoryRange = tab.dataset.historyRange;
+    saveData();
+    renderRecentSessions();
+  });
+});
+
+analyticsTabs.forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    appData.selectedAnalyticsRange = tab.dataset.analyticsRange;
+    saveData();
+    updateInsights();
+  });
+});
+
+leaderboardTabs.forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    appData.selectedLeaderboardRange = tab.dataset.leaderboardRange;
+    saveData();
+    renderLeaderboard();
+  });
+});
 
 loadData();
 applyAppearance();

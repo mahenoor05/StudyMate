@@ -46,6 +46,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M8 3v4M16 3v4M4 10h16"></path></svg>
         <span>Planner</span>
       </button>
+      <button class="nav-link nested-link" type="button" data-section="exams" title="Exams">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"></path><path d="M8 9h8M8 13h5M16 17l2 2 3-4"></path></svg>
+        <span>Exams</span>
+      </button>
 
       <button class="nav-link" type="button" data-section="insights" title="Analytics">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"></path><path d="M4 19h16"></path><rect x="7" y="11" width="3" height="5"></rect><rect x="12" y="8" width="3" height="8"></rect><rect x="17" y="4" width="3" height="12"></rect></svg>
@@ -176,7 +180,33 @@
 
       <div class="session-layout">
         <article class="panel timer-panel session-timer-card">
+          <div class="timer-mode-switcher">
+            <button type="button" class="secondary-button icon-only-button" id="timer-mode-prev" aria-label="Previous timer mode">‹</button>
+            <div>
+              <p class="eyebrow">Timer Mode</p>
+              <h3 id="timer-mode-title">Stopwatch</h3>
+              <p class="muted-text" id="timer-mode-description">Count up while you study.</p>
+            </div>
+            <button type="button" class="secondary-button icon-only-button" id="timer-mode-next" aria-label="Next timer mode">›</button>
+          </div>
+
+          <div class="mode-indicators" id="timer-mode-indicators"></div>
+
+          <div class="custom-timer-settings" id="custom-timer-settings">
+            <label>
+              Focus minutes
+              <input id="custom-focus-input" type="number" min="1" step="1">
+            </label>
+            <label>
+              Break minutes
+              <input id="custom-break-input" type="number" min="0" step="1">
+            </label>
+          </div>
+
           <div class="timer-display" id="session-display">0h 00m 00s</div>
+          <div class="progress-bar timer-progress" aria-label="Current timer progress">
+            <span id="session-progress-bar"></span>
+          </div>
 
           <label class="field-label" for="session-subject-select">Current Subject</label>
           <select id="session-subject-select"></select>
@@ -191,6 +221,7 @@
             <button type="button" id="session-start">Start</button>
             <button type="button" class="secondary-button" id="session-pause">Pause</button>
             <button type="button" class="secondary-button" id="session-reset">Reset</button>
+            <button type="button" class="secondary-button" id="session-skip">Skip</button>
           </div>
         </article>
 
@@ -207,6 +238,10 @@
 
           <article class="panel">
             <h3>Recent Sessions</h3>
+            <div class="history-tabs">
+              <button type="button" class="history-tab active" data-history-range="today">Today</button>
+              <button type="button" class="history-tab secondary-button" data-history-range="previous">Previous</button>
+            </div>
             <div class="recent-sessions" id="recent-session-list"></div>
           </article>
         </aside>
@@ -236,16 +271,26 @@
         <form class="inline-form" id="task-form">
           <label class="sr-only" for="task-input">New task</label>
           <input id="task-input" type="text" placeholder="Add a study task">
+          <input id="task-date-input" type="date" aria-label="Task due date">
+          <select id="task-subject-input" aria-label="Task subject"></select>
           <button type="submit">Add Task</button>
         </form>
-        <div class="task-columns">
-          <div>
-            <h3>Pending</h3>
-            <ul class="task-list" id="pending-task-list"></ul>
+        <div class="plan-layout">
+          <div class="task-columns">
+            <div>
+              <h3>Pending</h3>
+              <ul class="task-list" id="pending-task-list"></ul>
+            </div>
+            <div>
+              <h3>Completed</h3>
+              <ul class="task-list" id="completed-task-list"></ul>
+            </div>
           </div>
-          <div>
-            <h3>Completed</h3>
-            <ul class="task-list" id="completed-task-list"></ul>
+          <div class="plan-goal-card">
+            <p class="eyebrow">Daily Goal</p>
+            <strong id="plan-goal-progress">0%</strong>
+            <p class="muted-text" id="plan-goal-copy">0h / 0 Hours</p>
+            <div class="progress-bar"><span id="plan-goal-bar"></span></div>
           </div>
         </div>
       </article>
@@ -254,26 +299,88 @@
     <section class="app-section" id="goals">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Goals</p>
-          <h2>Daily Study Goal</h2>
+          <p class="eyebrow">Planner</p>
+          <h2>Monthly Planner</h2>
         </div>
       </div>
 
-      <article class="panel">
-        <form class="inline-form" id="goal-form">
-          <label for="goal-input">Daily Study Goal (Hours)</label>
-          <input id="goal-input" type="number" min="0.25" step="0.25" placeholder="3.5">
-          <button type="submit">Save Goal</button>
-        </form>
-        <div class="goal-panel">
-          <p class="eyebrow">Today's Goal</p>
-          <strong id="goal-target">0 Hours</strong>
-          <p id="goal-summary">0% complete</p>
-          <div class="progress-bar" aria-label="Goal progress">
-            <span id="goal-bar"></span>
+      <div class="planner-layout">
+        <article class="panel">
+          <div class="calendar-header">
+            <button type="button" class="secondary-button icon-only-button" id="planner-prev">‹</button>
+            <h3 id="planner-month-label">Month Year</h3>
+            <button type="button" class="secondary-button icon-only-button" id="planner-next">›</button>
           </div>
+          <div class="calendar-grid calendar-weekdays">
+            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+          </div>
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </article>
+
+        <article class="panel">
+          <h3 id="selected-date-label">Select a date</h3>
+          <form class="stacked-form" id="planner-form">
+            <label for="planner-type-input">Type</label>
+            <select id="planner-type-input">
+              <option value="task">Task</option>
+              <option value="study">Study Plan</option>
+              <option value="reminder">Reminder</option>
+              <option value="exam">Exam</option>
+            </select>
+            <label for="planner-title-input">Title</label>
+            <input id="planner-title-input" type="text" placeholder="Revise chapter 4">
+            <button type="submit">Add to Date</button>
+          </form>
+          <div class="planner-items" id="planner-items"></div>
+        </article>
+
+        <article class="panel">
+          <form class="inline-form" id="goal-form">
+            <label for="goal-input">Daily Study Goal (Hours)</label>
+            <input id="goal-input" type="number" min="0.25" step="0.25" placeholder="3.5">
+            <button type="submit">Save Goal</button>
+          </form>
+          <div class="goal-panel">
+            <p class="eyebrow">Today's Goal</p>
+            <strong id="goal-target">0 Hours</strong>
+            <p id="goal-summary">0% complete</p>
+            <div class="progress-bar" aria-label="Goal progress">
+              <span id="goal-bar"></span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="app-section" id="exams">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">Exams</p>
+          <h2>Exam Tracker</h2>
         </div>
-      </article>
+      </div>
+
+      <div class="exam-layout">
+        <article class="panel">
+          <h3>Create Exam</h3>
+          <form class="stacked-form" id="exam-form">
+            <label for="exam-name-input">Exam Name</label>
+            <input id="exam-name-input" type="text" placeholder="DBMS Final" required>
+            <label for="exam-subject-input">Subject</label>
+            <input id="exam-subject-input" type="text" placeholder="Database Systems" required>
+            <label for="exam-date-input">Exam Date</label>
+            <input id="exam-date-input" type="date" required>
+            <label for="exam-time-input">Optional Time</label>
+            <input id="exam-time-input" type="time">
+            <label for="exam-topics-input">Syllabus Topics</label>
+            <textarea id="exam-topics-input" rows="4" placeholder="Normalization&#10;Transactions&#10;Indexing"></textarea>
+            <label for="exam-notes-input">Notes</label>
+            <textarea id="exam-notes-input" rows="3" placeholder="Focus on previous paper questions"></textarea>
+            <button type="submit">Save Exam</button>
+          </form>
+        </article>
+        <section class="exam-list" id="exam-list"></section>
+      </div>
     </section>
 
     <section class="app-section" id="insights">
@@ -284,9 +391,15 @@
         </div>
       </div>
 
+      <div class="analytics-tabs">
+        <button type="button" class="analytics-tab active" data-analytics-range="today">Today</button>
+        <button type="button" class="analytics-tab secondary-button" data-analytics-range="week">Week</button>
+        <button type="button" class="analytics-tab secondary-button" data-analytics-range="month">Month</button>
+      </div>
+
       <div class="summary-grid compact-grid">
         <article class="metric-card">
-          <span>Today's Total</span>
+          <span id="analytics-total-label">Today's Total</span>
           <strong id="insight-total-time">0h 00m</strong>
         </article>
         <article class="metric-card">
@@ -302,6 +415,11 @@
       <article class="panel">
         <h3>Subject Breakdown</h3>
         <div class="insight-list" id="subject-insights"></div>
+      </article>
+
+      <article class="panel">
+        <h3 id="analytics-chart-title">Daily Study Chart</h3>
+        <div class="bar-chart" id="analytics-chart"></div>
       </article>
     </section>
 
@@ -460,11 +578,18 @@
       <div class="section-header">
         <div>
           <p class="eyebrow">Leaderboard</p>
-          <h2>Friendly ranking preview</h2>
+          <h2>Top Focus</h2>
         </div>
       </div>
 
+      <div class="leaderboard-tabs">
+        <button type="button" class="leaderboard-tab active" data-leaderboard-range="today">Today</button>
+        <button type="button" class="leaderboard-tab secondary-button" data-leaderboard-range="week">Week</button>
+        <button type="button" class="leaderboard-tab secondary-button" data-leaderboard-range="month">Month</button>
+      </div>
+
       <article class="panel">
+        <p class="muted-text">Your row uses local data. Demo rows are clearly labelled until backend accounts exist.</p>
         <div class="leaderboard-table" id="leaderboard-table"></div>
       </article>
     </section>
