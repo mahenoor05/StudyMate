@@ -1,6 +1,20 @@
 const STORAGE_KEY = "studymate-app-v3";
 const OLD_STORAGE_KEYS = ["studymate-app-v2", "studymate-dashboard"];
-const POMODORO_SECONDS = 25 * 60;
+const DEFAULT_POMODORO_SETTINGS = {
+  studyMinutes: 25,
+  shortBreakMinutes: 5,
+  longBreakMinutes: 15,
+  tickSound: false,
+  bellSound: false
+};
+
+const pomodoroQuotes = [
+  "One focused session can change the shape of the day.",
+  "Study gently, but do not disappear from the work.",
+  "The next ten minutes count. Begin there.",
+  "Clear attention is a skill. Train it one session at a time.",
+  "Small progress is still proof that you showed up."
+];
 
 const themes = [
   { id: "midnight", name: "Midnight Black" },
@@ -13,6 +27,7 @@ const themes = [
   { id: "light", name: "Minimal Light" }
 ];
 
+const menuToggle = document.getElementById("menu-toggle");
 const navButtons = document.querySelectorAll(".nav-link");
 const sections = document.querySelectorAll(".app-section");
 
@@ -42,6 +57,21 @@ const pomodoroStatus = document.getElementById("pomodoro-status");
 const pomodoroStartButton = document.getElementById("pomodoro-start");
 const pomodoroPauseButton = document.getElementById("pomodoro-pause");
 const pomodoroResetButton = document.getElementById("pomodoro-reset");
+const pomodoroSkipButton = document.getElementById("pomodoro-skip");
+const pomodoroSessionLabel = document.getElementById("pomodoro-session-label");
+const pomodoroCycleLabel = document.getElementById("pomodoro-cycle-label");
+const pomodoroSessionCounter = document.getElementById("pomodoro-session-counter");
+const pomodoroProgressBar = document.getElementById("pomodoro-progress-bar");
+const pomodoroCompletedWidget = document.getElementById("pomodoro-completed-widget");
+const pomodoroFocusTimeWidget = document.getElementById("pomodoro-focus-time-widget");
+const pomodoroStreakWidget = document.getElementById("pomodoro-streak-widget");
+const pomodoroSettingsForm = document.getElementById("pomodoro-settings-form");
+const studyDurationInput = document.getElementById("study-duration-input");
+const shortBreakInput = document.getElementById("short-break-input");
+const longBreakInput = document.getElementById("long-break-input");
+const pomodoroQuote = document.getElementById("pomodoro-quote");
+const tickSoundToggle = document.getElementById("tick-sound-toggle");
+const bellSoundToggle = document.getElementById("bell-sound-toggle");
 
 const taskForm = document.getElementById("task-form");
 const taskInput = document.getElementById("task-input");
@@ -72,7 +102,7 @@ let overallTimerId = null;
 let subjectTimerId = null;
 let activeSubjectId = null;
 let pomodoroTimerId = null;
-let pomodoroSecondsLeft = POMODORO_SECONDS;
+let pomodoroAudioContext = null;
 
 let appData = createDefaultData();
 
@@ -81,9 +111,14 @@ function createDefaultData() {
     date: getTodayKey(),
     theme: "midnight",
     accentColor: "#7c5cff",
+    sidebarCollapsed: false,
     overallSeconds: 0,
     pomodoroCompleted: 0,
-    goalMinutes: 120,
+    pomodoroFocusSeconds: 0,
+    pomodoroCycleIndex: 0,
+    pomodoroSecondsLeft: DEFAULT_POMODORO_SETTINGS.studyMinutes * 60,
+    pomodoroSettings: { ...DEFAULT_POMODORO_SETTINGS },
+    goalHours: 2,
     streak: 0,
     tasks: [],
     subjects: [],
@@ -149,9 +184,17 @@ function migrateOldData(oldData) {
       ...createDefaultData(),
       date: parsedOldData.date || getTodayKey(),
       theme: parsedOldData.theme || (parsedOldData.darkMode === false ? "light" : "midnight"),
+      sidebarCollapsed: Boolean(parsedOldData.sidebarCollapsed),
       overallSeconds: parsedOldData.overallSeconds || parsedOldData.completedSeconds || 0,
       pomodoroCompleted: parsedOldData.pomodoroCompleted || parsedOldData.completedPomodoros || 0,
-      goalMinutes: parsedOldData.goalMinutes || 120,
+      pomodoroFocusSeconds: parsedOldData.pomodoroFocusSeconds || 0,
+      pomodoroCycleIndex: parsedOldData.pomodoroCycleIndex || 0,
+      pomodoroSecondsLeft: parsedOldData.pomodoroSecondsLeft || DEFAULT_POMODORO_SETTINGS.studyMinutes * 60,
+      pomodoroSettings: {
+        ...DEFAULT_POMODORO_SETTINGS,
+        ...(parsedOldData.pomodoroSettings || {})
+      },
+      goalHours: parsedOldData.goalHours || (parsedOldData.goalMinutes ? parsedOldData.goalMinutes / 60 : 2),
       streak: parsedOldData.streak || 0,
       tasks: Array.isArray(parsedOldData.tasks) ? parsedOldData.tasks : [],
       subjects: Array.isArray(parsedOldData.subjects) ? parsedOldData.subjects : []
@@ -182,8 +225,27 @@ function normalizeData() {
     appData.pomodoroCompleted = 0;
   }
 
-  if (typeof appData.goalMinutes !== "number") {
-    appData.goalMinutes = 120;
+  if (typeof appData.pomodoroFocusSeconds !== "number") {
+    appData.pomodoroFocusSeconds = 0;
+  }
+
+  if (typeof appData.pomodoroCycleIndex !== "number") {
+    appData.pomodoroCycleIndex = 0;
+  }
+
+  appData.pomodoroCycleIndex = appData.pomodoroCycleIndex % 4;
+
+  appData.pomodoroSettings = {
+    ...DEFAULT_POMODORO_SETTINGS,
+    ...(appData.pomodoroSettings || {})
+  };
+
+  if (typeof appData.pomodoroSecondsLeft !== "number") {
+    appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
+  }
+
+  if (typeof appData.goalHours !== "number") {
+    appData.goalHours = typeof appData.goalMinutes === "number" ? appData.goalMinutes / 60 : 2;
   }
 
   if (typeof appData.streak !== "number") {
@@ -195,6 +257,9 @@ function resetDailyData() {
   appData.date = getTodayKey();
   appData.overallSeconds = 0;
   appData.pomodoroCompleted = 0;
+  appData.pomodoroFocusSeconds = 0;
+  appData.pomodoroCycleIndex = 0;
+  appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
   appData.tasks = [];
   appData.distractions = [];
 
@@ -243,6 +308,43 @@ function formatPomodoroTime(seconds) {
   return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
 }
 
+function getPomodoroCycle() {
+  return [
+    {
+      type: "study",
+      label: "🟢 Study",
+      counter: "Study Session #1",
+      duration: appData.pomodoroSettings.studyMinutes * 60
+    },
+    {
+      type: "short-break",
+      label: "☕ Short Break",
+      counter: "Short Break",
+      duration: appData.pomodoroSettings.shortBreakMinutes * 60
+    },
+    {
+      type: "study",
+      label: "🟢 Study",
+      counter: "Study Session #2",
+      duration: appData.pomodoroSettings.studyMinutes * 60
+    },
+    {
+      type: "long-break",
+      label: "🌙 Long Break",
+      counter: "Long Break",
+      duration: appData.pomodoroSettings.longBreakMinutes * 60
+    }
+  ];
+}
+
+function getCurrentPomodoroSession() {
+  return getPomodoroCycle()[appData.pomodoroCycleIndex];
+}
+
+function getCurrentPomodoroDuration() {
+  return getCurrentPomodoroSession().duration;
+}
+
 function getSubjectSecondsTotal() {
   return appData.subjects.reduce(function (total, subject) {
     return total + subject.seconds;
@@ -250,7 +352,7 @@ function getSubjectSecondsTotal() {
 }
 
 function getTotalStudySeconds() {
-  return appData.overallSeconds + getSubjectSecondsTotal();
+  return appData.overallSeconds + getSubjectSecondsTotal() + appData.pomodoroFocusSeconds;
 }
 
 function getTopSubject() {
@@ -270,7 +372,7 @@ function getCompletedTaskCount() {
 }
 
 function getGoalPercent() {
-  const goalSeconds = appData.goalMinutes * 60;
+  const goalSeconds = appData.goalHours * 3600;
 
   if (goalSeconds === 0) {
     return 0;
@@ -296,7 +398,7 @@ function updateHome() {
   homeStreak.textContent = `${appData.streak} days`;
   homeGoalPercent.textContent = `${goalPercent}%`;
   homeGoalBar.style.width = `${goalPercent}%`;
-  homeGoalCopy.textContent = `${formatShortTime(getTotalStudySeconds())} of ${appData.goalMinutes} minutes planned.`;
+  homeGoalCopy.textContent = `${formatShortTime(getTotalStudySeconds())} of ${formatGoalHours(appData.goalHours)} planned.`;
 
   if (activeSubjectId) {
     const activeSubject = appData.subjects.find(function (subject) {
@@ -328,9 +430,15 @@ function updateHome() {
 
 function updateGoal() {
   const goalPercent = getGoalPercent();
-  goalInput.value = appData.goalMinutes;
+  goalInput.value = appData.goalHours;
+  document.getElementById("goal-target").textContent = formatGoalHours(appData.goalHours);
   goalSummary.textContent = `${goalPercent}% complete`;
   goalBar.style.width = `${goalPercent}%`;
+}
+
+function formatGoalHours(hours) {
+  const label = hours === 1 ? "Hour" : "Hours";
+  return `${Number(hours.toFixed(2))} ${label}`;
 }
 
 function updateInsights() {
@@ -363,7 +471,7 @@ function updateInsights() {
 
 function updateAllDisplays() {
   overallDisplay.textContent = formatLongTime(appData.overallSeconds);
-  pomodoroDisplay.textContent = formatPomodoroTime(pomodoroSecondsLeft);
+  updatePomodoroDisplay();
   updateHome();
   updateGoal();
   updateInsights();
@@ -542,6 +650,30 @@ function renderSubjects() {
   });
 }
 
+function updatePomodoroDisplay() {
+  const currentSession = getCurrentPomodoroSession();
+  const duration = getCurrentPomodoroDuration();
+  const elapsed = duration - appData.pomodoroSecondsLeft;
+  const progress = duration === 0 ? 0 : Math.min(Math.round((elapsed / duration) * 100), 100);
+
+  pomodoroDisplay.textContent = formatPomodoroTime(appData.pomodoroSecondsLeft);
+  pomodoroSessionLabel.textContent = `Current Session: ${currentSession.label}`;
+  pomodoroCycleLabel.textContent = `Pomodoro ${appData.pomodoroCycleIndex + 1} of 4`;
+  pomodoroSessionCounter.textContent = currentSession.type === "study"
+    ? `Study Session #${appData.pomodoroCompleted + 1}`
+    : currentSession.counter;
+  pomodoroProgressBar.style.width = `${progress}%`;
+  pomodoroCompletedWidget.textContent = `${appData.pomodoroCompleted} Sessions`;
+  pomodoroFocusTimeWidget.textContent = formatShortTime(getTotalStudySeconds());
+  pomodoroStreakWidget.textContent = `🔥 ${appData.streak} Days`;
+
+  studyDurationInput.value = appData.pomodoroSettings.studyMinutes;
+  shortBreakInput.value = appData.pomodoroSettings.shortBreakMinutes;
+  longBreakInput.value = appData.pomodoroSettings.longBreakMinutes;
+  tickSoundToggle.checked = appData.pomodoroSettings.tickSound;
+  bellSoundToggle.checked = appData.pomodoroSettings.bellSound;
+}
+
 function startPomodoro() {
   if (pomodoroTimerId !== null) {
     return;
@@ -549,11 +681,22 @@ function startPomodoro() {
 
   pomodoroStatus.textContent = "Running";
 
-  pomodoroTimerId = setInterval(function () {
-    pomodoroSecondsLeft = pomodoroSecondsLeft - 1;
-    pomodoroDisplay.textContent = formatPomodoroTime(pomodoroSecondsLeft);
+  if (getCurrentPomodoroSession().type === "study") {
+    setRandomPomodoroQuote();
+  }
 
-    if (pomodoroSecondsLeft === 0) {
+  pomodoroTimerId = setInterval(function () {
+    appData.pomodoroSecondsLeft = appData.pomodoroSecondsLeft - 1;
+
+    if (getCurrentPomodoroSession().type === "study") {
+      appData.pomodoroFocusSeconds = appData.pomodoroFocusSeconds + 1;
+    }
+
+    playTickSound();
+    saveData();
+    updateAllDisplays();
+
+    if (appData.pomodoroSecondsLeft === 0) {
       completePomodoro();
     }
   }, 1000);
@@ -571,19 +714,103 @@ function pausePomodoro() {
 
 function resetPomodoro() {
   pausePomodoro();
-  pomodoroSecondsLeft = POMODORO_SECONDS;
+  appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
   pomodoroStatus.textContent = "Not started";
-  pomodoroDisplay.textContent = formatPomodoroTime(pomodoroSecondsLeft);
+  saveData();
+  updateAllDisplays();
 }
 
 function completePomodoro() {
   clearInterval(pomodoroTimerId);
   pomodoroTimerId = null;
-  pomodoroSecondsLeft = POMODORO_SECONDS;
-  appData.pomodoroCompleted = appData.pomodoroCompleted + 1;
-  pomodoroStatus.textContent = "Session complete";
+
+  if (getCurrentPomodoroSession().type === "study") {
+    appData.pomodoroCompleted = appData.pomodoroCompleted + 1;
+  }
+
+  playBellSound();
+  moveToNextPomodoroSession();
+  pomodoroStatus.textContent = "Next session ready";
   saveData();
   updateAllDisplays();
+}
+
+function skipPomodoroSession() {
+  pausePomodoro();
+  moveToNextPomodoroSession();
+  pomodoroStatus.textContent = "Skipped";
+  saveData();
+  updateAllDisplays();
+}
+
+function moveToNextPomodoroSession() {
+  appData.pomodoroCycleIndex = (appData.pomodoroCycleIndex + 1) % 4;
+  appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
+
+  if (getCurrentPomodoroSession().type === "study") {
+    setRandomPomodoroQuote();
+  }
+}
+
+function savePomodoroSettings(event) {
+  event.preventDefault();
+
+  appData.pomodoroSettings.studyMinutes = Math.max(1, Number(studyDurationInput.value));
+  appData.pomodoroSettings.shortBreakMinutes = Math.max(1, Number(shortBreakInput.value));
+  appData.pomodoroSettings.longBreakMinutes = Math.max(1, Number(longBreakInput.value));
+
+  resetPomodoro();
+  saveData();
+  updateAllDisplays();
+}
+
+function updateSoundSettings() {
+  appData.pomodoroSettings.tickSound = tickSoundToggle.checked;
+  appData.pomodoroSettings.bellSound = bellSoundToggle.checked;
+  saveData();
+}
+
+function setRandomPomodoroQuote() {
+  const quoteIndex = Math.floor(Math.random() * pomodoroQuotes.length);
+  pomodoroQuote.textContent = pomodoroQuotes[quoteIndex];
+}
+
+function playTickSound() {
+  if (!appData.pomodoroSettings.tickSound) {
+    return;
+  }
+
+  playTone(660, 0.025);
+}
+
+function playBellSound() {
+  if (!appData.pomodoroSettings.bellSound) {
+    return;
+  }
+
+  playTone(880, 0.16);
+}
+
+function playTone(frequency, duration) {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+  if (!AudioContext) {
+    return;
+  }
+
+  if (!pomodoroAudioContext) {
+    pomodoroAudioContext = new AudioContext();
+  }
+
+  const oscillator = pomodoroAudioContext.createOscillator();
+  const gain = pomodoroAudioContext.createGain();
+
+  oscillator.frequency.value = frequency;
+  gain.gain.value = 0.035;
+  oscillator.connect(gain);
+  gain.connect(pomodoroAudioContext.destination);
+  oscillator.start();
+  oscillator.stop(pomodoroAudioContext.currentTime + duration);
 }
 
 function createTask(text) {
@@ -696,15 +923,25 @@ function renderTaskGroup(listElement, tasks) {
 function saveGoal(event) {
   event.preventDefault();
 
-  const goalMinutes = Number(goalInput.value);
+  const goalHours = Number(goalInput.value);
 
-  if (goalMinutes < 1) {
+  if (goalHours <= 0) {
     return;
   }
 
-  appData.goalMinutes = goalMinutes;
+  appData.goalHours = goalHours;
   saveData();
   updateAllDisplays();
+}
+
+function toggleSidebar() {
+  appData.sidebarCollapsed = !appData.sidebarCollapsed;
+  applySidebarState();
+  saveData();
+}
+
+function applySidebarState() {
+  document.body.classList.toggle("sidebar-collapsed", appData.sidebarCollapsed);
 }
 
 function addDistraction(event) {
@@ -836,13 +1073,19 @@ subjectForm.addEventListener("submit", addSubject);
 pomodoroStartButton.addEventListener("click", startPomodoro);
 pomodoroPauseButton.addEventListener("click", pausePomodoro);
 pomodoroResetButton.addEventListener("click", resetPomodoro);
+pomodoroSkipButton.addEventListener("click", skipPomodoroSession);
+pomodoroSettingsForm.addEventListener("submit", savePomodoroSettings);
+tickSoundToggle.addEventListener("change", updateSoundSettings);
+bellSoundToggle.addEventListener("change", updateSoundSettings);
 taskForm.addEventListener("submit", addTask);
 goalForm.addEventListener("submit", saveGoal);
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
+menuToggle.addEventListener("click", toggleSidebar);
 
 loadData();
 applyAppearance();
+applySidebarState();
 renderThemes();
 renderSubjects();
 renderTasks();

@@ -117,6 +117,7 @@ body {
   line-height: 1.5;
   margin: 0;
   min-height: 100vh;
+  transition: background 220ms ease, color 220ms ease;
 }
 
 button,
@@ -155,6 +156,20 @@ select {
   width: 100%;
 }
 
+.menu-toggle {
+  align-items: center;
+  border: 1px solid var(--border);
+  display: inline-flex;
+  height: 2.8rem;
+  justify-content: center;
+  left: 1rem;
+  padding: 0;
+  position: fixed;
+  top: 1rem;
+  width: 2.8rem;
+  z-index: 20;
+}
+
 input:focus,
 select:focus {
   border-color: var(--primary);
@@ -174,12 +189,19 @@ select:focus {
   position: fixed;
   top: 0;
   width: 280px;
+  z-index: 15;
+  transition: transform 220ms ease;
+}
+
+body.sidebar-collapsed .sidebar {
+  transform: translateX(-100%);
 }
 
 .brand {
   align-items: center;
   display: flex;
   gap: 0.85rem;
+  margin-left: 3.2rem;
 }
 
 .brand h1 {
@@ -220,6 +242,15 @@ select:focus {
   padding-right: 0.25rem;
 }
 
+.nav-group {
+  color: rgba(248, 250, 252, 0.54);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  margin: 0.85rem 0 0.15rem;
+  text-transform: uppercase;
+}
+
 .nav-link {
   background: transparent;
   color: rgba(248, 250, 252, 0.76);
@@ -227,6 +258,10 @@ select:focus {
   justify-content: space-between;
   padding: 0.78rem 0.85rem;
   text-align: left;
+}
+
+.nested-link {
+  padding-left: 1.8rem;
 }
 
 .nav-link:hover,
@@ -241,6 +276,12 @@ select:focus {
   margin-left: 280px;
   min-height: 100vh;
   padding: 2rem;
+  transition: margin-left 220ms ease, padding 220ms ease;
+}
+
+body.sidebar-collapsed .app-main {
+  margin-left: 0;
+  padding-left: 5rem;
 }
 
 .app-section {
@@ -262,6 +303,15 @@ select:focus {
   border: 1px solid var(--border);
   border-radius: 22px;
   box-shadow: var(--shadow);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.panel:hover,
+.feature-card:hover,
+.metric-card:hover,
+.subject-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--border));
+  transform: translateY(-1px);
 }
 
 .hero-panel {
@@ -368,6 +418,77 @@ select:focus {
   line-height: 1;
   margin: 1rem 0 1.5rem;
   text-align: center;
+}
+
+.pomodoro-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 0.9fr);
+}
+
+.pomodoro-side {
+  display: grid;
+  gap: 1rem;
+}
+
+.pomodoro-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  margin-top: 1rem;
+}
+
+.pomodoro-session-topline {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.pomodoro-session-topline span,
+.toggle-row {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-weight: 800;
+  padding: 0.55rem 0.8rem;
+}
+
+.timer-progress {
+  height: 0.95rem;
+  margin: 0 auto 1rem;
+  max-width: 640px;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-grid label {
+  color: var(--muted);
+  display: grid;
+  font-weight: 800;
+  gap: 0.45rem;
+}
+
+.settings-grid button {
+  grid-column: 1 / -1;
+}
+
+.toggle-row {
+  align-items: center;
+  border-radius: 16px;
+  display: flex;
+  gap: 0.7rem;
+  margin-bottom: 0.75rem;
+}
+
+.toggle-row input {
+  accent-color: var(--primary);
+  width: auto;
 }
 
 .button-row,
@@ -552,6 +673,13 @@ blockquote {
   margin-top: 1rem;
 }
 
+#goal-target {
+  display: block;
+  font-size: clamp(2rem, 6vw, 4rem);
+  line-height: 1;
+  margin-bottom: 0.5rem;
+}
+
 .compact-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 1rem;
@@ -637,13 +765,23 @@ blockquote {
   .theme-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .pomodoro-layout,
+  .pomodoro-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 820px) {
   .sidebar {
     height: auto;
     position: static;
+    transform: none;
     width: auto;
+  }
+
+  body.sidebar-collapsed .sidebar {
+    display: none;
   }
 
   .sidebar-nav {
@@ -653,6 +791,11 @@ blockquote {
   .app-main {
     margin-left: 0;
     padding: 1rem;
+    padding-top: 4.5rem;
+  }
+
+  body.sidebar-collapsed .app-main {
+    padding-left: 1rem;
   }
 
   .hero-panel,
@@ -679,6 +822,15 @@ blockquote {
   .subject-actions,
   .accent-row {
     display: block;
+  }
+
+  .pomodoro-session-topline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
   }
 
   .inline-form button,

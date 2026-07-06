@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Toggle sidebar">☰</button>
+
   <aside class="sidebar">
     <div class="brand">
       <span class="brand-mark">SM</span>
@@ -17,17 +19,25 @@
     </div>
 
     <nav class="sidebar-nav" aria-label="StudyMate sections">
-      <button class="nav-link active" type="button" data-section="home"><span>Home</span></button>
-      <button class="nav-link" type="button" data-section="focus-hub"><span>Focus Hub</span></button>
-      <button class="nav-link" type="button" data-section="subject-studio"><span>Subject Studio</span></button>
-      <button class="nav-link" type="button" data-section="pomodoro-lab"><span>Pomodoro Lab</span></button>
-      <button class="nav-link" type="button" data-section="task-board"><span>Task Board</span></button>
-      <button class="nav-link" type="button" data-section="goals"><span>Goals</span></button>
-      <button class="nav-link" type="button" data-section="insights"><span>Insights</span></button>
-      <button class="nav-link" type="button" data-section="study-circle"><span>Study Circle</span></button>
-      <button class="nav-link" type="button" data-section="leaderboard"><span>Leaderboard</span></button>
+      <button class="nav-link active" type="button" data-section="home"><span>🏠 Dashboard</span></button>
+
+      <p class="nav-group">⏱ Timers</p>
+      <button class="nav-link nested-link" type="button" data-section="focus-hub"><span>Overall</span></button>
+      <button class="nav-link nested-link" type="button" data-section="pomodoro-lab"><span>Pomodoro</span></button>
+      <button class="nav-link nested-link" type="button" data-section="subject-studio"><span>Subject</span></button>
+
+      <p class="nav-group">📝 Planner</p>
+      <button class="nav-link nested-link" type="button" data-section="task-board"><span>Tasks</span></button>
+      <button class="nav-link nested-link" type="button" data-section="goals"><span>Goals</span></button>
+
+      <button class="nav-link" type="button" data-section="insights"><span>📊 Analytics</span></button>
+
+      <p class="nav-group">👥 Community</p>
+      <button class="nav-link nested-link" type="button" data-section="study-circle"><span>Groups</span></button>
+      <button class="nav-link nested-link" type="button" data-section="leaderboard"><span>Leaderboard</span></button>
+
       <button class="nav-link" type="button" data-section="distraction-log"><span>Distraction Log</span></button>
-      <button class="nav-link" type="button" data-section="appearance"><span>Appearance</span></button>
+      <button class="nav-link" type="button" data-section="appearance"><span>⚙ Settings</span></button>
     </nav>
   </aside>
 
@@ -140,19 +150,90 @@
       <div class="section-header">
         <div>
           <p class="eyebrow">Pomodoro Lab</p>
-          <h2>25-minute focus sprint</h2>
+          <h2>Custom focus cycles</h2>
         </div>
         <span class="status-pill" id="pomodoro-status">Not started</span>
       </div>
 
-      <article class="panel timer-panel">
-        <div class="timer-display" id="pomodoro-display">25:00</div>
-        <div class="button-row">
-          <button type="button" id="pomodoro-start">Start</button>
-          <button type="button" class="secondary-button" id="pomodoro-pause">Pause</button>
-          <button type="button" class="secondary-button" id="pomodoro-reset">Reset</button>
-        </div>
-      </article>
+      <div class="pomodoro-layout">
+        <article class="panel timer-panel pomodoro-timer-card">
+          <div class="pomodoro-session-topline">
+            <span id="pomodoro-session-label">Current Session: 🟢 Study</span>
+            <span id="pomodoro-cycle-label">Pomodoro 1 of 4</span>
+          </div>
+
+          <div class="timer-display" id="pomodoro-display">25:00</div>
+
+          <div class="progress-bar timer-progress" aria-label="Current Pomodoro progress">
+            <span id="pomodoro-progress-bar"></span>
+          </div>
+
+          <p class="muted-text" id="pomodoro-session-counter">Study Session #1</p>
+
+          <div class="button-row">
+            <button type="button" id="pomodoro-start">Start</button>
+            <button type="button" class="secondary-button" id="pomodoro-pause">Pause</button>
+            <button type="button" class="secondary-button" id="pomodoro-reset">Reset</button>
+            <button type="button" class="secondary-button" id="pomodoro-skip">Skip Session</button>
+          </div>
+        </article>
+
+        <aside class="pomodoro-side">
+          <article class="metric-card">
+            <span>Today&apos;s Pomodoros Completed</span>
+            <strong id="pomodoro-completed-widget">0 Sessions</strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Total Focus Time Today</span>
+            <strong id="pomodoro-focus-time-widget">0h 00m</strong>
+          </article>
+
+          <article class="metric-card">
+            <span>Current Streak</span>
+            <strong id="pomodoro-streak-widget">🔥 0 Days</strong>
+          </article>
+        </aside>
+      </div>
+
+      <div class="pomodoro-grid">
+        <article class="panel">
+          <h3>Durations</h3>
+          <form class="settings-grid" id="pomodoro-settings-form">
+            <label>
+              Study duration
+              <input id="study-duration-input" type="number" min="1" step="1">
+            </label>
+            <label>
+              Short break
+              <input id="short-break-input" type="number" min="1" step="1">
+            </label>
+            <label>
+              Long break
+              <input id="long-break-input" type="number" min="1" step="1">
+            </label>
+            <button type="submit">Save Durations</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <h3>Motivation</h3>
+          <blockquote id="pomodoro-quote">Start where you are. Keep showing up.</blockquote>
+        </article>
+
+        <article class="panel">
+          <h3>Sounds</h3>
+          <label class="toggle-row">
+            <input id="tick-sound-toggle" type="checkbox">
+            Tick sound
+          </label>
+          <label class="toggle-row">
+            <input id="bell-sound-toggle" type="checkbox">
+            Bell sound when session ends
+          </label>
+          <p class="muted-text">Sounds are off by default and use simple browser-generated tones.</p>
+        </article>
+      </div>
     </section>
 
     <section class="app-section" id="task-board">
@@ -186,18 +267,20 @@
       <div class="section-header">
         <div>
           <p class="eyebrow">Goals</p>
-          <h2>Daily study target</h2>
+          <h2>Daily Study Goal</h2>
         </div>
       </div>
 
       <article class="panel">
         <form class="inline-form" id="goal-form">
-          <label for="goal-input">Goal minutes</label>
-          <input id="goal-input" type="number" min="1" step="1">
+          <label for="goal-input">Daily Study Goal (Hours)</label>
+          <input id="goal-input" type="number" min="0.25" step="0.25" placeholder="3.5">
           <button type="submit">Save Goal</button>
         </form>
         <div class="goal-panel">
-          <strong id="goal-summary">0% complete</strong>
+          <p class="eyebrow">Today&apos;s Goal</p>
+          <strong id="goal-target">0 Hours</strong>
+          <p id="goal-summary">0% complete</p>
           <div class="progress-bar" aria-label="Goal progress">
             <span id="goal-bar"></span>
           </div>
