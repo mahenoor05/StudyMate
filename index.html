@@ -273,33 +273,154 @@
     <section class="app-section" id="study-circle">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Study Circle</p>
-          <h2>Future group focus space</h2>
+          <p class="eyebrow">Community</p>
+          <h2>Study Circles</h2>
         </div>
+        <button type="button" id="new-circle-button">Create Circle</button>
       </div>
 
-      <div class="circle-grid">
-        <article class="panel">
-          <h3>Study Rooms</h3>
-          <p class="muted-text">Create focused rooms for shared sessions later.</p>
-          <div class="button-row left-row">
-            <button type="button">Create Room</button>
-            <button type="button" class="secondary-button">Join Room</button>
+      <div class="groups-layout">
+        <aside class="panel circle-rail">
+          <div class="circle-rail-heading">
+            <div>
+              <p class="eyebrow">Level 1</p>
+              <h3>Your Circles</h3>
+            </div>
           </div>
-        </article>
-        <article class="panel">
-          <h3>Friends Studying</h3>
-          <p class="mock-line">Ayesha is in Deep Work</p>
-          <p class="mock-line">Ray is reviewing Physics</p>
-        </article>
-        <article class="panel chat-preview">
-          <h3>Group Chat</h3>
-          <p class="mock-bubble">Future chat messages will appear here.</p>
-          <p class="mock-bubble muted-bubble">Backend support will come later.</p>
-        </article>
+          <div class="circle-list" id="circle-list"></div>
+        </aside>
+
+        <section class="groups-main">
+          <article class="panel circle-detail-card">
+            <div class="circle-hero">
+              <span class="circle-icon" id="circle-icon-display">SM</span>
+              <div>
+                <p class="eyebrow">Study Circle</p>
+                <h3 id="circle-name-display">Select a circle</h3>
+                <p class="muted-text" id="circle-description-display">Create or select a Study Circle to manage members and Focus Rooms.</p>
+              </div>
+              <span class="status-pill" id="circle-invite-display">CODE</span>
+            </div>
+
+            <div class="circle-stats-grid">
+              <div>
+                <span>Members</span>
+                <strong id="circle-member-count">0</strong>
+              </div>
+              <div>
+                <span>Invite Code</span>
+                <strong id="circle-invite-code">------</strong>
+              </div>
+              <div>
+                <span>Focus Rooms</span>
+                <strong id="circle-room-count">0</strong>
+              </div>
+            </div>
+          </article>
+
+          <div class="groups-grid">
+            <article class="panel">
+              <h3>Create / Edit Circle</h3>
+              <form class="stacked-form" id="circle-form">
+                <label for="circle-name-input">Name</label>
+                <input id="circle-name-input" type="text" placeholder="Exam Prep Squad" required>
+                <label for="circle-icon-input">Icon</label>
+                <input id="circle-icon-input" type="text" maxlength="3" placeholder="EP" required>
+                <label for="circle-description-input">Description</label>
+                <textarea id="circle-description-input" rows="3" maxlength="180" placeholder="A focused circle for daily study accountability."></textarea>
+                <div class="form-footer">
+                  <span id="circle-form-mode">Create a new circle</span>
+                  <button type="submit" id="save-circle-button">Save Circle</button>
+                </div>
+              </form>
+            </article>
+
+            <article class="panel">
+              <h3>Members</h3>
+              <div class="member-list" id="circle-member-list"></div>
+            </article>
+
+            <article class="panel">
+              <h3>Leaderboard</h3>
+              <div class="circle-leaderboard" id="circle-leaderboard"></div>
+            </article>
+
+            <article class="panel chat-placeholder-card">
+              <h3>Chat</h3>
+              <p class="muted-text">Chat will live here later. For now, Study Circles focus on members, rooms, and session presence.</p>
+            </article>
+          </div>
+
+          <div class="section-header room-header-row">
+            <div>
+              <p class="eyebrow">Level 2</p>
+              <h2>Focus Rooms</h2>
+            </div>
+            <span class="status-pill">Temporary sessions</span>
+          </div>
+
+          <div class="rooms-layout">
+            <article class="panel">
+              <h3>Create Focus Room</h3>
+              <form class="stacked-form" id="room-form">
+                <label for="room-name-input">Room Name</label>
+                <input id="room-name-input" type="text" placeholder="Morning Sprint" required>
+                <label for="room-icon-input">Room Icon</label>
+                <input id="room-icon-input" type="text" maxlength="3" placeholder="MS" required>
+                <label for="room-description-input">Description</label>
+                <textarea id="room-description-input" rows="3" maxlength="160" placeholder="A focused study sprint with short check-ins."></textarea>
+                <label for="room-subject-input">Subject</label>
+                <input id="room-subject-input" type="text" placeholder="Physics" required>
+                <label for="room-max-input">Maximum Members</label>
+                <input id="room-max-input" type="number" min="2" max="50" value="8">
+                <label for="room-privacy-input">Visibility</label>
+                <select id="room-privacy-input">
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+                <button type="submit">Create Focus Room</button>
+              </form>
+            </article>
+
+            <section class="room-stack" id="focus-room-list"></section>
+          </div>
+
+          <article class="panel active-room-panel" id="active-room-panel">
+            <div class="room-live-header">
+              <div>
+                <p class="eyebrow">Inside Focus Room</p>
+                <h3 id="active-room-name">No room joined</h3>
+                <p class="muted-text" id="active-room-description">Join a Focus Room to see the live study session.</p>
+              </div>
+              <button type="button" class="secondary-button" id="leave-room-button">Leave Room</button>
+            </div>
+
+            <div class="room-session-grid">
+              <div>
+                <span>Current Subject</span>
+                <strong id="active-room-subject">-</strong>
+              </div>
+              <div>
+                <span>Current Timer</span>
+                <strong id="active-room-timer">0h 00m</strong>
+              </div>
+              <div>
+                <span>Current Status</span>
+                <strong id="active-room-status">Paused</strong>
+              </div>
+            </div>
+
+            <div class="shared-session-card">
+              <h3>Shared Study Session</h3>
+              <div class="shared-session-controls" id="room-status-controls"></div>
+            </div>
+
+            <h3>Members</h3>
+            <div class="room-member-list" id="active-room-members"></div>
+          </article>
+        </section>
       </div>
     </section>
-
     <section class="app-section" id="leaderboard">
       <div class="section-header">
         <div>

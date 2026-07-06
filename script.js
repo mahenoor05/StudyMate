@@ -76,6 +76,39 @@ const themeGrid = document.getElementById("theme-grid");
 const accentInput = document.getElementById("accent-input");
 const saveAccentButton = document.getElementById("save-accent");
 
+const newCircleButton = document.getElementById("new-circle-button");
+const circleList = document.getElementById("circle-list");
+const circleIconDisplay = document.getElementById("circle-icon-display");
+const circleNameDisplay = document.getElementById("circle-name-display");
+const circleDescriptionDisplay = document.getElementById("circle-description-display");
+const circleInviteDisplay = document.getElementById("circle-invite-display");
+const circleMemberCount = document.getElementById("circle-member-count");
+const circleInviteCode = document.getElementById("circle-invite-code");
+const circleRoomCount = document.getElementById("circle-room-count");
+const circleForm = document.getElementById("circle-form");
+const circleNameInput = document.getElementById("circle-name-input");
+const circleIconInput = document.getElementById("circle-icon-input");
+const circleDescriptionInput = document.getElementById("circle-description-input");
+const circleFormMode = document.getElementById("circle-form-mode");
+const circleMemberList = document.getElementById("circle-member-list");
+const circleLeaderboard = document.getElementById("circle-leaderboard");
+const roomForm = document.getElementById("room-form");
+const roomNameInput = document.getElementById("room-name-input");
+const roomIconInput = document.getElementById("room-icon-input");
+const roomDescriptionInput = document.getElementById("room-description-input");
+const roomSubjectInput = document.getElementById("room-subject-input");
+const roomMaxInput = document.getElementById("room-max-input");
+const roomPrivacyInput = document.getElementById("room-privacy-input");
+const focusRoomList = document.getElementById("focus-room-list");
+const activeRoomName = document.getElementById("active-room-name");
+const activeRoomDescription = document.getElementById("active-room-description");
+const activeRoomSubject = document.getElementById("active-room-subject");
+const activeRoomTimer = document.getElementById("active-room-timer");
+const activeRoomStatus = document.getElementById("active-room-status");
+const activeRoomMembers = document.getElementById("active-room-members");
+const roomStatusControls = document.getElementById("room-status-controls");
+const leaveRoomButton = document.getElementById("leave-room-button");
+
 let sessionTimerId = null;
 let appData = createDefaultData();
 
@@ -91,6 +124,9 @@ function createDefaultData() {
     goalHours: 2,
     streak: 0,
     focusIntention: "",
+    studyCircles: [createDefaultStudyCircle()],
+    selectedCircleId: null,
+    activeRoomId: null,
     selectedSubjectId: generalSubject.id,
     activeSession: null,
     tasks: [],
@@ -105,6 +141,22 @@ function createSubject(name) {
     id: createId(),
     name: name,
     seconds: 0
+  };
+}
+
+function createDefaultStudyCircle() {
+  return {
+    id: createId(),
+    name: "StudyMate Circle",
+    icon: "SM",
+    description: "A calm shared space for daily focus sessions and accountability.",
+    inviteCode: generateInviteCode(),
+    members: [
+      { id: "you", name: "You", status: "Studying", totalSeconds: 5400 },
+      { id: "maya", name: "Maya", status: "Short Break", totalSeconds: 4200 },
+      { id: "arif", name: "Arif", status: "Paused", totalSeconds: 3000 }
+    ],
+    rooms: []
   };
 }
 
@@ -192,6 +244,9 @@ function migrateOldData(oldData) {
       goalHours: Number(parsedOldData.goalHours) || (parsedOldData.goalMinutes ? Number(parsedOldData.goalMinutes) / 60 : 2),
       streak: Number(parsedOldData.streak) || 0,
       focusIntention: parsedOldData.focusIntention || "",
+      studyCircles: Array.isArray(parsedOldData.studyCircles) ? parsedOldData.studyCircles : [createDefaultStudyCircle()],
+      selectedCircleId: parsedOldData.selectedCircleId || null,
+      activeRoomId: parsedOldData.activeRoomId || null,
       selectedSubjectId: parsedOldData.selectedSubjectId || migratedSubjects[0].id,
       activeSession: parsedOldData.activeSession || null,
       tasks: Array.isArray(parsedOldData.tasks) ? parsedOldData.tasks : [],
@@ -249,6 +304,8 @@ function normalizeData() {
     appData.focusIntention = "";
   }
 
+  normalizeStudyCircles();
+
   if (!getSubjectById(appData.selectedSubjectId)) {
     appData.selectedSubjectId = appData.subjects[0].id;
   }
@@ -267,6 +324,22 @@ function resetDailyData() {
   appData.sessions = [];
   appData.activeSession = null;
   appData.focusIntention = "";
+  appData.studyCircles = appData.studyCircles.map(function (circle) {
+    return {
+      ...circle,
+      rooms: circle.rooms.map(function (room) {
+        return {
+          ...room,
+          status: "Paused",
+          statusStartedAt: null,
+          elapsedSeconds: 0,
+          members: room.members.map(function (member) {
+            return { ...member, status: "Paused" };
+          })
+        };
+      })
+    };
+  });
   appData.subjects = appData.subjects.map(function (subject) {
     return {
       id: subject.id,
@@ -285,7 +358,422 @@ function showSection(sectionId) {
     section.classList.toggle("active", section.id === sectionId);
   });
 
-  navButtons.forEach(function (button) {
+  function normalizeStudyCircles() {
+  if (!Array.isArray(appData.studyCircles) || appData.studyCircles.length === 0) {
+    appData.studyCircles = [createDefaultStudyCircle()];
+  }
+
+  appData.studyCircles = appData.studyCircles.map(function (circle) {
+    return {
+      id: circle.id || createId(),
+      name: circle.name || "Untitled Circle",
+      icon: (circle.icon || "SC").slice(0, 3).toUpperCase(),
+      description: circle.description || "A shared StudyMate circle.",
+      inviteCode: circle.inviteCode || generateInviteCode(),
+      members: normalizeCircleMembers(circle.members),
+      rooms: normalizeFocusRooms(circle.rooms)
+    };
+  });
+
+  if (!getCircleById(appData.selectedCircleId)) {
+    appData.selectedCircleId = appData.studyCircles[0].id;
+  }
+
+  if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) {
+    appData.activeRoomId = null;
+  }
+}
+
+function normalizeCircleMembers(members) {
+  const normalizedMembers = Array.isArray(members) && members.length > 0 ? members : [{ id: "you", name: "You", status: "Studying", totalSeconds: 0 }];
+  const hasYou = normalizedMembers.some(function (member) {
+    return member.id === "you";
+  });
+
+  if (!hasYou) {
+    normalizedMembers.unshift({ id: "you", name: "You", status: "Studying", totalSeconds: 0 });
+  }
+
+  return normalizedMembers.map(function (member) {
+    return {
+      id: member.id || createId(),
+      name: member.name || "Student",
+      status: member.status || "Paused",
+      totalSeconds: Number(member.totalSeconds) || 0
+    };
+  });
+}
+
+function normalizeFocusRooms(rooms) {
+  if (!Array.isArray(rooms)) {
+    return [];
+  }
+
+  return rooms.map(function (room) {
+    return {
+      id: room.id || createId(),
+      name: room.name || "Focus Room",
+      icon: (room.icon || "FR").slice(0, 3).toUpperCase(),
+      description: room.description || "A temporary focus session.",
+      subject: room.subject || "General Study",
+      maxMembers: Number(room.maxMembers) || 8,
+      privacy: room.privacy === "private" ? "private" : "public",
+      status: room.status || "Paused",
+      elapsedSeconds: Number(room.elapsedSeconds) || 0,
+      statusStartedAt: room.statusStartedAt || null,
+      members: Array.isArray(room.members) ? room.members : []
+    };
+  });
+}
+
+function getCircleById(circleId) {
+  return appData.studyCircles.find(function (circle) {
+    return String(circle.id) === String(circleId);
+  });
+}
+
+function getSelectedCircle() {
+  return getCircleById(appData.selectedCircleId) || appData.studyCircles[0];
+}
+
+function getRoomById(roomId) {
+  for (const circle of appData.studyCircles) {
+    const room = circle.rooms.find(function (candidate) {
+      return String(candidate.id) === String(roomId);
+    });
+
+    if (room) {
+      return room;
+    }
+  }
+
+  return null;
+}
+
+function generateInviteCode() {
+  return `SM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+function renderStudyCircles() {
+  if (!circleList) {
+    return;
+  }
+
+  const selectedCircle = getSelectedCircle();
+  renderCircleList(selectedCircle);
+  renderCircleDetails(selectedCircle);
+  renderFocusRooms(selectedCircle);
+  renderActiveRoom();
+}
+
+function renderCircleList(selectedCircle) {
+  circleList.innerHTML = "";
+
+  appData.studyCircles.forEach(function (circle) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "circle-list-item";
+    button.classList.toggle("active", selectedCircle && circle.id === selectedCircle.id);
+    button.innerHTML = `<span>${circle.icon}</span><div><strong>${circle.name}</strong><small>${circle.members.length} members</small></div>`;
+    button.addEventListener("click", function () {
+      appData.selectedCircleId = circle.id;
+      fillCircleForm(circle);
+      saveData();
+      renderStudyCircles();
+    });
+    circleList.appendChild(button);
+  });
+}
+
+function renderCircleDetails(circle) {
+  if (!circle) {
+    return;
+  }
+
+  circleIconDisplay.textContent = circle.icon;
+  circleNameDisplay.textContent = circle.name;
+  circleDescriptionDisplay.textContent = circle.description;
+  circleInviteDisplay.textContent = circle.inviteCode;
+  circleInviteCode.textContent = circle.inviteCode;
+  circleMemberCount.textContent = circle.members.length;
+  circleRoomCount.textContent = circle.rooms.length;
+  circleFormMode.textContent = "Editing selected circle";
+
+  if (document.activeElement !== circleNameInput && document.activeElement !== circleIconInput && document.activeElement !== circleDescriptionInput) {
+    fillCircleForm(circle);
+  }
+
+  renderCircleMembers(circle);
+  renderCircleLeaderboard(circle);
+}
+
+function fillCircleForm(circle) {
+  circleNameInput.value = circle ? circle.name : "";
+  circleIconInput.value = circle ? circle.icon : "";
+  circleDescriptionInput.value = circle ? circle.description : "";
+  circleFormMode.textContent = circle ? "Editing selected circle" : "Create a new circle";
+}
+
+function renderCircleMembers(circle) {
+  circleMemberList.innerHTML = "";
+
+  circle.members.forEach(function (member) {
+    const row = document.createElement("div");
+    row.className = "member-row";
+    row.innerHTML = `<span>${member.name}</span><strong>${member.status}</strong>`;
+    circleMemberList.appendChild(row);
+  });
+}
+
+function renderCircleLeaderboard(circle) {
+  circleLeaderboard.innerHTML = "";
+
+  circle.members
+    .slice()
+    .sort(function (first, second) {
+      return second.totalSeconds - first.totalSeconds;
+    })
+    .forEach(function (member, index) {
+      const row = document.createElement("div");
+      row.className = "member-row";
+      row.innerHTML = `<span>#${index + 1} ${member.name}</span><strong>${formatShortTime(member.totalSeconds)}</strong>`;
+      circleLeaderboard.appendChild(row);
+    });
+}
+
+function saveCircle(event) {
+  event.preventDefault();
+
+  const selectedCircle = getSelectedCircle();
+  const circleName = circleNameInput.value.trim();
+  const circleIcon = circleIconInput.value.trim().slice(0, 3).toUpperCase() || "SC";
+  const circleDescription = circleDescriptionInput.value.trim() || "A shared StudyMate circle.";
+
+  if (!circleName) {
+    return;
+  }
+
+  if (selectedCircle && circleFormMode.textContent.includes("Editing")) {
+    selectedCircle.name = circleName;
+    selectedCircle.icon = circleIcon;
+    selectedCircle.description = circleDescription;
+  } else {
+    const newCircle = {
+      id: createId(),
+      name: circleName,
+      icon: circleIcon,
+      description: circleDescription,
+      inviteCode: generateInviteCode(),
+      members: [{ id: "you", name: "You", status: "Studying", totalSeconds: appData.studySeconds }],
+      rooms: []
+    };
+    appData.studyCircles.push(newCircle);
+    appData.selectedCircleId = newCircle.id;
+  }
+
+  saveData();
+  renderStudyCircles();
+}
+
+function prepareNewCircle() {
+  circleNameInput.value = "";
+  circleIconInput.value = "";
+  circleDescriptionInput.value = "";
+  circleFormMode.textContent = "Create a new circle";
+  circleNameInput.focus();
+}
+
+function createFocusRoom(event) {
+  event.preventDefault();
+
+  const selectedCircle = getSelectedCircle();
+
+  if (!selectedCircle) {
+    return;
+  }
+
+  selectedCircle.rooms.unshift({
+    id: createId(),
+    name: roomNameInput.value.trim(),
+    icon: roomIconInput.value.trim().slice(0, 3).toUpperCase() || "FR",
+    description: roomDescriptionInput.value.trim() || "A temporary focus session.",
+    subject: roomSubjectInput.value.trim(),
+    maxMembers: Math.max(2, Number(roomMaxInput.value) || 8),
+    privacy: roomPrivacyInput.value,
+    status: "Paused",
+    elapsedSeconds: 0,
+    statusStartedAt: null,
+    members: []
+  });
+
+  roomForm.reset();
+  roomMaxInput.value = 8;
+  saveData();
+  renderStudyCircles();
+}
+
+function renderFocusRooms(circle) {
+  focusRoomList.innerHTML = "";
+
+  if (!circle || circle.rooms.length === 0) {
+    appendSimpleItem(focusRoomList, "No Focus Rooms yet. Create one for a live study session.");
+    return;
+  }
+
+  circle.rooms.forEach(function (room) {
+    const isJoined = appData.activeRoomId === room.id;
+    const roomCard = document.createElement("article");
+    roomCard.className = "room-card";
+    roomCard.innerHTML = `
+      <div class="room-card-topline">
+        <span class="circle-icon small-icon">${room.icon}</span>
+        <div>
+          <h3>${room.name}</h3>
+          <p class="muted-text">${room.description}</p>
+        </div>
+        <span class="status-pill">${room.privacy}</span>
+      </div>
+      <div class="room-session-grid compact-room-grid">
+        <div><span>Subject</span><strong>${room.subject}</strong></div>
+        <div><span>Members</span><strong>${room.members.length}/${room.maxMembers}</strong></div>
+        <div><span>Status</span><strong>${room.status}</strong></div>
+      </div>
+    `;
+
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = isJoined ? "secondary-button" : "";
+    action.textContent = isJoined ? "Joined" : "Join Focus Room";
+    action.disabled = !isJoined && room.members.length >= room.maxMembers;
+    action.addEventListener("click", function () {
+      joinFocusRoom(room.id);
+    });
+
+    roomCard.appendChild(action);
+    focusRoomList.appendChild(roomCard);
+  });
+}
+
+function joinFocusRoom(roomId) {
+  const room = getRoomById(roomId);
+
+  if (!room) {
+    return;
+  }
+
+  leaveFocusRoom(false);
+
+  if (!room.members.some(function (member) { return member.id === "you"; })) {
+    room.members.push({ id: "you", name: "You", status: room.status });
+  }
+
+  appData.activeRoomId = room.id;
+  saveData();
+  renderStudyCircles();
+}
+
+function leaveFocusRoom(shouldRender = true) {
+  const room = getRoomById(appData.activeRoomId);
+
+  if (room) {
+    room.members = room.members.filter(function (member) {
+      return member.id !== "you";
+    });
+  }
+
+  appData.activeRoomId = null;
+  saveData();
+
+  if (shouldRender) {
+    renderStudyCircles();
+  }
+}
+
+function renderActiveRoom() {
+  const room = getRoomById(appData.activeRoomId);
+
+  if (!room) {
+    activeRoomName.textContent = "No room joined";
+    activeRoomDescription.textContent = "Join a Focus Room to see the live study session.";
+    activeRoomSubject.textContent = "-";
+    activeRoomTimer.textContent = "0h 00m";
+    activeRoomStatus.textContent = "Paused";
+    activeRoomMembers.innerHTML = "";
+    roomStatusControls.innerHTML = "";
+    leaveRoomButton.disabled = true;
+    appendSimpleItem(activeRoomMembers, "No active room members yet.");
+    return;
+  }
+
+  leaveRoomButton.disabled = false;
+  activeRoomName.textContent = room.name;
+  activeRoomDescription.textContent = room.description;
+  activeRoomSubject.textContent = room.subject;
+  activeRoomTimer.textContent = formatShortTime(getRoomElapsedSeconds(room));
+  activeRoomStatus.textContent = room.status;
+
+  renderRoomStatusControls(room);
+  renderActiveRoomMembers(room);
+}
+
+function renderRoomStatusControls(room) {
+  const statuses = ["Studying", "Short Break", "Long Break", "Paused"];
+  roomStatusControls.innerHTML = "";
+
+  statuses.forEach(function (status) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = room.status === status ? "" : "secondary-button";
+    button.textContent = status;
+    button.addEventListener("click", function () {
+      updateRoomStatus(room.id, status);
+    });
+    roomStatusControls.appendChild(button);
+  });
+}
+
+function renderActiveRoomMembers(room) {
+  activeRoomMembers.innerHTML = "";
+
+  const demoMembers = room.members.length > 1 ? room.members : room.members.concat([
+    { id: "maya-demo", name: "Maya", status: "Studying" },
+    { id: "arif-demo", name: "Arif", status: "Short Break" }
+  ]);
+
+  demoMembers.forEach(function (member) {
+    const row = document.createElement("div");
+    row.className = "member-row";
+    row.innerHTML = `<span>${member.name}</span><strong>${member.status}</strong>`;
+    activeRoomMembers.appendChild(row);
+  });
+}
+
+function updateRoomStatus(roomId, status) {
+  const room = getRoomById(roomId);
+
+  if (!room) {
+    return;
+  }
+
+  room.elapsedSeconds = getRoomElapsedSeconds(room);
+  room.status = status;
+  room.statusStartedAt = status === "Studying" ? new Date().toISOString() : null;
+  room.members = room.members.map(function (member) {
+    return member.id === "you" ? { ...member, status: status } : member;
+  });
+
+  saveData();
+  renderStudyCircles();
+}
+
+function getRoomElapsedSeconds(room) {
+  if (room.status !== "Studying" || !room.statusStartedAt) {
+    return room.elapsedSeconds;
+  }
+
+  return room.elapsedSeconds + Math.floor((Date.now() - new Date(room.statusStartedAt).getTime()) / 1000);
+}
+navButtons.forEach(function (button) {
     button.classList.toggle("active", button.dataset.section === sectionId);
   });
 }
@@ -383,6 +871,7 @@ function updateAllDisplays() {
   renderTasks();
   renderDistractions();
   renderLeaderboard();
+  renderStudyCircles();
 }
 
 function updateHome() {
@@ -539,6 +1028,7 @@ function startSession() {
   resumeSessionTimer();
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function resumeSessionTimer() {
@@ -569,6 +1059,7 @@ function tickStudySession() {
 
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function pauseSession(shouldRecordSession = true) {
@@ -593,6 +1084,7 @@ function pauseSession(shouldRecordSession = true) {
   appData.activeSession = null;
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function resetSession() {
@@ -604,6 +1096,7 @@ function resetSession() {
   appData.activeSession = null;
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function changeSessionSubject() {
@@ -615,6 +1108,7 @@ function changeSessionSubject() {
 
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function addSubject(event) {
@@ -645,6 +1139,7 @@ function addSubject(event) {
   subjectInput.value = "";
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function saveIntention(event) {
@@ -653,6 +1148,7 @@ function saveIntention(event) {
   saveData();
   updateIntentionForm(true);
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function updateIntentionForm(syncInput) {
@@ -684,6 +1180,7 @@ function addTask(event) {
   taskInput.value = "";
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function toggleTask(taskId) {
@@ -701,6 +1198,7 @@ function toggleTask(taskId) {
 
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function deleteTask(taskId) {
@@ -710,6 +1208,7 @@ function deleteTask(taskId) {
 
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function renderTasks() {
@@ -779,6 +1278,7 @@ function saveGoal(event) {
   appData.goalHours = goalHours;
   saveData();
   updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
 }
 
 function addDistraction(event) {
@@ -914,6 +1414,421 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function normalizeStudyCircles() {
+  if (!Array.isArray(appData.studyCircles) || appData.studyCircles.length === 0) {
+    appData.studyCircles = [createDefaultStudyCircle()];
+  }
+
+  appData.studyCircles = appData.studyCircles.map(function (circle) {
+    return {
+      id: circle.id || createId(),
+      name: circle.name || "Untitled Circle",
+      icon: (circle.icon || "SC").slice(0, 3).toUpperCase(),
+      description: circle.description || "A shared StudyMate circle.",
+      inviteCode: circle.inviteCode || generateInviteCode(),
+      members: normalizeCircleMembers(circle.members),
+      rooms: normalizeFocusRooms(circle.rooms)
+    };
+  });
+
+  if (!getCircleById(appData.selectedCircleId)) {
+    appData.selectedCircleId = appData.studyCircles[0].id;
+  }
+
+  if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) {
+    appData.activeRoomId = null;
+  }
+}
+
+function normalizeCircleMembers(members) {
+  const normalizedMembers = Array.isArray(members) && members.length > 0 ? members : [{ id: "you", name: "You", status: "Studying", totalSeconds: 0 }];
+  const hasYou = normalizedMembers.some(function (member) {
+    return member.id === "you";
+  });
+
+  if (!hasYou) {
+    normalizedMembers.unshift({ id: "you", name: "You", status: "Studying", totalSeconds: 0 });
+  }
+
+  return normalizedMembers.map(function (member) {
+    return {
+      id: member.id || createId(),
+      name: member.name || "Student",
+      status: member.status || "Paused",
+      totalSeconds: Number(member.totalSeconds) || 0
+    };
+  });
+}
+
+function normalizeFocusRooms(rooms) {
+  if (!Array.isArray(rooms)) {
+    return [];
+  }
+
+  return rooms.map(function (room) {
+    return {
+      id: room.id || createId(),
+      name: room.name || "Focus Room",
+      icon: (room.icon || "FR").slice(0, 3).toUpperCase(),
+      description: room.description || "A temporary focus session.",
+      subject: room.subject || "General Study",
+      maxMembers: Number(room.maxMembers) || 8,
+      privacy: room.privacy === "private" ? "private" : "public",
+      status: room.status || "Paused",
+      elapsedSeconds: Number(room.elapsedSeconds) || 0,
+      statusStartedAt: room.statusStartedAt || null,
+      members: Array.isArray(room.members) ? room.members : []
+    };
+  });
+}
+
+function getCircleById(circleId) {
+  return appData.studyCircles.find(function (circle) {
+    return String(circle.id) === String(circleId);
+  });
+}
+
+function getSelectedCircle() {
+  return getCircleById(appData.selectedCircleId) || appData.studyCircles[0];
+}
+
+function getRoomById(roomId) {
+  for (const circle of appData.studyCircles) {
+    const room = circle.rooms.find(function (candidate) {
+      return String(candidate.id) === String(roomId);
+    });
+
+    if (room) {
+      return room;
+    }
+  }
+
+  return null;
+}
+
+function generateInviteCode() {
+  return `SM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+}
+
+function renderStudyCircles() {
+  if (!circleList) {
+    return;
+  }
+
+  const selectedCircle = getSelectedCircle();
+  renderCircleList(selectedCircle);
+  renderCircleDetails(selectedCircle);
+  renderFocusRooms(selectedCircle);
+  renderActiveRoom();
+}
+
+function renderCircleList(selectedCircle) {
+  circleList.innerHTML = "";
+
+  appData.studyCircles.forEach(function (circle) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "circle-list-item";
+    button.classList.toggle("active", selectedCircle && circle.id === selectedCircle.id);
+    button.innerHTML = `<span>${circle.icon}</span><div><strong>${circle.name}</strong><small>${circle.members.length} members</small></div>`;
+    button.addEventListener("click", function () {
+      appData.selectedCircleId = circle.id;
+      fillCircleForm(circle);
+      saveData();
+      renderStudyCircles();
+    });
+    circleList.appendChild(button);
+  });
+}
+
+function renderCircleDetails(circle) {
+  if (!circle) {
+    return;
+  }
+
+  circleIconDisplay.textContent = circle.icon;
+  circleNameDisplay.textContent = circle.name;
+  circleDescriptionDisplay.textContent = circle.description;
+  circleInviteDisplay.textContent = circle.inviteCode;
+  circleInviteCode.textContent = circle.inviteCode;
+  circleMemberCount.textContent = circle.members.length;
+  circleRoomCount.textContent = circle.rooms.length;
+  circleFormMode.textContent = "Editing selected circle";
+
+  if (document.activeElement !== circleNameInput && document.activeElement !== circleIconInput && document.activeElement !== circleDescriptionInput) {
+    fillCircleForm(circle);
+  }
+
+  renderCircleMembers(circle);
+  renderCircleLeaderboard(circle);
+}
+
+function fillCircleForm(circle) {
+  circleNameInput.value = circle ? circle.name : "";
+  circleIconInput.value = circle ? circle.icon : "";
+  circleDescriptionInput.value = circle ? circle.description : "";
+  circleFormMode.textContent = circle ? "Editing selected circle" : "Create a new circle";
+}
+
+function renderCircleMembers(circle) {
+  circleMemberList.innerHTML = "";
+
+  circle.members.forEach(function (member) {
+    const row = document.createElement("div");
+    row.className = "member-row";
+    row.innerHTML = `<span>${member.name}</span><strong>${member.status}</strong>`;
+    circleMemberList.appendChild(row);
+  });
+}
+
+function renderCircleLeaderboard(circle) {
+  circleLeaderboard.innerHTML = "";
+
+  circle.members
+    .slice()
+    .sort(function (first, second) {
+      return second.totalSeconds - first.totalSeconds;
+    })
+    .forEach(function (member, index) {
+      const row = document.createElement("div");
+      row.className = "member-row";
+      row.innerHTML = `<span>#${index + 1} ${member.name}</span><strong>${formatShortTime(member.totalSeconds)}</strong>`;
+      circleLeaderboard.appendChild(row);
+    });
+}
+
+function saveCircle(event) {
+  event.preventDefault();
+
+  const selectedCircle = getSelectedCircle();
+  const circleName = circleNameInput.value.trim();
+  const circleIcon = circleIconInput.value.trim().slice(0, 3).toUpperCase() || "SC";
+  const circleDescription = circleDescriptionInput.value.trim() || "A shared StudyMate circle.";
+
+  if (!circleName) {
+    return;
+  }
+
+  if (selectedCircle && circleFormMode.textContent.includes("Editing")) {
+    selectedCircle.name = circleName;
+    selectedCircle.icon = circleIcon;
+    selectedCircle.description = circleDescription;
+  } else {
+    const newCircle = {
+      id: createId(),
+      name: circleName,
+      icon: circleIcon,
+      description: circleDescription,
+      inviteCode: generateInviteCode(),
+      members: [{ id: "you", name: "You", status: "Studying", totalSeconds: appData.studySeconds }],
+      rooms: []
+    };
+    appData.studyCircles.push(newCircle);
+    appData.selectedCircleId = newCircle.id;
+  }
+
+  saveData();
+  renderStudyCircles();
+}
+
+function prepareNewCircle() {
+  circleNameInput.value = "";
+  circleIconInput.value = "";
+  circleDescriptionInput.value = "";
+  circleFormMode.textContent = "Create a new circle";
+  circleNameInput.focus();
+}
+
+function createFocusRoom(event) {
+  event.preventDefault();
+
+  const selectedCircle = getSelectedCircle();
+
+  if (!selectedCircle) {
+    return;
+  }
+
+  selectedCircle.rooms.unshift({
+    id: createId(),
+    name: roomNameInput.value.trim(),
+    icon: roomIconInput.value.trim().slice(0, 3).toUpperCase() || "FR",
+    description: roomDescriptionInput.value.trim() || "A temporary focus session.",
+    subject: roomSubjectInput.value.trim(),
+    maxMembers: Math.max(2, Number(roomMaxInput.value) || 8),
+    privacy: roomPrivacyInput.value,
+    status: "Paused",
+    elapsedSeconds: 0,
+    statusStartedAt: null,
+    members: []
+  });
+
+  roomForm.reset();
+  roomMaxInput.value = 8;
+  saveData();
+  renderStudyCircles();
+}
+
+function renderFocusRooms(circle) {
+  focusRoomList.innerHTML = "";
+
+  if (!circle || circle.rooms.length === 0) {
+    appendSimpleItem(focusRoomList, "No Focus Rooms yet. Create one for a live study session.");
+    return;
+  }
+
+  circle.rooms.forEach(function (room) {
+    const isJoined = appData.activeRoomId === room.id;
+    const roomCard = document.createElement("article");
+    roomCard.className = "room-card";
+    roomCard.innerHTML = `
+      <div class="room-card-topline">
+        <span class="circle-icon small-icon">${room.icon}</span>
+        <div>
+          <h3>${room.name}</h3>
+          <p class="muted-text">${room.description}</p>
+        </div>
+        <span class="status-pill">${room.privacy}</span>
+      </div>
+      <div class="room-session-grid compact-room-grid">
+        <div><span>Subject</span><strong>${room.subject}</strong></div>
+        <div><span>Members</span><strong>${room.members.length}/${room.maxMembers}</strong></div>
+        <div><span>Status</span><strong>${room.status}</strong></div>
+      </div>
+    `;
+
+    const action = document.createElement("button");
+    action.type = "button";
+    action.className = isJoined ? "secondary-button" : "";
+    action.textContent = isJoined ? "Joined" : "Join Focus Room";
+    action.disabled = !isJoined && room.members.length >= room.maxMembers;
+    action.addEventListener("click", function () {
+      joinFocusRoom(room.id);
+    });
+
+    roomCard.appendChild(action);
+    focusRoomList.appendChild(roomCard);
+  });
+}
+
+function joinFocusRoom(roomId) {
+  const room = getRoomById(roomId);
+
+  if (!room) {
+    return;
+  }
+
+  leaveFocusRoom(false);
+
+  if (!room.members.some(function (member) { return member.id === "you"; })) {
+    room.members.push({ id: "you", name: "You", status: room.status });
+  }
+
+  appData.activeRoomId = room.id;
+  saveData();
+  renderStudyCircles();
+}
+
+function leaveFocusRoom(shouldRender = true) {
+  const room = getRoomById(appData.activeRoomId);
+
+  if (room) {
+    room.members = room.members.filter(function (member) {
+      return member.id !== "you";
+    });
+  }
+
+  appData.activeRoomId = null;
+  saveData();
+
+  if (shouldRender) {
+    renderStudyCircles();
+  }
+}
+
+function renderActiveRoom() {
+  const room = getRoomById(appData.activeRoomId);
+
+  if (!room) {
+    activeRoomName.textContent = "No room joined";
+    activeRoomDescription.textContent = "Join a Focus Room to see the live study session.";
+    activeRoomSubject.textContent = "-";
+    activeRoomTimer.textContent = "0h 00m";
+    activeRoomStatus.textContent = "Paused";
+    activeRoomMembers.innerHTML = "";
+    roomStatusControls.innerHTML = "";
+    leaveRoomButton.disabled = true;
+    appendSimpleItem(activeRoomMembers, "No active room members yet.");
+    return;
+  }
+
+  leaveRoomButton.disabled = false;
+  activeRoomName.textContent = room.name;
+  activeRoomDescription.textContent = room.description;
+  activeRoomSubject.textContent = room.subject;
+  activeRoomTimer.textContent = formatShortTime(getRoomElapsedSeconds(room));
+  activeRoomStatus.textContent = room.status;
+
+  renderRoomStatusControls(room);
+  renderActiveRoomMembers(room);
+}
+
+function renderRoomStatusControls(room) {
+  const statuses = ["Studying", "Short Break", "Long Break", "Paused"];
+  roomStatusControls.innerHTML = "";
+
+  statuses.forEach(function (status) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = room.status === status ? "" : "secondary-button";
+    button.textContent = status;
+    button.addEventListener("click", function () {
+      updateRoomStatus(room.id, status);
+    });
+    roomStatusControls.appendChild(button);
+  });
+}
+
+function renderActiveRoomMembers(room) {
+  activeRoomMembers.innerHTML = "";
+
+  const demoMembers = room.members.length > 1 ? room.members : room.members.concat([
+    { id: "maya-demo", name: "Maya", status: "Studying" },
+    { id: "arif-demo", name: "Arif", status: "Short Break" }
+  ]);
+
+  demoMembers.forEach(function (member) {
+    const row = document.createElement("div");
+    row.className = "member-row";
+    row.innerHTML = `<span>${member.name}</span><strong>${member.status}</strong>`;
+    activeRoomMembers.appendChild(row);
+  });
+}
+
+function updateRoomStatus(roomId, status) {
+  const room = getRoomById(roomId);
+
+  if (!room) {
+    return;
+  }
+
+  room.elapsedSeconds = getRoomElapsedSeconds(room);
+  room.status = status;
+  room.statusStartedAt = status === "Studying" ? new Date().toISOString() : null;
+  room.members = room.members.map(function (member) {
+    return member.id === "you" ? { ...member, status: status } : member;
+  });
+
+  saveData();
+  renderStudyCircles();
+}
+
+function getRoomElapsedSeconds(room) {
+  if (room.status !== "Studying" || !room.statusStartedAt) {
+    return room.elapsedSeconds;
+  }
+
+  return room.elapsedSeconds + Math.floor((Date.now() - new Date(room.statusStartedAt).getTime()) / 1000);
+}
 navButtons.forEach(function (button) {
   button.addEventListener("click", function () {
     showSection(button.dataset.section);
@@ -941,6 +1856,12 @@ taskForm.addEventListener("submit", addTask);
 goalForm.addEventListener("submit", saveGoal);
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
+newCircleButton.addEventListener("click", prepareNewCircle);
+circleForm.addEventListener("submit", saveCircle);
+roomForm.addEventListener("submit", createFocusRoom);
+leaveRoomButton.addEventListener("click", function () {
+  leaveFocusRoom(true);
+});
 menuToggle.addEventListener("click", toggleSidebar);
 
 loadData();
@@ -949,3 +1870,4 @@ applySidebarState();
 renderThemes();
 intentionInput.value = appData.focusIntention;
 updateAllDisplays();
+setInterval(renderStudyCircles, 1000);
