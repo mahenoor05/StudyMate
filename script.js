@@ -36,12 +36,17 @@ const homeGoalHours = document.getElementById("home-goal-hours");
 const homeGoalBar = document.getElementById("home-goal-bar");
 const homeGoalCopy = document.getElementById("home-goal-copy");
 const homeTotalTime = document.getElementById("home-total-time");
-const homeCompletedTasks = document.getElementById("home-completed-tasks");
 const homeStreak = document.getElementById("home-streak");
 const homeSubjectList = document.getElementById("home-subject-list");
-const homeIntentionTitle = document.getElementById("home-intention-title");
-const homeIntentionCopy = document.getElementById("home-intention-copy");
 const homeTaskPreview = document.getElementById("home-task-preview");
+const homeDaySummary = document.getElementById("home-day-summary");
+const homeActiveCopy = document.getElementById("home-active-copy");
+const homeSessionMode = document.getElementById("home-session-mode");
+const homeSubjectSelect = document.getElementById("home-subject-select");
+const homeTaskCount = document.getElementById("home-task-count");
+const homeOpenPlan = document.getElementById("home-open-plan");
+const homeNextExam = document.getElementById("home-next-exam");
+const homeWeekPreview = document.getElementById("home-week-preview");
 
 const sessionStatus = document.getElementById("session-status");
 const sessionDisplay = document.getElementById("session-display");
@@ -73,17 +78,27 @@ const taskForm = document.getElementById("task-form");
 const taskInput = document.getElementById("task-input");
 const taskDateInput = document.getElementById("task-date-input");
 const taskSubjectInput = document.getElementById("task-subject-input");
+const taskRepeatInput = document.getElementById("task-repeat-input");
 const pendingTaskList = document.getElementById("pending-task-list");
 const completedTaskList = document.getElementById("completed-task-list");
+const openTaskModalButton = document.getElementById("open-task-modal");
+const closeTaskModalButton = document.getElementById("close-task-modal");
+const taskModal = document.getElementById("task-modal");
+const completedTaskSummary = document.getElementById("completed-task-summary");
+const completedTaskDetails = document.getElementById("completed-task-details");
+const planDateLabel = document.getElementById("plan-date-label");
+const planTaskSummary = document.getElementById("plan-task-summary");
+const planSummaryGoal = document.getElementById("plan-summary-goal");
+const planSummaryPlanned = document.getElementById("plan-summary-planned");
+const planSummaryDone = document.getElementById("plan-summary-done");
 const planGoalProgress = document.getElementById("plan-goal-progress");
 const planGoalCopy = document.getElementById("plan-goal-copy");
 const planGoalBar = document.getElementById("plan-goal-bar");
 
 const goalForm = document.getElementById("goal-form");
 const goalInput = document.getElementById("goal-input");
-const goalSummary = document.getElementById("goal-summary");
-const goalBar = document.getElementById("goal-bar");
-const goalTarget = document.getElementById("goal-target");
+const goalDecreaseButton = document.getElementById("goal-decrease");
+const goalIncreaseButton = document.getElementById("goal-increase");
 const plannerPrev = document.getElementById("planner-prev");
 const plannerNext = document.getElementById("planner-next");
 const plannerMonthLabel = document.getElementById("planner-month-label");
@@ -352,12 +367,17 @@ function normalizeData() {
 }
 
 function normalizeTask(task) {
+  const repeat = task.repeat === "daily" ? "daily" : "never";
+  const completedDates = Array.isArray(task.completedDates) ? task.completedDates : [];
+
   return {
     id: task.id || createId(),
     text: task.text || "Untitled task",
-    completed: Boolean(task.completed),
+    completed: repeat === "daily" ? completedDates.includes(getTodayKey()) : Boolean(task.completed),
     date: task.date || "",
-    subjectId: task.subjectId || ""
+    subjectId: task.subjectId || "",
+    repeat,
+    completedDates
   };
 }
 
@@ -542,9 +562,7 @@ function getSessionsForRange(range) {
 
 function getTasksForRange(range) {
   if (range === "today") {
-    return appData.tasks.filter(function (task) {
-      return !task.date || task.date === getTodayKey();
-    });
+    return getTodayTasks();
   }
 
   const start = getRangeStart(range);
@@ -552,6 +570,42 @@ function getTasksForRange(range) {
     if (!task.date) return true;
     return new Date(`${task.date}T00:00:00`) >= start;
   });
+}
+
+function isTaskCompletedToday(task) {
+  if (task.repeat === "daily") {
+    return Array.isArray(task.completedDates) && task.completedDates.includes(getTodayKey());
+  }
+
+  return Boolean(task.completed);
+}
+
+function isTaskVisibleToday(task) {
+  if (task.repeat === "daily") return true;
+  if (task.completed) return task.date === getTodayKey();
+  if (!task.date) return true;
+  return task.date <= getTodayKey();
+}
+
+function getTodayTasks() {
+  return appData.tasks.filter(isTaskVisibleToday);
+}
+
+function getPendingTodayTasks() {
+  return getTodayTasks().filter(function (task) {
+    return !isTaskCompletedToday(task);
+  });
+}
+
+function getCompletedTodayTasks() {
+  return getTodayTasks().filter(isTaskCompletedToday);
+}
+
+function getNearestExam() {
+  const today = getTodayKey();
+  return appData.exams
+    .filter(function (exam) { return exam.date >= today; })
+    .sort(function (first, second) { return new Date(first.date) - new Date(second.date); })[0];
 }
 
 function getRangeLabel(range) {
@@ -612,45 +666,68 @@ function updateAllDisplays() {
 }
 
 function updateHome() {
-  const pendingTasks = appData.tasks.filter(function (task) { return !task.completed; });
+  const pendingTasks = getPendingTodayTasks();
+  const completedTasks = getCompletedTodayTasks();
   const selectedSubject = getSelectedSubject();
   const goalPercent = getGoalPercent();
   const greeting = getGreeting();
+  const nearestExam = getNearestExam();
+  const summaryParts = [
+    `${pendingTasks.length} ${pendingTasks.length === 1 ? "task" : "tasks"} left today`,
+    `${formatShortTime(appData.studySeconds)} studied`
+  ];
 
-  dashboardGreeting.textContent = greeting;
+  if (nearestExam) {
+    summaryParts.push(`next exam ${getExamCountdown(nearestExam.date).toLowerCase()}`);
+  }
+
+  dashboardGreeting.textContent = `${greeting}, Mahenoor`;
   todayDate.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  homeDaySummary.textContent = summaryParts.join(" - ");
   homeTotalTime.textContent = formatShortTime(appData.studySeconds);
-  homeCompletedTasks.textContent = getCompletedTaskCount();
-  homeStreak.textContent = `${appData.streak} days`;
+  homeStreak.textContent = `${appData.streak}-day streak`;
   homeGoalPercent.textContent = `${goalPercent}%`;
-  homeGoalHours.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
+  homeGoalHours.textContent = `of ${formatGoalHours(appData.goalHours)} goal`;
   homeGoalBar.style.width = `${goalPercent}%`;
-  homeGoalCopy.textContent = goalPercent >= 100 ? "Daily goal completed." : "Keep going, you are building momentum.";
+  homeGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
 
   if (appData.activeSession) {
-    homeActiveSubject.textContent = selectedSubject.name;
-    homeActiveStatus.textContent = "Live";
-    homeSessionStart.textContent = formatClockTime(appData.activeSession.startedAt);
+    homeActiveSubject.textContent = "Continue where you left off";
+    homeActiveCopy.textContent = selectedSubject.name;
+    homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Live";
+    homeSessionStart.textContent = `Started ${formatClockTime(appData.activeSession.startedAt)}`;
+    homeSessionMode.textContent = appData.activeSession.mode;
     homeSessionElapsed.textContent = formatLongTime(getSessionElapsedSeconds());
+    homeContinueSession.textContent = "Continue";
+    homeSubjectSelect.disabled = true;
   } else {
-    homeActiveSubject.textContent = "No session running";
+    homeActiveSubject.textContent = "Ready to focus?";
+    homeActiveCopy.textContent = "Choose what you want to study today.";
     homeActiveStatus.textContent = "Idle";
     homeSessionStart.textContent = "Not started";
+    homeSessionMode.textContent = getSelectedTimerMode().name;
     homeSessionElapsed.textContent = "0h 00m 00s";
+    homeContinueSession.textContent = "Start Session";
+    homeSubjectSelect.disabled = false;
   }
 
-  homeIntentionTitle.textContent = appData.focusIntention || "Set one clear target for today.";
-  homeIntentionCopy.textContent = appData.focusIntention ? "Your study intention is saved for today." : "Use the Study Sessions page to write what matters most before you begin.";
-
+  homeTaskCount.textContent = `${pendingTasks.length} left - ${completedTasks.length} done`;
   homeTaskPreview.innerHTML = "";
   if (pendingTasks.length === 0) {
-    appendSimpleItem(homeTaskPreview, "No pending tasks.");
+    appendSimpleItem(homeTaskPreview, "Nothing planned yet. Add today's first task ->");
   } else {
-    pendingTasks.slice(0, 4).forEach(function (task) {
-      appendSimpleItem(homeTaskPreview, task.text);
+    pendingTasks.slice(0, 3).forEach(function (task) {
+      appendTaskPreview(homeTaskPreview, task);
     });
+
+    if (pendingTasks.length > 3) {
+      appendSimpleItem(homeTaskPreview, `${pendingTasks.length - 3} more in Plan.`);
+    }
   }
 
+  renderHomeSubjectOptions();
+  renderHomeNextExam(nearestExam);
+  renderHomeWeekPreview();
   renderSubjectBreakdown(homeSubjectList);
 }
 
@@ -700,12 +777,10 @@ function renderTimerModeIndicators() {
 function updateGoal() {
   const goalPercent = getGoalPercent();
   goalInput.value = appData.goalHours;
-  goalTarget.textContent = formatGoalHours(appData.goalHours);
-  goalSummary.textContent = `${goalPercent}% complete`;
-  goalBar.style.width = `${goalPercent}%`;
   planGoalProgress.textContent = `${goalPercent}%`;
   planGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
   planGoalBar.style.width = `${goalPercent}%`;
+  planSummaryGoal.textContent = formatGoalHours(appData.goalHours).replace(" Hours", "h").replace(" Hour", "h");
 }
 
 function updateInsights() {
@@ -761,6 +836,91 @@ function renderTaskSubjectOptions() {
   });
 
   taskSubjectInput.value = getSubjectById(currentValue) ? currentValue : "";
+}
+
+function renderHomeSubjectOptions() {
+  const currentValue = homeSubjectSelect.value || appData.selectedSubjectId;
+  homeSubjectSelect.innerHTML = "";
+
+  appData.subjects.forEach(function (subject) {
+    const option = document.createElement("option");
+    option.value = subject.id;
+    option.textContent = subject.name;
+    homeSubjectSelect.appendChild(option);
+  });
+
+  homeSubjectSelect.value = getSubjectById(currentValue) ? currentValue : appData.selectedSubjectId;
+}
+
+function appendTaskPreview(parent, task) {
+  const item = document.createElement("li");
+  const taskText = document.createElement("span");
+  const taskMeta = document.createElement("small");
+  const metaParts = [];
+
+  taskText.textContent = task.text;
+  if (task.date) metaParts.push(task.date === getTodayKey() ? "Today" : task.date);
+  if (task.subjectId) metaParts.push(getSubjectName(task.subjectId));
+  if (task.repeat === "daily") metaParts.push("Daily");
+  taskMeta.textContent = metaParts.join(" - ");
+
+  item.appendChild(taskText);
+  if (taskMeta.textContent) item.appendChild(taskMeta);
+  parent.appendChild(item);
+}
+
+function renderHomeNextExam(exam) {
+  homeNextExam.innerHTML = "";
+
+  if (!exam) {
+    homeNextExam.className = "compact-empty";
+    homeNextExam.textContent = "No exams saved yet.";
+    return;
+  }
+
+  homeNextExam.className = "exam-mini";
+  const title = document.createElement("strong");
+  const meta = document.createElement("span");
+  const progress = document.createElement("small");
+  const completedTopics = exam.topics.filter(function (topic) { return topic.completed; }).length;
+  const totalTopics = exam.topics.length;
+
+  title.textContent = exam.name;
+  meta.textContent = `${getExamCountdown(exam.date)} - ${exam.subject}`;
+  progress.textContent = totalTopics > 0 ? `${completedTopics}/${totalTopics} topics done` : "No syllabus topics yet";
+
+  homeNextExam.appendChild(title);
+  homeNextExam.appendChild(meta);
+  homeNextExam.appendChild(progress);
+}
+
+function renderHomeWeekPreview() {
+  homeWeekPreview.innerHTML = "";
+  const sessions = getSessionsForRange("week");
+  const totalsByDate = {};
+
+  sessions.forEach(function (session) {
+    totalsByDate[session.date] = (totalsByDate[session.date] || 0) + Number(session.durationSeconds || 0);
+  });
+
+  for (let index = 6; index >= 0; index -= 1) {
+    const date = new Date();
+    date.setDate(date.getDate() - index);
+    const dateKey = getDateKeyFromDate(date);
+    const seconds = dateKey === getTodayKey()
+      ? Math.max(totalsByDate[dateKey] || 0, appData.studySeconds)
+      : totalsByDate[dateKey] || 0;
+
+    const day = document.createElement("div");
+    const bar = document.createElement("span");
+    const label = document.createElement("small");
+    day.className = "week-day";
+    bar.style.height = `${Math.max(Math.min(seconds / 90, 56), seconds > 0 ? 8 : 3)}px`;
+    label.textContent = date.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1);
+    day.appendChild(bar);
+    day.appendChild(label);
+    homeWeekPreview.appendChild(day);
+  }
 }
 
 function renderSubjectBreakdown(container) {
@@ -1084,13 +1244,15 @@ function saveIntention(event) {
   updateAllDisplays();
 }
 
-function createTask(text, date, subjectId) {
+function createTask(text, date, subjectId, repeat) {
   return {
     id: createId(),
     text,
     completed: false,
     date,
-    subjectId
+    subjectId,
+    repeat,
+    completedDates: []
   };
 }
 
@@ -1099,18 +1261,35 @@ function addTask(event) {
   const taskText = taskInput.value.trim();
   if (!taskText) return;
 
-  appData.tasks.push(createTask(taskText, taskDateInput.value, taskSubjectInput.value));
+  appData.tasks.push(createTask(taskText, taskDateInput.value, taskSubjectInput.value, taskRepeatInput.value));
   taskInput.value = "";
   taskDateInput.value = "";
   taskSubjectInput.value = "";
+  taskRepeatInput.value = "never";
   saveData();
+  closeTaskModal();
   renderTasks();
   updateAllDisplays();
 }
 
 function toggleTask(taskId) {
   appData.tasks = appData.tasks.map(function (task) {
-    return task.id === taskId ? { ...task, completed: !task.completed } : task;
+    if (task.id !== taskId) return task;
+
+    if (task.repeat === "daily") {
+      const completedDates = Array.isArray(task.completedDates) ? task.completedDates.slice() : [];
+      const todayIndex = completedDates.indexOf(getTodayKey());
+
+      if (todayIndex >= 0) {
+        completedDates.splice(todayIndex, 1);
+      } else {
+        completedDates.push(getTodayKey());
+      }
+
+      return { ...task, completed: completedDates.includes(getTodayKey()), completedDates };
+    }
+
+    return { ...task, completed: !task.completed };
   });
   saveData();
   renderTasks();
@@ -1127,10 +1306,22 @@ function deleteTask(taskId) {
 }
 
 function renderTasks() {
+  const pendingTasks = getPendingTodayTasks();
+  const completedTasks = getCompletedTodayTasks();
+
   pendingTaskList.innerHTML = "";
   completedTaskList.innerHTML = "";
-  renderTaskGroup(pendingTaskList, appData.tasks.filter(function (task) { return !task.completed; }));
-  renderTaskGroup(completedTaskList, appData.tasks.filter(function (task) { return task.completed; }));
+  planDateLabel.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  planTaskSummary.textContent = pendingTasks.length === 0
+    ? "Nothing planned yet."
+    : `${pendingTasks.length} still open today.`;
+  planSummaryPlanned.textContent = getTodayTasks().length;
+  planSummaryDone.textContent = completedTasks.length;
+  completedTaskSummary.textContent = `Completed (${completedTasks.length})`;
+  completedTaskDetails.open = completedTasks.length > 0;
+
+  renderTaskGroup(pendingTaskList, pendingTasks);
+  renderTaskGroup(completedTaskList, completedTasks);
 }
 
 function renderTaskGroup(listElement, tasks) {
@@ -1146,7 +1337,7 @@ function renderTaskGroup(listElement, tasks) {
     const checkbox = document.createElement("input");
     checkbox.className = "task-checkbox";
     checkbox.type = "checkbox";
-    checkbox.checked = task.completed;
+    checkbox.checked = isTaskCompletedToday(task);
     checkbox.addEventListener("change", function () { toggleTask(task.id); });
 
     const taskText = document.createElement("span");
@@ -1158,6 +1349,7 @@ function renderTaskGroup(listElement, tasks) {
     const metaParts = [];
     if (task.date) metaParts.push(task.date);
     if (task.subjectId) metaParts.push(getSubjectName(task.subjectId));
+    if (task.repeat === "daily") metaParts.push("Daily");
     taskMeta.textContent = metaParts.join(" - ");
 
     const deleteButton = document.createElement("button");
@@ -1182,6 +1374,39 @@ function saveGoal(event) {
   appData.goalHours = goalHours;
   saveData();
   updateAllDisplays();
+}
+
+function changeGoalBy(amount) {
+  appData.goalHours = Math.max(0.25, Number((appData.goalHours + amount).toFixed(2)));
+  saveData();
+  updateAllDisplays();
+}
+
+function openTaskModal() {
+  taskModal.hidden = false;
+  taskDateInput.value = getTodayKey();
+  taskInput.focus();
+}
+
+function closeTaskModal() {
+  taskModal.hidden = true;
+}
+
+function handleTaskModalBackdrop(event) {
+  if (event.target === taskModal) {
+    closeTaskModal();
+  }
+}
+
+function startOrContinueFromHome() {
+  if (appData.activeSession) {
+    showSection("focus-hub");
+    return;
+  }
+
+  appData.selectedSubjectId = homeSubjectSelect.value || appData.selectedSubjectId;
+  sessionSubjectSelect.value = appData.selectedSubjectId;
+  startSession();
 }
 
 function renderPlanner() {
@@ -1910,8 +2135,14 @@ navButtons.forEach(function (button) {
   });
 });
 
-homeContinueSession.addEventListener("click", function () { showSection("focus-hub"); });
+homeContinueSession.addEventListener("click", startOrContinueFromHome);
 homeOpenSession.addEventListener("click", function () { showSection("focus-hub"); });
+homeOpenPlan.addEventListener("click", function () { showSection("task-board"); });
+homeSubjectSelect.addEventListener("change", function () {
+  appData.selectedSubjectId = homeSubjectSelect.value;
+  saveData();
+  renderSubjectOptions();
+});
 sessionStartButton.addEventListener("click", startSession);
 sessionPauseButton.addEventListener("click", function () { pauseSession(true); });
 sessionResetButton.addEventListener("click", resetSession);
@@ -1928,6 +2159,11 @@ intentionInput.addEventListener("input", function () {
 });
 taskForm.addEventListener("submit", addTask);
 goalForm.addEventListener("submit", saveGoal);
+goalDecreaseButton.addEventListener("click", function () { changeGoalBy(-0.25); });
+goalIncreaseButton.addEventListener("click", function () { changeGoalBy(0.25); });
+openTaskModalButton.addEventListener("click", openTaskModal);
+closeTaskModalButton.addEventListener("click", closeTaskModal);
+taskModal.addEventListener("click", handleTaskModalBackdrop);
 plannerPrev.addEventListener("click", function () { changePlannerMonth(-1); });
 plannerNext.addEventListener("click", function () { changePlannerMonth(1); });
 plannerForm.addEventListener("submit", addPlannerItem);
