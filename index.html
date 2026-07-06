@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Toggle sidebar">☰</button>
+  <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Toggle sidebar">Menu</button>
 
   <aside class="sidebar">
     <div class="brand">
@@ -19,35 +19,32 @@
     </div>
 
     <nav class="sidebar-nav" aria-label="StudyMate sections">
-      <button class="nav-link active" type="button" data-section="home"><span>🏠 Dashboard</span></button>
+      <button class="nav-link active" type="button" data-section="home"><span>Dashboard</span></button>
 
-      <p class="nav-group">⏱ Timers</p>
-      <button class="nav-link nested-link" type="button" data-section="focus-hub"><span>Overall</span></button>
-      <button class="nav-link nested-link" type="button" data-section="pomodoro-lab"><span>Pomodoro</span></button>
-      <button class="nav-link nested-link" type="button" data-section="subject-studio"><span>Subject</span></button>
+      <p class="nav-group">Timer</p>
+      <button class="nav-link nested-link" type="button" data-section="focus-hub"><span>Study Session</span></button>
 
-      <p class="nav-group">📝 Planner</p>
+      <p class="nav-group">Planner</p>
       <button class="nav-link nested-link" type="button" data-section="task-board"><span>Tasks</span></button>
       <button class="nav-link nested-link" type="button" data-section="goals"><span>Goals</span></button>
 
-      <button class="nav-link" type="button" data-section="insights"><span>📊 Analytics</span></button>
+      <button class="nav-link" type="button" data-section="insights"><span>Analytics</span></button>
 
-      <p class="nav-group">👥 Community</p>
+      <p class="nav-group">Community</p>
       <button class="nav-link nested-link" type="button" data-section="study-circle"><span>Groups</span></button>
       <button class="nav-link nested-link" type="button" data-section="leaderboard"><span>Leaderboard</span></button>
 
       <button class="nav-link" type="button" data-section="distraction-log"><span>Distraction Log</span></button>
-      <button class="nav-link" type="button" data-section="appearance"><span>⚙ Settings</span></button>
+      <button class="nav-link" type="button" data-section="appearance"><span>Settings</span></button>
     </nav>
   </aside>
 
   <main class="app-main">
     <section class="app-section active" id="home">
-      <div class="hero-panel">
+      <div class="page-topline">
         <div>
-          <p class="eyebrow">Welcome back</p>
-          <h2>Build a calmer study rhythm.</h2>
-          <p class="hero-copy">Plan your focus, track your time, and keep momentum without crowding your screen.</p>
+          <p class="eyebrow">Dashboard</p>
+          <h2>Today's study command center.</h2>
         </div>
         <div class="date-card">
           <span>Today</span>
@@ -55,55 +52,80 @@
         </div>
       </div>
 
-      <div class="home-grid">
-        <article class="feature-card wide-card">
+      <div class="dashboard-layout">
+        <article class="panel active-session-card">
           <div class="card-heading">
             <div>
-              <p class="eyebrow">Today&apos;s Focus</p>
-              <h3 id="home-focus-title">No active subject yet</h3>
+              <p class="eyebrow">Active Session</p>
+              <h3 id="home-active-subject">No session running</h3>
             </div>
             <span class="status-pill" id="home-active-status">Idle</span>
           </div>
-          <p class="muted-text" id="home-focus-detail">Start the Focus Hub or a Subject Studio timer to begin tracking.</p>
+          <dl class="session-meta-grid">
+            <div>
+              <dt>Started</dt>
+              <dd id="home-session-start">Not started</dd>
+            </div>
+            <div>
+              <dt>Elapsed</dt>
+              <dd id="home-session-elapsed">0h 00m 00s</dd>
+            </div>
+          </dl>
+          <button type="button" id="home-continue-session">Continue Studying</button>
         </article>
 
-        <article class="metric-card">
-          <span>Deep Work Time</span>
-          <strong id="home-total-time">0h 00m</strong>
-          <p>Tracked today</p>
-        </article>
-
-        <article class="metric-card">
-          <span>Focus Streak</span>
-          <strong id="home-streak">0 days</strong>
-          <p>Consistency meter</p>
-        </article>
-
-        <article class="feature-card">
-          <p class="eyebrow">Goal Progress</p>
-          <h3 id="home-goal-percent">0%</h3>
+        <article class="panel goal-card">
+          <div class="card-heading compact-heading">
+            <div>
+              <p class="eyebrow">Today's Goal</p>
+              <h3 id="home-goal-percent">0%</h3>
+            </div>
+            <strong id="home-goal-hours">0h / 0h</strong>
+          </div>
           <div class="progress-bar" aria-label="Daily goal progress">
             <span id="home-goal-bar"></span>
           </div>
           <p class="muted-text" id="home-goal-copy">Set a daily goal to see your progress.</p>
         </article>
 
-        <article class="feature-card">
+        <article class="panel stats-card">
+          <p class="eyebrow">Today's Stats</p>
+          <div class="stats-grid">
+            <div>
+              <span>Total study hours</span>
+              <strong id="home-total-time">0h 00m</strong>
+            </div>
+            <div>
+              <span>Completed tasks</span>
+              <strong id="home-completed-tasks">0</strong>
+            </div>
+            <div>
+              <span>Current streak</span>
+              <strong id="home-streak">0 days</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel subjects-card">
+          <div class="card-heading compact-heading">
+            <div>
+              <p class="eyebrow">Today's Subjects</p>
+              <h3>Subject breakdown</h3>
+            </div>
+            <button class="secondary-button small-button" type="button" id="home-open-session">Study</button>
+          </div>
+          <div class="subject-breakdown" id="home-subject-list"></div>
+        </article>
+
+        <article class="panel intention-card">
+          <p class="eyebrow">Focus Intention</p>
+          <h3 id="home-intention-title">Set one clear target for today.</h3>
+          <p class="muted-text" id="home-intention-copy">Use the Study Session page to write what matters most before you begin.</p>
+        </article>
+
+        <article class="panel tasks-preview-card">
           <p class="eyebrow">Next Up</p>
           <ul class="preview-list" id="home-task-preview"></ul>
-        </article>
-
-        <article class="feature-card">
-          <p class="eyebrow">Momentum</p>
-          <blockquote id="quote-text">Small, honest sessions beat perfect plans.</blockquote>
-        </article>
-
-        <article class="feature-card wide-card">
-          <p class="eyebrow">Weekly Snapshot</p>
-          <div class="mini-week">
-            <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-          </div>
-          <p class="muted-text">A real weekly chart will come later when reports are added.</p>
         </article>
       </div>
     </section>
@@ -111,129 +133,60 @@
     <section class="app-section" id="focus-hub">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Focus Hub</p>
-          <h2>Overall study timer</h2>
+          <p class="eyebrow">Timer</p>
+          <h2>Study Session</h2>
         </div>
-        <span class="status-pill" id="overall-status">Not started</span>
+        <span class="status-pill" id="session-status">Not started</span>
       </div>
 
-      <article class="panel timer-panel">
-        <div class="timer-display" id="overall-display">0h 00m 00s</div>
-        <div class="button-row">
-          <button type="button" id="overall-start">Start</button>
-          <button type="button" class="secondary-button" id="overall-pause">Pause</button>
-          <button type="button" class="secondary-button" id="overall-reset">Reset</button>
-        </div>
-      </article>
-    </section>
+      <div class="session-layout">
+        <article class="panel timer-panel session-timer-card">
+          <div class="timer-display" id="session-display">0h 00m 00s</div>
 
-    <section class="app-section" id="subject-studio">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Subject Studio</p>
-          <h2>Study time by subject</h2>
-        </div>
-      </div>
+          <label class="field-label" for="session-subject-select">Current Subject</label>
+          <select id="session-subject-select"></select>
 
-      <article class="panel">
-        <form class="inline-form" id="subject-form">
-          <label class="sr-only" for="subject-input">Subject name</label>
-          <input id="subject-input" type="text" placeholder="Add a subject, for example Biology">
-          <button type="submit">Add Subject</button>
-        </form>
-      </article>
+          <form class="inline-form subject-quick-add" id="subject-form">
+            <label class="sr-only" for="subject-input">Add subject</label>
+            <input id="subject-input" type="text" placeholder="Add subject, for example Python">
+            <button type="submit" class="secondary-button">Add</button>
+          </form>
 
-      <div class="subject-list" id="subject-list"></div>
-    </section>
-
-    <section class="app-section" id="pomodoro-lab">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Pomodoro Lab</p>
-          <h2>Custom focus cycles</h2>
-        </div>
-        <span class="status-pill" id="pomodoro-status">Not started</span>
-      </div>
-
-      <div class="pomodoro-layout">
-        <article class="panel timer-panel pomodoro-timer-card">
-          <div class="pomodoro-session-topline">
-            <span id="pomodoro-session-label">Current Session: 🟢 Study</span>
-            <span id="pomodoro-cycle-label">Pomodoro 1 of 4</span>
-          </div>
-
-          <div class="timer-display" id="pomodoro-display">25:00</div>
-
-          <div class="progress-bar timer-progress" aria-label="Current Pomodoro progress">
-            <span id="pomodoro-progress-bar"></span>
-          </div>
-
-          <p class="muted-text" id="pomodoro-session-counter">Study Session #1</p>
-
-          <div class="button-row">
-            <button type="button" id="pomodoro-start">Start</button>
-            <button type="button" class="secondary-button" id="pomodoro-pause">Pause</button>
-            <button type="button" class="secondary-button" id="pomodoro-reset">Reset</button>
-            <button type="button" class="secondary-button" id="pomodoro-skip">Skip Session</button>
+          <div class="button-row session-actions">
+            <button type="button" id="session-start">Start</button>
+            <button type="button" class="secondary-button" id="session-pause">Pause</button>
+            <button type="button" class="secondary-button" id="session-reset">Reset</button>
           </div>
         </article>
 
-        <aside class="pomodoro-side">
-          <article class="metric-card">
-            <span>Today&apos;s Pomodoros Completed</span>
-            <strong id="pomodoro-completed-widget">0 Sessions</strong>
+        <aside class="session-side-panel">
+          <article class="panel metric-card">
+            <span>Today's Study Time</span>
+            <strong id="session-total-today">0h 00m</strong>
           </article>
 
-          <article class="metric-card">
-            <span>Total Focus Time Today</span>
-            <strong id="pomodoro-focus-time-widget">0h 00m</strong>
+          <article class="panel">
+            <h3>Today's Subject Breakdown</h3>
+            <div class="subject-breakdown" id="session-subject-breakdown"></div>
           </article>
 
-          <article class="metric-card">
-            <span>Current Streak</span>
-            <strong id="pomodoro-streak-widget">🔥 0 Days</strong>
+          <article class="panel">
+            <h3>Recent Sessions</h3>
+            <div class="recent-sessions" id="recent-session-list"></div>
           </article>
         </aside>
       </div>
 
-      <div class="pomodoro-grid">
-        <article class="panel">
-          <h3>Durations</h3>
-          <form class="settings-grid" id="pomodoro-settings-form">
-            <label>
-              Study duration
-              <input id="study-duration-input" type="number" min="1" step="1">
-            </label>
-            <label>
-              Short break
-              <input id="short-break-input" type="number" min="1" step="1">
-            </label>
-            <label>
-              Long break
-              <input id="long-break-input" type="number" min="1" step="1">
-            </label>
-            <button type="submit">Save Durations</button>
-          </form>
-        </article>
-
-        <article class="panel">
-          <h3>Motivation</h3>
-          <blockquote id="pomodoro-quote">Start where you are. Keep showing up.</blockquote>
-        </article>
-
-        <article class="panel">
-          <h3>Sounds</h3>
-          <label class="toggle-row">
-            <input id="tick-sound-toggle" type="checkbox">
-            Tick sound
-          </label>
-          <label class="toggle-row">
-            <input id="bell-sound-toggle" type="checkbox">
-            Bell sound when session ends
-          </label>
-          <p class="muted-text">Sounds are off by default and use simple browser-generated tones.</p>
-        </article>
-      </div>
+      <article class="panel intention-panel">
+        <form class="stacked-form" id="intention-form">
+          <label for="intention-input">Today's focus intention</label>
+          <textarea id="intention-input" rows="3" maxlength="180" placeholder="For example: finish chemistry notes before lunch"></textarea>
+          <div class="form-footer">
+            <span id="intention-count">0/180</span>
+            <button type="submit">Save Intention</button>
+          </div>
+        </form>
+      </article>
     </section>
 
     <section class="app-section" id="task-board">
@@ -278,7 +231,7 @@
           <button type="submit">Save Goal</button>
         </form>
         <div class="goal-panel">
-          <p class="eyebrow">Today&apos;s Goal</p>
+          <p class="eyebrow">Today's Goal</p>
           <strong id="goal-target">0 Hours</strong>
           <p id="goal-summary">0% complete</p>
           <div class="progress-bar" aria-label="Goal progress">
@@ -298,7 +251,7 @@
 
       <div class="summary-grid compact-grid">
         <article class="metric-card">
-          <span>Today&apos;s Total</span>
+          <span>Today's Total</span>
           <strong id="insight-total-time">0h 00m</strong>
         </article>
         <article class="metric-card">
@@ -314,13 +267,6 @@
       <article class="panel">
         <h3>Subject Breakdown</h3>
         <div class="insight-list" id="subject-insights"></div>
-      </article>
-
-      <article class="panel">
-        <h3>Weekly Placeholder</h3>
-        <div class="mini-week large-week">
-          <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
       </article>
     </section>
 
@@ -345,10 +291,6 @@
           <h3>Friends Studying</h3>
           <p class="mock-line">Ayesha is in Deep Work</p>
           <p class="mock-line">Ray is reviewing Physics</p>
-        </article>
-        <article class="panel">
-          <h3>Group Progress</h3>
-          <div class="progress-bar"><span style="width: 48%;"></span></div>
         </article>
         <article class="panel chat-preview">
           <h3>Group Chat</h3>
@@ -417,7 +359,6 @@
           <input id="accent-input" type="color" value="#7c5cff">
           <button type="button" id="save-accent">Save Accent</button>
         </div>
-        <p class="muted-text">Future options: card style, background style, and animation intensity.</p>
       </article>
     </section>
   </main>

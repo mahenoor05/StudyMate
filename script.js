@@ -1,20 +1,5 @@
-const STORAGE_KEY = "studymate-app-v3";
-const OLD_STORAGE_KEYS = ["studymate-app-v2", "studymate-dashboard"];
-const DEFAULT_POMODORO_SETTINGS = {
-  studyMinutes: 25,
-  shortBreakMinutes: 5,
-  longBreakMinutes: 15,
-  tickSound: false,
-  bellSound: false
-};
-
-const pomodoroQuotes = [
-  "One focused session can change the shape of the day.",
-  "Study gently, but do not disappear from the work.",
-  "The next ten minutes count. Begin there.",
-  "Clear attention is a skill. Train it one session at a time.",
-  "Small progress is still proof that you showed up."
-];
+const STORAGE_KEY = "studymate-app-v4";
+const OLD_STORAGE_KEYS = ["studymate-app-v3", "studymate-app-v2", "studymate-dashboard"];
 
 const themes = [
   { id: "midnight", name: "Midnight Black" },
@@ -32,46 +17,38 @@ const navButtons = document.querySelectorAll(".nav-link");
 const sections = document.querySelectorAll(".app-section");
 
 const todayDate = document.getElementById("today-date");
-const homeFocusTitle = document.getElementById("home-focus-title");
-const homeFocusDetail = document.getElementById("home-focus-detail");
+const homeActiveSubject = document.getElementById("home-active-subject");
 const homeActiveStatus = document.getElementById("home-active-status");
-const homeTotalTime = document.getElementById("home-total-time");
-const homeStreak = document.getElementById("home-streak");
+const homeSessionStart = document.getElementById("home-session-start");
+const homeSessionElapsed = document.getElementById("home-session-elapsed");
+const homeContinueSession = document.getElementById("home-continue-session");
+const homeOpenSession = document.getElementById("home-open-session");
 const homeGoalPercent = document.getElementById("home-goal-percent");
+const homeGoalHours = document.getElementById("home-goal-hours");
 const homeGoalBar = document.getElementById("home-goal-bar");
 const homeGoalCopy = document.getElementById("home-goal-copy");
+const homeTotalTime = document.getElementById("home-total-time");
+const homeCompletedTasks = document.getElementById("home-completed-tasks");
+const homeStreak = document.getElementById("home-streak");
+const homeSubjectList = document.getElementById("home-subject-list");
+const homeIntentionTitle = document.getElementById("home-intention-title");
+const homeIntentionCopy = document.getElementById("home-intention-copy");
 const homeTaskPreview = document.getElementById("home-task-preview");
 
-const overallDisplay = document.getElementById("overall-display");
-const overallStatus = document.getElementById("overall-status");
-const overallStartButton = document.getElementById("overall-start");
-const overallPauseButton = document.getElementById("overall-pause");
-const overallResetButton = document.getElementById("overall-reset");
-
+const sessionStatus = document.getElementById("session-status");
+const sessionDisplay = document.getElementById("session-display");
+const sessionSubjectSelect = document.getElementById("session-subject-select");
+const sessionStartButton = document.getElementById("session-start");
+const sessionPauseButton = document.getElementById("session-pause");
+const sessionResetButton = document.getElementById("session-reset");
+const sessionTotalToday = document.getElementById("session-total-today");
+const sessionSubjectBreakdown = document.getElementById("session-subject-breakdown");
+const recentSessionList = document.getElementById("recent-session-list");
 const subjectForm = document.getElementById("subject-form");
 const subjectInput = document.getElementById("subject-input");
-const subjectList = document.getElementById("subject-list");
-
-const pomodoroDisplay = document.getElementById("pomodoro-display");
-const pomodoroStatus = document.getElementById("pomodoro-status");
-const pomodoroStartButton = document.getElementById("pomodoro-start");
-const pomodoroPauseButton = document.getElementById("pomodoro-pause");
-const pomodoroResetButton = document.getElementById("pomodoro-reset");
-const pomodoroSkipButton = document.getElementById("pomodoro-skip");
-const pomodoroSessionLabel = document.getElementById("pomodoro-session-label");
-const pomodoroCycleLabel = document.getElementById("pomodoro-cycle-label");
-const pomodoroSessionCounter = document.getElementById("pomodoro-session-counter");
-const pomodoroProgressBar = document.getElementById("pomodoro-progress-bar");
-const pomodoroCompletedWidget = document.getElementById("pomodoro-completed-widget");
-const pomodoroFocusTimeWidget = document.getElementById("pomodoro-focus-time-widget");
-const pomodoroStreakWidget = document.getElementById("pomodoro-streak-widget");
-const pomodoroSettingsForm = document.getElementById("pomodoro-settings-form");
-const studyDurationInput = document.getElementById("study-duration-input");
-const shortBreakInput = document.getElementById("short-break-input");
-const longBreakInput = document.getElementById("long-break-input");
-const pomodoroQuote = document.getElementById("pomodoro-quote");
-const tickSoundToggle = document.getElementById("tick-sound-toggle");
-const bellSoundToggle = document.getElementById("bell-sound-toggle");
+const intentionForm = document.getElementById("intention-form");
+const intentionInput = document.getElementById("intention-input");
+const intentionCount = document.getElementById("intention-count");
 
 const taskForm = document.getElementById("task-form");
 const taskInput = document.getElementById("task-input");
@@ -82,6 +59,7 @@ const goalForm = document.getElementById("goal-form");
 const goalInput = document.getElementById("goal-input");
 const goalSummary = document.getElementById("goal-summary");
 const goalBar = document.getElementById("goal-bar");
+const goalTarget = document.getElementById("goal-target");
 
 const insightTotalTime = document.getElementById("insight-total-time");
 const insightTasks = document.getElementById("insight-tasks");
@@ -98,31 +76,35 @@ const themeGrid = document.getElementById("theme-grid");
 const accentInput = document.getElementById("accent-input");
 const saveAccentButton = document.getElementById("save-accent");
 
-let overallTimerId = null;
-let subjectTimerId = null;
-let activeSubjectId = null;
-let pomodoroTimerId = null;
-let pomodoroAudioContext = null;
-
+let sessionTimerId = null;
 let appData = createDefaultData();
 
 function createDefaultData() {
+  const generalSubject = createSubject("General Study");
+
   return {
     date: getTodayKey(),
     theme: "midnight",
     accentColor: "#7c5cff",
     sidebarCollapsed: false,
-    overallSeconds: 0,
-    pomodoroCompleted: 0,
-    pomodoroFocusSeconds: 0,
-    pomodoroCycleIndex: 0,
-    pomodoroSecondsLeft: DEFAULT_POMODORO_SETTINGS.studyMinutes * 60,
-    pomodoroSettings: { ...DEFAULT_POMODORO_SETTINGS },
+    studySeconds: 0,
     goalHours: 2,
     streak: 0,
+    focusIntention: "",
+    selectedSubjectId: generalSubject.id,
+    activeSession: null,
     tasks: [],
-    subjects: [],
+    subjects: [generalSubject],
+    sessions: [],
     distractions: []
+  };
+}
+
+function createSubject(name) {
+  return {
+    id: createId(),
+    name: name,
+    seconds: 0
   };
 }
 
@@ -151,6 +133,10 @@ function loadData() {
   }
 
   saveData();
+
+  if (appData.activeSession) {
+    resumeSessionTimer();
+  }
 }
 
 function loadOlderData() {
@@ -179,25 +165,39 @@ function parseSavedData(savedData) {
 function migrateOldData(oldData) {
   try {
     const parsedOldData = JSON.parse(oldData);
+    const oldSubjects = Array.isArray(parsedOldData.subjects) ? parsedOldData.subjects : [];
+    const migratedSubjects = oldSubjects.map(function (subject) {
+      return {
+        id: subject.id || createId(),
+        name: subject.name || "Untitled Subject",
+        seconds: Number(subject.seconds) || 0
+      };
+    });
+    const subjectTotal = migratedSubjects.reduce(function (total, subject) {
+      return total + subject.seconds;
+    }, 0);
+    const oldTimerTotal = (Number(parsedOldData.overallSeconds) || 0) + (Number(parsedOldData.pomodoroFocusSeconds) || 0);
+
+    if (migratedSubjects.length === 0) {
+      migratedSubjects.push(createSubject("General Study"));
+    }
 
     return {
       ...createDefaultData(),
       date: parsedOldData.date || getTodayKey(),
       theme: parsedOldData.theme || (parsedOldData.darkMode === false ? "light" : "midnight"),
+      accentColor: parsedOldData.accentColor || "#7c5cff",
       sidebarCollapsed: Boolean(parsedOldData.sidebarCollapsed),
-      overallSeconds: parsedOldData.overallSeconds || parsedOldData.completedSeconds || 0,
-      pomodoroCompleted: parsedOldData.pomodoroCompleted || parsedOldData.completedPomodoros || 0,
-      pomodoroFocusSeconds: parsedOldData.pomodoroFocusSeconds || 0,
-      pomodoroCycleIndex: parsedOldData.pomodoroCycleIndex || 0,
-      pomodoroSecondsLeft: parsedOldData.pomodoroSecondsLeft || DEFAULT_POMODORO_SETTINGS.studyMinutes * 60,
-      pomodoroSettings: {
-        ...DEFAULT_POMODORO_SETTINGS,
-        ...(parsedOldData.pomodoroSettings || {})
-      },
-      goalHours: parsedOldData.goalHours || (parsedOldData.goalMinutes ? parsedOldData.goalMinutes / 60 : 2),
-      streak: parsedOldData.streak || 0,
+      studySeconds: Number(parsedOldData.studySeconds) || subjectTotal + oldTimerTotal,
+      goalHours: Number(parsedOldData.goalHours) || (parsedOldData.goalMinutes ? Number(parsedOldData.goalMinutes) / 60 : 2),
+      streak: Number(parsedOldData.streak) || 0,
+      focusIntention: parsedOldData.focusIntention || "",
+      selectedSubjectId: parsedOldData.selectedSubjectId || migratedSubjects[0].id,
+      activeSession: parsedOldData.activeSession || null,
       tasks: Array.isArray(parsedOldData.tasks) ? parsedOldData.tasks : [],
-      subjects: Array.isArray(parsedOldData.subjects) ? parsedOldData.subjects : []
+      subjects: migratedSubjects,
+      sessions: Array.isArray(parsedOldData.sessions) ? parsedOldData.sessions : [],
+      distractions: Array.isArray(parsedOldData.distractions) ? parsedOldData.distractions : []
     };
   } catch (error) {
     return createDefaultData();
@@ -213,56 +213,60 @@ function normalizeData() {
     appData.subjects = [];
   }
 
+  if (appData.subjects.length === 0) {
+    appData.subjects.push(createSubject("General Study"));
+  }
+
+  appData.subjects = appData.subjects.map(function (subject) {
+    return {
+      id: subject.id || createId(),
+      name: subject.name || "Untitled Subject",
+      seconds: Number(subject.seconds) || 0
+    };
+  });
+
+  if (!Array.isArray(appData.sessions)) {
+    appData.sessions = [];
+  }
+
   if (!Array.isArray(appData.distractions)) {
     appData.distractions = [];
   }
 
-  if (typeof appData.overallSeconds !== "number") {
-    appData.overallSeconds = 0;
+  if (typeof appData.studySeconds !== "number") {
+    appData.studySeconds = getSubjectSecondsTotal();
   }
 
-  if (typeof appData.pomodoroCompleted !== "number") {
-    appData.pomodoroCompleted = 0;
-  }
-
-  if (typeof appData.pomodoroFocusSeconds !== "number") {
-    appData.pomodoroFocusSeconds = 0;
-  }
-
-  if (typeof appData.pomodoroCycleIndex !== "number") {
-    appData.pomodoroCycleIndex = 0;
-  }
-
-  appData.pomodoroCycleIndex = appData.pomodoroCycleIndex % 4;
-
-  appData.pomodoroSettings = {
-    ...DEFAULT_POMODORO_SETTINGS,
-    ...(appData.pomodoroSettings || {})
-  };
-
-  if (typeof appData.pomodoroSecondsLeft !== "number") {
-    appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
-  }
-
-  if (typeof appData.goalHours !== "number") {
-    appData.goalHours = typeof appData.goalMinutes === "number" ? appData.goalMinutes / 60 : 2;
+  if (typeof appData.goalHours !== "number" || appData.goalHours <= 0) {
+    appData.goalHours = 2;
   }
 
   if (typeof appData.streak !== "number") {
     appData.streak = 0;
   }
+
+  if (typeof appData.focusIntention !== "string") {
+    appData.focusIntention = "";
+  }
+
+  if (!getSubjectById(appData.selectedSubjectId)) {
+    appData.selectedSubjectId = appData.subjects[0].id;
+  }
+
+  if (appData.activeSession && !getSubjectById(appData.activeSession.subjectId)) {
+    appData.activeSession.subjectId = appData.selectedSubjectId;
+  }
 }
 
 function resetDailyData() {
+  pauseSession(false);
   appData.date = getTodayKey();
-  appData.overallSeconds = 0;
-  appData.pomodoroCompleted = 0;
-  appData.pomodoroFocusSeconds = 0;
-  appData.pomodoroCycleIndex = 0;
-  appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
+  appData.studySeconds = 0;
   appData.tasks = [];
   appData.distractions = [];
-
+  appData.sessions = [];
+  appData.activeSession = null;
+  appData.focusIntention = "";
   appData.subjects = appData.subjects.map(function (subject) {
     return {
       id: subject.id,
@@ -287,82 +291,44 @@ function showSection(sectionId) {
 }
 
 function formatLongTime(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const remainingSeconds = safeSeconds % 60;
 
   return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(remainingSeconds).padStart(2, "0")}s`;
 }
 
 function formatShortTime(seconds) {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+
+  if (hours === 0 && minutes === 0 && safeSeconds > 0) {
+    return "<1m";
+  }
+
+  if (hours === 0) {
+    return `${minutes}m`;
+  }
 
   return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
-function formatPomodoroTime(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-
-  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+function formatGoalHours(hours) {
+  const label = hours === 1 ? "Hour" : "Hours";
+  return `${Number(hours.toFixed(2))} ${label}`;
 }
 
-function getPomodoroCycle() {
-  return [
-    {
-      type: "study",
-      label: "🟢 Study",
-      counter: "Study Session #1",
-      duration: appData.pomodoroSettings.studyMinutes * 60
-    },
-    {
-      type: "short-break",
-      label: "☕ Short Break",
-      counter: "Short Break",
-      duration: appData.pomodoroSettings.shortBreakMinutes * 60
-    },
-    {
-      type: "study",
-      label: "🟢 Study",
-      counter: "Study Session #2",
-      duration: appData.pomodoroSettings.studyMinutes * 60
-    },
-    {
-      type: "long-break",
-      label: "🌙 Long Break",
-      counter: "Long Break",
-      duration: appData.pomodoroSettings.longBreakMinutes * 60
-    }
-  ];
-}
-
-function getCurrentPomodoroSession() {
-  return getPomodoroCycle()[appData.pomodoroCycleIndex];
-}
-
-function getCurrentPomodoroDuration() {
-  return getCurrentPomodoroSession().duration;
-}
-
-function getSubjectSecondsTotal() {
-  return appData.subjects.reduce(function (total, subject) {
-    return total + subject.seconds;
-  }, 0);
-}
-
-function getTotalStudySeconds() {
-  return appData.overallSeconds + getSubjectSecondsTotal() + appData.pomodoroFocusSeconds;
-}
-
-function getTopSubject() {
-  if (appData.subjects.length === 0) {
-    return null;
+function formatClockTime(dateString) {
+  if (!dateString) {
+    return "Not started";
   }
 
-  return appData.subjects.reduce(function (topSubject, subject) {
-    return subject.seconds > topSubject.seconds ? subject : topSubject;
-  }, appData.subjects[0]);
+  return new Date(dateString).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 }
 
 function getCompletedTaskCount() {
@@ -371,22 +337,60 @@ function getCompletedTaskCount() {
   }).length;
 }
 
+function getSubjectSecondsTotal() {
+  return appData.subjects.reduce(function (total, subject) {
+    return total + subject.seconds;
+  }, 0);
+}
+
 function getGoalPercent() {
   const goalSeconds = appData.goalHours * 3600;
 
-  if (goalSeconds === 0) {
+  if (goalSeconds <= 0) {
     return 0;
   }
 
-  return Math.min(Math.round((getTotalStudySeconds() / goalSeconds) * 100), 100);
+  return Math.min(Math.round((appData.studySeconds / goalSeconds) * 100), 100);
+}
+
+function getSubjectById(subjectId) {
+  return appData.subjects.find(function (subject) {
+    return String(subject.id) === String(subjectId);
+  });
+}
+
+function getSelectedSubject() {
+  return getSubjectById(appData.selectedSubjectId) || appData.subjects[0];
+}
+
+function getActiveSubject() {
+  if (!appData.activeSession) {
+    return null;
+  }
+
+  return getSubjectById(appData.activeSession.subjectId);
+}
+
+function getSessionElapsedSeconds() {
+  return appData.activeSession ? appData.activeSession.elapsedSeconds : 0;
+}
+
+function updateAllDisplays() {
+  updateHome();
+  updateSessionPage();
+  updateGoal();
+  updateInsights();
+  renderTasks();
+  renderDistractions();
+  renderLeaderboard();
 }
 
 function updateHome() {
-  const topSubject = getTopSubject();
+  const goalPercent = getGoalPercent();
+  const activeSubject = getActiveSubject();
   const pendingTasks = appData.tasks.filter(function (task) {
     return !task.completed;
   });
-  const goalPercent = getGoalPercent();
 
   todayDate.textContent = new Date().toLocaleDateString(undefined, {
     weekday: "long",
@@ -394,129 +398,223 @@ function updateHome() {
     day: "numeric"
   });
 
-  homeTotalTime.textContent = formatShortTime(getTotalStudySeconds());
-  homeStreak.textContent = `${appData.streak} days`;
-  homeGoalPercent.textContent = `${goalPercent}%`;
-  homeGoalBar.style.width = `${goalPercent}%`;
-  homeGoalCopy.textContent = `${formatShortTime(getTotalStudySeconds())} of ${formatGoalHours(appData.goalHours)} planned.`;
+  homeActiveStatus.textContent = appData.activeSession ? "Live" : "Idle";
+  homeActiveSubject.textContent = activeSubject ? activeSubject.name : "No session running";
+  homeSessionStart.textContent = appData.activeSession ? formatClockTime(appData.activeSession.startedAt) : "Not started";
+  homeSessionElapsed.textContent = formatLongTime(getSessionElapsedSeconds());
 
-  if (activeSubjectId) {
-    const activeSubject = appData.subjects.find(function (subject) {
-      return subject.id === activeSubjectId;
-    });
-    homeFocusTitle.textContent = activeSubject ? activeSubject.name : "Subject timer running";
-    homeFocusDetail.textContent = "Subject Studio is currently tracking focused study time.";
-    homeActiveStatus.textContent = "Subject Live";
-  } else if (overallTimerId) {
-    homeFocusTitle.textContent = "Focus Hub is running";
-    homeFocusDetail.textContent = "Overall study time is being tracked.";
-    homeActiveStatus.textContent = "Live";
-  } else {
-    homeFocusTitle.textContent = topSubject && topSubject.seconds > 0 ? topSubject.name : "No active session";
-    homeFocusDetail.textContent = "Start a timer when you are ready to study.";
-    homeActiveStatus.textContent = "Idle";
-  }
+  homeGoalPercent.textContent = `${goalPercent}%`;
+  homeGoalHours.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
+  homeGoalBar.style.width = `${goalPercent}%`;
+  homeGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} studied out of ${formatGoalHours(appData.goalHours)} today.`;
+
+  homeTotalTime.textContent = formatShortTime(appData.studySeconds);
+  homeCompletedTasks.textContent = getCompletedTaskCount();
+  homeStreak.textContent = `${appData.streak} days`;
+
+  homeIntentionTitle.textContent = appData.focusIntention || "Set one clear target for today.";
+  homeIntentionCopy.textContent = appData.focusIntention
+    ? "Keep this visible while choosing your next session."
+    : "Use the Study Session page to write what matters most before you begin.";
+
+  renderSubjectBreakdown(homeSubjectList);
 
   homeTaskPreview.innerHTML = "";
-
   if (pendingTasks.length === 0) {
     appendSimpleItem(homeTaskPreview, "No pending tasks. Nice and clear.");
   } else {
-    pendingTasks.slice(0, 3).forEach(function (task) {
+    pendingTasks.slice(0, 4).forEach(function (task) {
       appendSimpleItem(homeTaskPreview, task.text);
     });
   }
 }
 
+function updateSessionPage() {
+  sessionStatus.textContent = appData.activeSession ? "Running" : "Not started";
+  sessionDisplay.textContent = formatLongTime(getSessionElapsedSeconds());
+  sessionTotalToday.textContent = formatShortTime(appData.studySeconds);
+  renderSubjectOptions();
+  renderSubjectBreakdown(sessionSubjectBreakdown);
+  renderRecentSessions();
+  updateIntentionForm(false);
+}
+
 function updateGoal() {
   const goalPercent = getGoalPercent();
   goalInput.value = appData.goalHours;
-  document.getElementById("goal-target").textContent = formatGoalHours(appData.goalHours);
-  goalSummary.textContent = `${goalPercent}% complete`;
+  goalTarget.textContent = formatGoalHours(appData.goalHours);
+  goalSummary.textContent = `${goalPercent}% complete (${formatShortTime(appData.studySeconds)} studied)`;
   goalBar.style.width = `${goalPercent}%`;
 }
 
-function formatGoalHours(hours) {
-  const label = hours === 1 ? "Hour" : "Hours";
-  return `${Number(hours.toFixed(2))} ${label}`;
-}
-
 function updateInsights() {
-  insightTotalTime.textContent = formatShortTime(getTotalStudySeconds());
+  insightTotalTime.textContent = formatShortTime(appData.studySeconds);
   insightTasks.textContent = getCompletedTaskCount();
   insightStreak.textContent = `${appData.streak} days`;
+  renderSubjectBreakdown(subjectInsights);
+}
 
-  subjectInsights.innerHTML = "";
+function renderSubjectOptions() {
+  sessionSubjectSelect.innerHTML = "";
 
-  if (appData.subjects.length === 0) {
-    appendSimpleItem(subjectInsights, "No subject data yet.");
+  appData.subjects.forEach(function (subject) {
+    const option = document.createElement("option");
+    option.value = subject.id;
+    option.textContent = subject.name;
+    sessionSubjectSelect.appendChild(option);
+  });
+
+  sessionSubjectSelect.value = appData.selectedSubjectId;
+}
+
+function renderSubjectBreakdown(container) {
+  container.innerHTML = "";
+
+  const studiedSubjects = appData.subjects.filter(function (subject) {
+    return subject.seconds > 0;
+  });
+
+  if (studiedSubjects.length === 0) {
+    appendSimpleItem(container, "No subject time tracked yet.");
     return;
   }
 
-  appData.subjects.forEach(function (subject) {
+  studiedSubjects
+    .slice()
+    .sort(function (first, second) {
+      return second.seconds - first.seconds;
+    })
+    .forEach(function (subject) {
+      const row = document.createElement("div");
+      row.className = "subject-row";
+
+      const name = document.createElement("span");
+      name.textContent = subject.name;
+
+      const time = document.createElement("strong");
+      time.textContent = formatShortTime(subject.seconds);
+
+      row.appendChild(name);
+      row.appendChild(time);
+      container.appendChild(row);
+    });
+}
+
+function renderRecentSessions() {
+  recentSessionList.innerHTML = "";
+
+  if (appData.sessions.length === 0) {
+    appendSimpleItem(recentSessionList, "Recent sessions will appear after you pause a study session.");
+    return;
+  }
+
+  appData.sessions.slice(0, 5).forEach(function (session) {
     const row = document.createElement("div");
-    row.className = "insight-row";
+    row.className = "session-row";
 
-    const name = document.createElement("span");
-    name.textContent = subject.name;
+    const label = document.createElement("span");
+    label.textContent = `${session.subjectName} - ${formatClockTime(session.startedAt)}`;
 
-    const time = document.createElement("strong");
-    time.textContent = formatShortTime(subject.seconds);
+    const duration = document.createElement("strong");
+    duration.textContent = formatShortTime(session.durationSeconds);
 
-    row.appendChild(name);
-    row.appendChild(time);
-    subjectInsights.appendChild(row);
+    row.appendChild(label);
+    row.appendChild(duration);
+    recentSessionList.appendChild(row);
   });
 }
 
-function updateAllDisplays() {
-  overallDisplay.textContent = formatLongTime(appData.overallSeconds);
-  updatePomodoroDisplay();
-  updateHome();
-  updateGoal();
-  updateInsights();
-  renderLeaderboard();
-}
-
-function startOverallTimer() {
-  if (overallTimerId !== null) {
+function startSession() {
+  if (appData.activeSession) {
     return;
   }
 
-  overallStatus.textContent = "Running";
-
-  overallTimerId = setInterval(function () {
-    appData.overallSeconds = appData.overallSeconds + 1;
-    saveData();
-    updateAllDisplays();
-  }, 1000);
-}
-
-function pauseOverallTimer() {
-  if (overallTimerId === null) {
-    return;
-  }
-
-  clearInterval(overallTimerId);
-  overallTimerId = null;
-  overallStatus.textContent = "Paused";
-  updateAllDisplays();
-}
-
-function resetOverallTimer() {
-  pauseOverallTimer();
-  appData.overallSeconds = 0;
-  overallStatus.textContent = "Not started";
+  const selectedSubject = getSelectedSubject();
+  appData.activeSession = {
+    subjectId: selectedSubject.id,
+    startedAt: new Date().toISOString(),
+    elapsedSeconds: 0
+  };
+  appData.selectedSubjectId = selectedSubject.id;
+  resumeSessionTimer();
   saveData();
   updateAllDisplays();
 }
 
-function createSubject(name) {
-  return {
-    id: Date.now(),
-    name: name,
-    seconds: 0
-  };
+function resumeSessionTimer() {
+  if (sessionTimerId !== null) {
+    return;
+  }
+
+  sessionTimerId = setInterval(function () {
+    tickStudySession();
+  }, 1000);
+}
+
+function tickStudySession() {
+  if (!appData.activeSession) {
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+    return;
+  }
+
+  const activeSubject = getActiveSubject();
+
+  appData.activeSession.elapsedSeconds = appData.activeSession.elapsedSeconds + 1;
+  appData.studySeconds = appData.studySeconds + 1;
+
+  if (activeSubject) {
+    activeSubject.seconds = activeSubject.seconds + 1;
+  }
+
+  saveData();
+  updateAllDisplays();
+}
+
+function pauseSession(shouldRecordSession = true) {
+  if (sessionTimerId !== null) {
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+  }
+
+  if (appData.activeSession && shouldRecordSession && appData.activeSession.elapsedSeconds > 0) {
+    const activeSubject = getActiveSubject();
+    appData.sessions.unshift({
+      id: createId(),
+      subjectId: appData.activeSession.subjectId,
+      subjectName: activeSubject ? activeSubject.name : "Study Session",
+      startedAt: appData.activeSession.startedAt,
+      endedAt: new Date().toISOString(),
+      durationSeconds: appData.activeSession.elapsedSeconds
+    });
+    appData.sessions = appData.sessions.slice(0, 12);
+  }
+
+  appData.activeSession = null;
+  saveData();
+  updateAllDisplays();
+}
+
+function resetSession() {
+  if (sessionTimerId !== null) {
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+  }
+
+  appData.activeSession = null;
+  saveData();
+  updateAllDisplays();
+}
+
+function changeSessionSubject() {
+  appData.selectedSubjectId = sessionSubjectSelect.value;
+
+  if (appData.activeSession) {
+    appData.activeSession.subjectId = appData.selectedSubjectId;
+  }
+
+  saveData();
+  updateAllDisplays();
 }
 
 function addSubject(event) {
@@ -528,294 +626,46 @@ function addSubject(event) {
     return;
   }
 
-  appData.subjects.push(createSubject(subjectName));
+  const existingSubject = appData.subjects.find(function (subject) {
+    return subject.name.toLowerCase() === subjectName.toLowerCase();
+  });
+
+  if (existingSubject) {
+    appData.selectedSubjectId = existingSubject.id;
+  } else {
+    const newSubject = createSubject(subjectName);
+    appData.subjects.push(newSubject);
+    appData.selectedSubjectId = newSubject.id;
+  }
+
+  if (appData.activeSession) {
+    appData.activeSession.subjectId = appData.selectedSubjectId;
+  }
+
   subjectInput.value = "";
   saveData();
-  renderSubjects();
   updateAllDisplays();
 }
 
-function startSubjectTimer(subjectId) {
-  if (activeSubjectId === subjectId) {
-    return;
-  }
-
-  pauseSubjectTimer();
-  activeSubjectId = subjectId;
-
-  subjectTimerId = setInterval(function () {
-    const activeSubject = appData.subjects.find(function (subject) {
-      return subject.id === activeSubjectId;
-    });
-
-    if (!activeSubject) {
-      pauseSubjectTimer();
-      return;
-    }
-
-    activeSubject.seconds = activeSubject.seconds + 1;
-    saveData();
-    renderSubjects();
-    updateAllDisplays();
-  }, 1000);
-
-  renderSubjects();
-  updateAllDisplays();
-}
-
-function pauseSubjectTimer() {
-  clearInterval(subjectTimerId);
-  subjectTimerId = null;
-  activeSubjectId = null;
-  renderSubjects();
-  updateAllDisplays();
-}
-
-function resetSubjectTimer(subjectId) {
-  if (activeSubjectId === subjectId) {
-    pauseSubjectTimer();
-  }
-
-  appData.subjects = appData.subjects.map(function (subject) {
-    if (subject.id === subjectId) {
-      return {
-        id: subject.id,
-        name: subject.name,
-        seconds: 0
-      };
-    }
-
-    return subject;
-  });
-
-  saveData();
-  renderSubjects();
-  updateAllDisplays();
-}
-
-function renderSubjects() {
-  subjectList.innerHTML = "";
-
-  if (appData.subjects.length === 0) {
-    appendSimpleItem(subjectList, "No subjects yet. Add one to start tracking by subject.");
-    return;
-  }
-
-  appData.subjects.forEach(function (subject) {
-    const subjectCard = document.createElement("article");
-    subjectCard.className = "subject-card";
-
-    const subjectInfo = document.createElement("div");
-    const subjectTitle = document.createElement("h3");
-    const subjectTime = document.createElement("p");
-
-    subjectTitle.textContent = subject.name;
-    subjectTime.className = "subject-time";
-    subjectTime.textContent = formatLongTime(subject.seconds);
-
-    subjectInfo.appendChild(subjectTitle);
-    subjectInfo.appendChild(subjectTime);
-
-    const actions = document.createElement("div");
-    actions.className = "subject-actions";
-
-    const startButton = document.createElement("button");
-    startButton.type = "button";
-    startButton.textContent = activeSubjectId === subject.id ? "Running" : "Start";
-    startButton.addEventListener("click", function () {
-      startSubjectTimer(subject.id);
-    });
-
-    const pauseButton = document.createElement("button");
-    pauseButton.type = "button";
-    pauseButton.className = "secondary-button";
-    pauseButton.textContent = "Pause";
-    pauseButton.addEventListener("click", pauseSubjectTimer);
-
-    const resetButton = document.createElement("button");
-    resetButton.type = "button";
-    resetButton.className = "secondary-button";
-    resetButton.textContent = "Reset";
-    resetButton.addEventListener("click", function () {
-      resetSubjectTimer(subject.id);
-    });
-
-    actions.appendChild(startButton);
-    actions.appendChild(pauseButton);
-    actions.appendChild(resetButton);
-
-    subjectCard.appendChild(subjectInfo);
-    subjectCard.appendChild(actions);
-    subjectList.appendChild(subjectCard);
-  });
-}
-
-function updatePomodoroDisplay() {
-  const currentSession = getCurrentPomodoroSession();
-  const duration = getCurrentPomodoroDuration();
-  const elapsed = duration - appData.pomodoroSecondsLeft;
-  const progress = duration === 0 ? 0 : Math.min(Math.round((elapsed / duration) * 100), 100);
-
-  pomodoroDisplay.textContent = formatPomodoroTime(appData.pomodoroSecondsLeft);
-  pomodoroSessionLabel.textContent = `Current Session: ${currentSession.label}`;
-  pomodoroCycleLabel.textContent = `Pomodoro ${appData.pomodoroCycleIndex + 1} of 4`;
-  pomodoroSessionCounter.textContent = currentSession.type === "study"
-    ? `Study Session #${appData.pomodoroCompleted + 1}`
-    : currentSession.counter;
-  pomodoroProgressBar.style.width = `${progress}%`;
-  pomodoroCompletedWidget.textContent = `${appData.pomodoroCompleted} Sessions`;
-  pomodoroFocusTimeWidget.textContent = formatShortTime(getTotalStudySeconds());
-  pomodoroStreakWidget.textContent = `🔥 ${appData.streak} Days`;
-
-  studyDurationInput.value = appData.pomodoroSettings.studyMinutes;
-  shortBreakInput.value = appData.pomodoroSettings.shortBreakMinutes;
-  longBreakInput.value = appData.pomodoroSettings.longBreakMinutes;
-  tickSoundToggle.checked = appData.pomodoroSettings.tickSound;
-  bellSoundToggle.checked = appData.pomodoroSettings.bellSound;
-}
-
-function startPomodoro() {
-  if (pomodoroTimerId !== null) {
-    return;
-  }
-
-  pomodoroStatus.textContent = "Running";
-
-  if (getCurrentPomodoroSession().type === "study") {
-    setRandomPomodoroQuote();
-  }
-
-  pomodoroTimerId = setInterval(function () {
-    appData.pomodoroSecondsLeft = appData.pomodoroSecondsLeft - 1;
-
-    if (getCurrentPomodoroSession().type === "study") {
-      appData.pomodoroFocusSeconds = appData.pomodoroFocusSeconds + 1;
-    }
-
-    playTickSound();
-    saveData();
-    updateAllDisplays();
-
-    if (appData.pomodoroSecondsLeft === 0) {
-      completePomodoro();
-    }
-  }, 1000);
-}
-
-function pausePomodoro() {
-  if (pomodoroTimerId === null) {
-    return;
-  }
-
-  clearInterval(pomodoroTimerId);
-  pomodoroTimerId = null;
-  pomodoroStatus.textContent = "Paused";
-}
-
-function resetPomodoro() {
-  pausePomodoro();
-  appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
-  pomodoroStatus.textContent = "Not started";
-  saveData();
-  updateAllDisplays();
-}
-
-function completePomodoro() {
-  clearInterval(pomodoroTimerId);
-  pomodoroTimerId = null;
-
-  if (getCurrentPomodoroSession().type === "study") {
-    appData.pomodoroCompleted = appData.pomodoroCompleted + 1;
-  }
-
-  playBellSound();
-  moveToNextPomodoroSession();
-  pomodoroStatus.textContent = "Next session ready";
-  saveData();
-  updateAllDisplays();
-}
-
-function skipPomodoroSession() {
-  pausePomodoro();
-  moveToNextPomodoroSession();
-  pomodoroStatus.textContent = "Skipped";
-  saveData();
-  updateAllDisplays();
-}
-
-function moveToNextPomodoroSession() {
-  appData.pomodoroCycleIndex = (appData.pomodoroCycleIndex + 1) % 4;
-  appData.pomodoroSecondsLeft = getCurrentPomodoroDuration();
-
-  if (getCurrentPomodoroSession().type === "study") {
-    setRandomPomodoroQuote();
-  }
-}
-
-function savePomodoroSettings(event) {
+function saveIntention(event) {
   event.preventDefault();
-
-  appData.pomodoroSettings.studyMinutes = Math.max(1, Number(studyDurationInput.value));
-  appData.pomodoroSettings.shortBreakMinutes = Math.max(1, Number(shortBreakInput.value));
-  appData.pomodoroSettings.longBreakMinutes = Math.max(1, Number(longBreakInput.value));
-
-  resetPomodoro();
+  appData.focusIntention = intentionInput.value.trim();
   saveData();
+  updateIntentionForm(true);
   updateAllDisplays();
 }
 
-function updateSoundSettings() {
-  appData.pomodoroSettings.tickSound = tickSoundToggle.checked;
-  appData.pomodoroSettings.bellSound = bellSoundToggle.checked;
-  saveData();
-}
-
-function setRandomPomodoroQuote() {
-  const quoteIndex = Math.floor(Math.random() * pomodoroQuotes.length);
-  pomodoroQuote.textContent = pomodoroQuotes[quoteIndex];
-}
-
-function playTickSound() {
-  if (!appData.pomodoroSettings.tickSound) {
-    return;
+function updateIntentionForm(syncInput) {
+  if (syncInput) {
+    intentionInput.value = appData.focusIntention;
   }
 
-  playTone(660, 0.025);
-}
-
-function playBellSound() {
-  if (!appData.pomodoroSettings.bellSound) {
-    return;
-  }
-
-  playTone(880, 0.16);
-}
-
-function playTone(frequency, duration) {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-
-  if (!AudioContext) {
-    return;
-  }
-
-  if (!pomodoroAudioContext) {
-    pomodoroAudioContext = new AudioContext();
-  }
-
-  const oscillator = pomodoroAudioContext.createOscillator();
-  const gain = pomodoroAudioContext.createGain();
-
-  oscillator.frequency.value = frequency;
-  gain.gain.value = 0.035;
-  oscillator.connect(gain);
-  gain.connect(pomodoroAudioContext.destination);
-  oscillator.start();
-  oscillator.stop(pomodoroAudioContext.currentTime + duration);
+  intentionCount.textContent = `${intentionInput.value.length}/180`;
 }
 
 function createTask(text) {
   return {
-    id: Date.now(),
+    id: createId(),
     text: text,
     completed: false
   };
@@ -833,7 +683,6 @@ function addTask(event) {
   appData.tasks.push(createTask(taskText));
   taskInput.value = "";
   saveData();
-  renderTasks();
   updateAllDisplays();
 }
 
@@ -851,7 +700,6 @@ function toggleTask(taskId) {
   });
 
   saveData();
-  renderTasks();
   updateAllDisplays();
 }
 
@@ -861,7 +709,6 @@ function deleteTask(taskId) {
   });
 
   saveData();
-  renderTasks();
   updateAllDisplays();
 }
 
@@ -934,16 +781,6 @@ function saveGoal(event) {
   updateAllDisplays();
 }
 
-function toggleSidebar() {
-  appData.sidebarCollapsed = !appData.sidebarCollapsed;
-  applySidebarState();
-  saveData();
-}
-
-function applySidebarState() {
-  document.body.classList.toggle("sidebar-collapsed", appData.sidebarCollapsed);
-}
-
 function addDistraction(event) {
   event.preventDefault();
 
@@ -954,7 +791,7 @@ function addDistraction(event) {
   }
 
   appData.distractions.unshift({
-    id: Date.now(),
+    id: createId(),
     category: distractionCategory.value,
     reason: reason,
     time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -994,11 +831,10 @@ function renderLeaderboard() {
     {
       rank: 1,
       name: "You",
-      time: formatShortTime(getTotalStudySeconds()),
+      time: formatShortTime(appData.studySeconds),
       streak: `${appData.streak} days`,
       tasks: getCompletedTaskCount()
     },
-    // Real leaderboard data will come from a backend/database later.
     { rank: 2, name: "Maya", time: "3h 20m", streak: "5 days", tasks: 6 },
     { rank: 3, name: "Arif", time: "2h 45m", streak: "3 days", tasks: 4 },
     { rank: 4, name: "Nina", time: "1h 55m", streak: "2 days", tasks: 3 }
@@ -1052,6 +888,16 @@ function saveAccentColor() {
   saveData();
 }
 
+function toggleSidebar() {
+  appData.sidebarCollapsed = !appData.sidebarCollapsed;
+  applySidebarState();
+  saveData();
+}
+
+function applySidebarState() {
+  document.body.classList.toggle("sidebar-collapsed", appData.sidebarCollapsed);
+}
+
 function appendSimpleItem(parent, text) {
   const itemTag = parent.tagName === "UL" || parent.tagName === "OL" ? "li" : "p";
   const item = document.createElement(itemTag);
@@ -1060,23 +906,37 @@ function appendSimpleItem(parent, text) {
   parent.appendChild(item);
 }
 
+function createId() {
+  if (window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 navButtons.forEach(function (button) {
   button.addEventListener("click", function () {
     showSection(button.dataset.section);
   });
 });
 
-overallStartButton.addEventListener("click", startOverallTimer);
-overallPauseButton.addEventListener("click", pauseOverallTimer);
-overallResetButton.addEventListener("click", resetOverallTimer);
+homeContinueSession.addEventListener("click", function () {
+  showSection("focus-hub");
+});
+homeOpenSession.addEventListener("click", function () {
+  showSection("focus-hub");
+});
+sessionStartButton.addEventListener("click", startSession);
+sessionPauseButton.addEventListener("click", function () {
+  pauseSession(true);
+});
+sessionResetButton.addEventListener("click", resetSession);
+sessionSubjectSelect.addEventListener("change", changeSessionSubject);
 subjectForm.addEventListener("submit", addSubject);
-pomodoroStartButton.addEventListener("click", startPomodoro);
-pomodoroPauseButton.addEventListener("click", pausePomodoro);
-pomodoroResetButton.addEventListener("click", resetPomodoro);
-pomodoroSkipButton.addEventListener("click", skipPomodoroSession);
-pomodoroSettingsForm.addEventListener("submit", savePomodoroSettings);
-tickSoundToggle.addEventListener("change", updateSoundSettings);
-bellSoundToggle.addEventListener("change", updateSoundSettings);
+intentionForm.addEventListener("submit", saveIntention);
+intentionInput.addEventListener("input", function () {
+  updateIntentionForm(false);
+});
 taskForm.addEventListener("submit", addTask);
 goalForm.addEventListener("submit", saveGoal);
 distractionForm.addEventListener("submit", addDistraction);
@@ -1087,7 +947,5 @@ loadData();
 applyAppearance();
 applySidebarState();
 renderThemes();
-renderSubjects();
-renderTasks();
-renderDistractions();
+intentionInput.value = appData.focusIntention;
 updateAllDisplays();
