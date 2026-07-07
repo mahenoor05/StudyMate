@@ -12,6 +12,11 @@ def index():
     return redirect(url_for("auth.login"))
 
 
+@main_bp.route("/health")
+def health():
+    return {"status": "ok"}
+
+
 @main_bp.route("/app")
 @login_required
 def app_home():

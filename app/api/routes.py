@@ -1,6 +1,10 @@
 import os
+import json
 from datetime import date, datetime, timezone
 from uuid import uuid4
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlparse
+from urllib.request import Request, urlopen
 
 from flask import Blueprint, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
@@ -61,13 +65,43 @@ def get_avatar_upload_folder():
     return folder
 
 
+def get_supabase_storage_config():
+    supabase_url = current_app.config.get("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
+    service_key = current_app.config.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    bucket = current_app.config.get("SUPABASE_STORAGE_BUCKET") or os.environ.get("SUPABASE_STORAGE_BUCKET")
+    if not supabase_url or not service_key or not bucket:
+        return None
+    return {
+        "url": supabase_url.rstrip("/"),
+        "service_key": service_key,
+        "bucket": bucket,
+    }
+
+
 def is_allowed_avatar(filename, mimetype):
     extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     return extension in ALLOWED_AVATAR_EXTENSIONS and str(mimetype or "").startswith("image/")
 
 
+def get_supabase_object_path(avatar_url):
+    config = get_supabase_storage_config()
+    if not config or not avatar_url:
+        return None
+    parsed_path = urlparse(avatar_url).path
+    marker = f"/storage/v1/object/public/{config['bucket']}/"
+    if marker not in parsed_path:
+        return None
+    return parsed_path.split(marker, 1)[1]
+
+
 def delete_current_avatar_file():
-    if not current_user.avatar_url or "/static/uploads/avatars/" not in current_user.avatar_url:
+    if not current_user.avatar_url:
+        return
+    supabase_path = get_supabase_object_path(current_user.avatar_url)
+    if supabase_path:
+        delete_avatar_from_supabase(supabase_path)
+        return
+    if "/static/uploads/avatars/" not in current_user.avatar_url:
         return
     filename = secure_filename(current_user.avatar_url.rsplit("/", 1)[-1])
     if not filename:
@@ -76,6 +110,63 @@ def delete_current_avatar_file():
     file_path = os.path.abspath(os.path.join(upload_folder, filename))
     if file_path.startswith(os.path.abspath(upload_folder)) and os.path.exists(file_path):
         os.remove(file_path)
+
+
+def supabase_headers(content_type=None):
+    config = get_supabase_storage_config()
+    headers = {
+        "Authorization": f"Bearer {config['service_key']}",
+        "apikey": config["service_key"],
+    }
+    if content_type:
+        headers["Content-Type"] = content_type
+    return headers
+
+
+def upload_avatar_to_supabase(file_bytes, extension, mimetype):
+    config = get_supabase_storage_config()
+    object_path = f"profile-photos/{current_user.id}/{uuid4().hex}.{extension}"
+    quoted_path = quote(object_path, safe="/")
+    upload_url = f"{config['url']}/storage/v1/object/{config['bucket']}/{quoted_path}"
+    request = Request(
+        upload_url,
+        data=file_bytes,
+        headers=supabase_headers(mimetype),
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=15):
+            pass
+    except (HTTPError, URLError) as error:
+        current_app.logger.warning("Supabase avatar upload failed: %s", error)
+        raise ValueError("Profile photo upload failed.") from error
+    return f"{config['url']}/storage/v1/object/public/{config['bucket']}/{quoted_path}"
+
+
+def delete_avatar_from_supabase(object_path):
+    config = get_supabase_storage_config()
+    delete_url = f"{config['url']}/storage/v1/object/{config['bucket']}"
+    payload = json.dumps({"prefixes": [object_path]}).encode("utf-8")
+    request = Request(
+        delete_url,
+        data=payload,
+        headers=supabase_headers("application/json"),
+        method="DELETE",
+    )
+    try:
+        with urlopen(request, timeout=15):
+            pass
+    except (HTTPError, URLError) as error:
+        current_app.logger.warning("Supabase avatar delete failed: %s", error)
+
+
+def save_avatar_locally(upload, unique_filename):
+    upload_folder = get_avatar_upload_folder()
+    file_path = os.path.abspath(os.path.join(upload_folder, unique_filename))
+    if not file_path.startswith(os.path.abspath(upload_folder)):
+        raise ValueError("Invalid upload path.")
+    upload.save(file_path)
+    return url_for("static", filename=f"uploads/avatars/{unique_filename}")
 
 
 def serialize_profile(user):
@@ -404,14 +495,16 @@ def upload_profile_avatar():
 
     extension = filename.rsplit(".", 1)[-1].lower()
     unique_filename = f"user-{current_user.id}-{uuid4().hex}.{extension}"
-    upload_folder = get_avatar_upload_folder()
-    file_path = os.path.abspath(os.path.join(upload_folder, unique_filename))
-    if not file_path.startswith(os.path.abspath(upload_folder)):
-        return jsonify({"error": "Invalid upload path."}), 400
+    try:
+        if get_supabase_storage_config():
+            avatar_url = upload_avatar_to_supabase(upload.read(), extension, upload.mimetype)
+        else:
+            avatar_url = save_avatar_locally(upload, unique_filename)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
 
     delete_current_avatar_file()
-    upload.save(file_path)
-    current_user.avatar_url = url_for("static", filename=f"uploads/avatars/{unique_filename}")
+    current_user.avatar_url = avatar_url
     db.session.commit()
     return jsonify({"profile": serialize_profile(current_user)})
 
