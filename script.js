@@ -174,30 +174,66 @@ const accentInput = document.getElementById("accent-input");
 const saveAccentButton = document.getElementById("save-accent");
 const resetAccentButton = document.getElementById("reset-accent");
 
-const newCircleButton = document.getElementById("new-circle-button");
-const circleList = document.getElementById("circle-list");
-const circleIconDisplay = document.getElementById("circle-icon-display");
-const circleNameDisplay = document.getElementById("circle-name-display");
-const circleDescriptionDisplay = document.getElementById("circle-description-display");
-const circleInviteDisplay = document.getElementById("circle-invite-display");
-const circleMemberCount = document.getElementById("circle-member-count");
-const circleInviteCode = document.getElementById("circle-invite-code");
-const circleRoomCount = document.getElementById("circle-room-count");
-const circleForm = document.getElementById("circle-form");
-const circleNameInput = document.getElementById("circle-name-input");
-const circleIconInput = document.getElementById("circle-icon-input");
-const circleDescriptionInput = document.getElementById("circle-description-input");
-const circleFormMode = document.getElementById("circle-form-mode");
-const circleMemberList = document.getElementById("circle-member-list");
-const circleLeaderboard = document.getElementById("circle-leaderboard");
+const createGroupButton = document.getElementById("create-group-button");
+const joinGroupButton = document.getElementById("join-group-button");
+const groupsPageHeader = document.getElementById("groups-page-header");
+const groupsListView = document.getElementById("groups-list-view");
+const groupWorkspace = document.getElementById("group-workspace");
+const groupCardList = document.getElementById("group-card-list");
+const groupCountLabel = document.getElementById("group-count-label");
+const backToGroupsButton = document.getElementById("back-to-groups");
+const groupWorkspaceIcon = document.getElementById("group-workspace-icon");
+const groupWorkspaceName = document.getElementById("group-workspace-name");
+const groupWorkspaceDescription = document.getElementById("group-workspace-description");
+const groupWorkspaceMeta = document.getElementById("group-workspace-meta");
+const groupInviteButton = document.getElementById("group-invite-button");
+const groupSettingsButton = document.getElementById("group-settings-button");
+const groupTabs = document.querySelectorAll(".group-tab");
+const groupTabPanels = document.querySelectorAll(".group-tab-panel");
+const groupStudyingNow = document.getElementById("group-studying-now");
+const groupOverviewSummary = document.getElementById("group-overview-summary");
+const groupCurrentChallenge = document.getElementById("group-current-challenge");
+const groupActivityList = document.getElementById("group-activity-list");
+const createRoomButton = document.getElementById("create-room-button");
+const groupRoomList = document.getElementById("group-room-list");
+const groupRoomLive = document.getElementById("group-room-live");
+const createChallengeButton = document.getElementById("create-challenge-button");
+const challengeStatusFilters = document.getElementById("challenge-status-filters");
+const challengeListView = document.getElementById("challenge-list-view");
+const challengeDetailView = document.getElementById("challenge-detail-view");
+const challengeDetailContent = document.getElementById("challenge-detail-content");
+const backToChallengesButton = document.getElementById("back-to-challenges");
+const groupChallengeList = document.getElementById("group-challenge-list");
+const groupMemberList = document.getElementById("group-member-list");
+const groupRankingFilters = document.getElementById("group-ranking-filters");
+const groupRankingList = document.getElementById("group-ranking-list");
+const groupModal = document.getElementById("group-modal");
+const groupModalTitle = document.getElementById("group-modal-title");
+const closeGroupModalButton = document.getElementById("close-group-modal");
+const groupForm = document.getElementById("group-form");
+const groupNameInput = document.getElementById("group-name-input");
+const groupIconInput = document.getElementById("group-icon-input");
+const groupDescriptionInput = document.getElementById("group-description-input");
+const groupPrivacyInput = document.getElementById("group-privacy-input");
+const saveGroupButton = document.getElementById("save-group-button");
+const deleteGroupButton = document.getElementById("delete-group-button");
+const joinGroupModal = document.getElementById("join-group-modal");
+const closeJoinGroupModalButton = document.getElementById("close-join-group-modal");
+const joinGroupForm = document.getElementById("join-group-form");
+const joinCodeInput = document.getElementById("join-code-input");
+const joinGroupMessage = document.getElementById("join-group-message");
+const inviteModal = document.getElementById("invite-modal");
+const closeInviteModalButton = document.getElementById("close-invite-modal");
+const inviteCodeDisplay = document.getElementById("invite-code-display");
+const copyInviteButton = document.getElementById("copy-invite-button");
+const inviteCopyMessage = document.getElementById("invite-copy-message");
+const roomModal = document.getElementById("room-modal");
+const closeRoomModalButton = document.getElementById("close-room-modal");
 const roomForm = document.getElementById("room-form");
 const roomNameInput = document.getElementById("room-name-input");
-const roomIconInput = document.getElementById("room-icon-input");
-const roomDescriptionInput = document.getElementById("room-description-input");
 const roomSubjectInput = document.getElementById("room-subject-input");
 const roomMaxInput = document.getElementById("room-max-input");
 const roomPrivacyInput = document.getElementById("room-privacy-input");
-const focusRoomList = document.getElementById("focus-room-list");
 const activeRoomName = document.getElementById("active-room-name");
 const activeRoomDescription = document.getElementById("active-room-description");
 const activeRoomSubject = document.getElementById("active-room-subject");
@@ -206,11 +242,29 @@ const activeRoomStatus = document.getElementById("active-room-status");
 const activeRoomMembers = document.getElementById("active-room-members");
 const roomStatusControls = document.getElementById("room-status-controls");
 const leaveRoomButton = document.getElementById("leave-room-button");
+const challengeModal = document.getElementById("challenge-modal");
+const closeChallengeModalButton = document.getElementById("close-challenge-modal");
+const challengeForm = document.getElementById("challenge-form");
+const challengeStepLabel = document.getElementById("challenge-step-label");
+const challengeSteps = document.querySelectorAll(".challenge-step");
+const challengeFormatOptions = document.getElementById("challenge-format-options");
+const challengeMetricOptions = document.getElementById("challenge-metric-options");
+const challengeDurationOptions = document.getElementById("challenge-duration-options");
+const challengeParticipantOptions = document.getElementById("challenge-participant-options");
+const challengeParticipantHelp = document.getElementById("challenge-participant-help");
+const challengeTitleInput = document.getElementById("challenge-title-input");
+const challengeTargetInput = document.getElementById("challenge-target-input");
+const challengeStartInput = document.getElementById("challenge-start-input");
+const challengeEndInput = document.getElementById("challenge-end-input");
+const challengePrevButton = document.getElementById("challenge-prev-button");
+const challengeNextButton = document.getElementById("challenge-next-button");
+const challengeCreateButton = document.getElementById("challenge-create-button");
 
 let sessionTimerId = null;
 let roomTimerId = null;
 let appData = createDefaultData();
 let selectedExamPreset = null;
+let challengeDraft = createChallengeDraft();
 
 function createDefaultData() {
   const generalSubject = createSubject("General Study");
@@ -245,6 +299,11 @@ function createDefaultData() {
     distractions: [],
     studyCircles: [createDefaultStudyCircle()],
     selectedCircleId: null,
+    groupsView: "list",
+    selectedCircleTab: "overview",
+    selectedRankingRange: "today",
+    selectedChallengeStatus: "active",
+    selectedChallengeId: null,
     activeRoomId: null
   };
 }
@@ -265,11 +324,13 @@ function createDefaultStudyCircle() {
     description: "A calm shared space for daily focus sessions and accountability.",
     inviteCode: generateInviteCode(),
     members: [
-      { id: "you", name: "You", status: "Studying", totalSeconds: 0 },
-      { id: "maya", name: "Maya", status: "Short Break", totalSeconds: 4200 },
-      { id: "arif", name: "Arif", status: "Paused", totalSeconds: 3000 }
+      { id: "you", name: "You", status: "Studying", subject: "General Study", totalSeconds: 0, streak: 0 },
+      { id: "maya", name: "Maya", status: "Short Break", subject: "Physics", totalSeconds: 4200, streak: 3 },
+      { id: "arif", name: "Arif", status: "Paused", subject: "DBMS", totalSeconds: 3000, streak: 2 }
     ],
-    rooms: []
+    rooms: [],
+    challenges: [],
+    activity: []
   };
 }
 
@@ -280,6 +341,12 @@ function getTodayKey() {
   const day = String(today.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function addDaysToDate(dateKey, days) {
+  const date = new Date(`${dateKey}T00:00:00`);
+  date.setDate(date.getDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
 }
 
 function loadData() {
@@ -357,6 +424,10 @@ function migrateOldData(oldData) {
     if (Array.isArray(parsed.studyCircles) && parsed.studyCircles.length > 0) {
       migrated.studyCircles = parsed.studyCircles;
       migrated.selectedCircleId = parsed.selectedCircleId || parsed.studyCircles[0].id;
+      migrated.selectedCircleTab = parsed.selectedCircleTab || "overview";
+      migrated.selectedRankingRange = parsed.selectedRankingRange || "today";
+      migrated.selectedChallengeStatus = parsed.selectedChallengeStatus || "active";
+      migrated.selectedChallengeId = parsed.selectedChallengeId || null;
       migrated.activeRoomId = parsed.activeRoomId || null;
     }
 
@@ -386,6 +457,16 @@ function normalizeData() {
   appData.selectedHistoryRange = appData.selectedHistoryRange || "today";
   appData.selectedAnalyticsRange = appData.selectedAnalyticsRange || "today";
   appData.selectedLeaderboardRange = appData.selectedLeaderboardRange || "today";
+  appData.groupsView = appData.groupsView === "workspace" ? "workspace" : "list";
+  appData.selectedCircleTab = ["overview", "rooms", "challenges", "members", "ranking", "chat"].includes(appData.selectedCircleTab)
+    ? appData.selectedCircleTab
+    : "overview";
+  appData.selectedRankingRange = ["today", "week", "month", "challenge"].includes(appData.selectedRankingRange)
+    ? appData.selectedRankingRange
+    : "today";
+  appData.selectedChallengeStatus = ["active", "upcoming", "completed"].includes(appData.selectedChallengeStatus)
+    ? appData.selectedChallengeStatus
+    : "active";
   appData.selectedExamId = appData.selectedExamId || null;
   appData.selectedExamTab = appData.selectedExamTab || "overview";
   appData.plannerMonth = Number.isInteger(appData.plannerMonth) ? appData.plannerMonth : new Date().getMonth();
@@ -397,10 +478,10 @@ function normalizeData() {
   appData.exams = appData.exams.map(normalizeExam);
   if (appData.selectedExamId && !getExamById(appData.selectedExamId)) appData.selectedExamId = null;
   appData.studyCircles = appData.studyCircles.map(normalizeCircle);
+  if (appData.selectedChallengeId && !getChallengeById(appData.selectedChallengeId)) appData.selectedChallengeId = null;
 
-  if (!getCircleById(appData.selectedCircleId)) {
-    appData.selectedCircleId = appData.studyCircles[0].id;
-  }
+  appData.selectedCircleId = null;
+  appData.groupsView = "list";
 
   if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) {
     appData.activeRoomId = null;
@@ -495,14 +576,19 @@ function normalizeExamMilestone(milestone) {
 }
 
 function normalizeCircle(circle) {
+  const members = normalizeMembers(circle.members);
   return {
     id: circle.id || createId(),
     name: circle.name || "Untitled Circle",
     icon: (circle.icon || "SC").slice(0, 3).toUpperCase(),
     description: circle.description || "A shared StudyMate circle.",
     inviteCode: circle.inviteCode || generateInviteCode(),
-    members: normalizeMembers(circle.members),
-    rooms: normalizeRooms(circle.rooms)
+    privacy: circle.privacy === "public" ? "public" : "private",
+    members,
+    rooms: normalizeRooms(circle.rooms),
+    challenges: normalizeChallenges(circle.challenges, members),
+    activity: normalizeGroupActivity(circle.activity),
+    createdAt: circle.createdAt || new Date().toISOString()
   };
 }
 
@@ -518,7 +604,10 @@ function normalizeMembers(members) {
       id: member.id || createId(),
       name: member.name || "Student",
       status: member.status || "Paused",
-      totalSeconds: Number(member.totalSeconds || 0)
+      subject: member.subject || member.currentSubject || "General Study",
+      totalSeconds: Number(member.totalSeconds || member.studySeconds || 0),
+      streak: Number(member.streak || 0),
+      tasksCompleted: Number(member.tasksCompleted || 0)
     };
   });
 }
@@ -538,7 +627,120 @@ function normalizeRooms(rooms) {
       status: room.status || "Paused",
       elapsedSeconds: Number(room.elapsedSeconds || 0),
       statusStartedAt: room.statusStartedAt || null,
-      members: Array.isArray(room.members) ? room.members : []
+      members: normalizeRoomMembers(room.members)
+    };
+  });
+}
+
+function normalizeRoomMembers(members) {
+  if (!Array.isArray(members)) return [];
+
+  return members.map(function (member) {
+    return {
+      id: member.id || createId(),
+      name: member.name || "Student",
+      status: member.status || "Paused",
+      subject: member.subject || "General Study",
+      joinedAt: member.joinedAt || new Date().toISOString()
+    };
+  });
+}
+
+function normalizeChallenges(challenges, members) {
+  if (!Array.isArray(challenges)) return [];
+
+  return challenges.map(function (challenge) {
+    const metric = challenge.metric || challenge.type || "study-time";
+    const format = challenge.format || (challenge.type === "group-goal" ? "group-goal" : "solo");
+    const normalized = {
+      id: challenge.id || createId(),
+      title: challenge.title || "Group Challenge",
+      format,
+      metric,
+      target: Number(challenge.target || 1),
+      unit: challenge.unit || getChallengeUnit(metric),
+      startDate: challenge.startDate || getTodayKey(),
+      endDate: challenge.endDate || addDaysToDate(getTodayKey(), 7),
+      participantMode: challenge.participantMode || "all",
+      participants: Array.isArray(challenge.participants) ? challenge.participants : ["you"],
+      entries: Array.isArray(challenge.entries) ? challenge.entries : [],
+      progress: Number(challenge.progress || 0),
+      yourProgress: Number(challenge.yourProgress || 0),
+      completedAt: challenge.completedAt || "",
+      result: challenge.result || null,
+      createdAt: challenge.createdAt || new Date().toISOString()
+    };
+
+    if (normalized.entries.length === 0) {
+      normalized.entries = buildChallengeEntries(normalized, members || []);
+    }
+
+    return normalized;
+  });
+}
+
+function buildChallengeEntries(challenge, members) {
+  const activeMembers = members.length > 0 ? members : [{ id: "you", name: "You", totalSeconds: appData.studySeconds || 0, tasksCompleted: getCompletedTaskCount(), streak: appData.streak || 0 }];
+
+  if (challenge.format === "group-goal") {
+    return [{
+      id: "group",
+      name: "Group Total",
+      memberIds: activeMembers.map(function (member) { return member.id; }),
+      progress: getGroupMetricProgress(activeMembers, challenge.metric)
+    }];
+  }
+
+  if (challenge.format === "duo") {
+    return chunkMembers(activeMembers, 2).map(function (pair, index) {
+      return {
+        id: createId(),
+        name: `Team ${index + 1}`,
+        memberIds: pair.map(function (member) { return member.id; }),
+        progress: getGroupMetricProgress(pair, challenge.metric)
+      };
+    });
+  }
+
+  if (challenge.format === "teams") {
+    return chunkMembers(activeMembers, Math.max(2, Math.ceil(activeMembers.length / 2))).map(function (team, index) {
+      return {
+        id: createId(),
+        name: `Team ${index + 1}`,
+        memberIds: team.map(function (member) { return member.id; }),
+        progress: getGroupMetricProgress(team, challenge.metric)
+      };
+    });
+  }
+
+  return activeMembers.map(function (member) {
+    return {
+      id: member.id,
+      name: member.name,
+      memberIds: [member.id],
+      progress: getMemberMetricProgress(member, challenge.metric)
+    };
+  });
+}
+
+function chunkMembers(members, size) {
+  const chunks = [];
+  members.forEach(function (member, index) {
+    const chunkIndex = Math.floor(index / size);
+    if (!chunks[chunkIndex]) chunks[chunkIndex] = [];
+    chunks[chunkIndex].push(member);
+  });
+  return chunks;
+}
+
+function normalizeGroupActivity(activity) {
+  if (!Array.isArray(activity)) return [];
+
+  return activity.slice(0, 12).map(function (item) {
+    return {
+      id: item.id || createId(),
+      text: item.text || "Group activity",
+      createdAt: item.createdAt || new Date().toISOString()
     };
   });
 }
@@ -2484,200 +2686,6 @@ function applySidebarState() {
   document.body.classList.toggle("sidebar-collapsed", appData.sidebarCollapsed);
 }
 
-function renderStudyCircles() {
-  const selectedCircle = getSelectedCircle();
-  renderCircleList(selectedCircle);
-  renderCircleDetails(selectedCircle);
-  renderFocusRooms(selectedCircle);
-  renderActiveRoom();
-}
-
-function renderCircleList(selectedCircle) {
-  circleList.innerHTML = "";
-  appData.studyCircles.forEach(function (circle) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "circle-list-item";
-    button.classList.toggle("active", selectedCircle && circle.id === selectedCircle.id);
-
-    const icon = document.createElement("span");
-    const content = document.createElement("div");
-    const name = document.createElement("strong");
-    const members = document.createElement("small");
-    icon.textContent = circle.icon;
-    name.textContent = circle.name;
-    members.textContent = `${circle.members.length} members`;
-    content.appendChild(name);
-    content.appendChild(members);
-    button.appendChild(icon);
-    button.appendChild(content);
-
-    button.addEventListener("click", function () {
-      appData.selectedCircleId = circle.id;
-      fillCircleForm(circle);
-      saveData();
-      renderStudyCircles();
-    });
-    circleList.appendChild(button);
-  });
-}
-
-function renderCircleDetails(circle) {
-  if (!circle) return;
-
-  circleIconDisplay.textContent = circle.icon;
-  circleNameDisplay.textContent = circle.name;
-  circleDescriptionDisplay.textContent = circle.description;
-  circleInviteDisplay.textContent = circle.inviteCode;
-  circleInviteCode.textContent = circle.inviteCode;
-  circleMemberCount.textContent = circle.members.length;
-  circleRoomCount.textContent = circle.rooms.length;
-  circleFormMode.textContent = "Editing selected circle";
-
-  if (![circleNameInput, circleIconInput, circleDescriptionInput].includes(document.activeElement)) {
-    fillCircleForm(circle);
-  }
-
-  renderCircleMembers(circle);
-  renderCircleLeaderboard(circle);
-}
-
-function fillCircleForm(circle) {
-  circleNameInput.value = circle ? circle.name : "";
-  circleIconInput.value = circle ? circle.icon : "";
-  circleDescriptionInput.value = circle ? circle.description : "";
-  circleFormMode.textContent = circle ? "Editing selected circle" : "Create a new circle";
-}
-
-function renderCircleMembers(circle) {
-  circleMemberList.innerHTML = "";
-  circle.members.forEach(function (member) {
-    appendMemberRow(circleMemberList, member.name, member.status);
-  });
-}
-
-function renderCircleLeaderboard(circle) {
-  circleLeaderboard.innerHTML = "";
-  circle.members
-    .slice()
-    .sort(function (first, second) { return second.totalSeconds - first.totalSeconds; })
-    .forEach(function (member, index) {
-      appendMemberRow(circleLeaderboard, `#${index + 1} ${member.name}`, formatShortTime(member.totalSeconds));
-    });
-}
-
-function saveCircle(event) {
-  event.preventDefault();
-  const selectedCircle = getSelectedCircle();
-  const circleName = circleNameInput.value.trim();
-  const circleIcon = circleIconInput.value.trim().slice(0, 3).toUpperCase() || "SC";
-  const circleDescription = circleDescriptionInput.value.trim() || "A shared StudyMate circle.";
-  if (!circleName) return;
-
-  if (selectedCircle && circleFormMode.textContent.includes("Editing")) {
-    selectedCircle.name = circleName;
-    selectedCircle.icon = circleIcon;
-    selectedCircle.description = circleDescription;
-  } else {
-    const newCircle = {
-      id: createId(),
-      name: circleName,
-      icon: circleIcon,
-      description: circleDescription,
-      inviteCode: generateInviteCode(),
-      members: [{ id: "you", name: "You", status: "Paused", totalSeconds: appData.studySeconds }],
-      rooms: []
-    };
-    appData.studyCircles.push(newCircle);
-    appData.selectedCircleId = newCircle.id;
-  }
-
-  saveData();
-  renderStudyCircles();
-}
-
-function prepareNewCircle() {
-  circleNameInput.value = "";
-  circleIconInput.value = "";
-  circleDescriptionInput.value = "";
-  circleFormMode.textContent = "Create a new circle";
-  circleNameInput.focus();
-}
-
-function createFocusRoom(event) {
-  event.preventDefault();
-  const circle = getSelectedCircle();
-  if (!circle) return;
-
-  circle.rooms.unshift({
-    id: createId(),
-    name: roomNameInput.value.trim(),
-    icon: roomIconInput.value.trim().slice(0, 3).toUpperCase() || "FR",
-    description: roomDescriptionInput.value.trim() || "A temporary focus session.",
-    subject: roomSubjectInput.value.trim(),
-    maxMembers: Math.max(2, Number(roomMaxInput.value) || 8),
-    privacy: roomPrivacyInput.value,
-    status: "Paused",
-    elapsedSeconds: 0,
-    statusStartedAt: null,
-    members: []
-  });
-
-  roomForm.reset();
-  roomMaxInput.value = 8;
-  saveData();
-  renderStudyCircles();
-}
-
-function renderFocusRooms(circle) {
-  focusRoomList.innerHTML = "";
-  if (!circle || circle.rooms.length === 0) {
-    appendSimpleItem(focusRoomList, "No Focus Rooms yet. Create one for a local prototype session.");
-    return;
-  }
-
-  circle.rooms.forEach(function (room) {
-    const card = document.createElement("article");
-    card.className = "room-card";
-
-    const title = document.createElement("h3");
-    const desc = document.createElement("p");
-    const stats = document.createElement("p");
-    const action = document.createElement("button");
-
-    title.textContent = `${room.icon} ${room.name}`;
-    desc.className = "muted-text";
-    desc.textContent = room.description;
-    stats.textContent = `${room.subject} • ${room.members.length}/${room.maxMembers} members • ${room.status}`;
-
-    action.type = "button";
-    action.textContent = appData.activeRoomId === room.id ? "Joined" : "Join Focus Room";
-    action.className = appData.activeRoomId === room.id ? "secondary-button" : "";
-    action.disabled = appData.activeRoomId !== room.id && room.members.length >= room.maxMembers;
-    action.addEventListener("click", function () { joinFocusRoom(room.id); });
-
-    card.appendChild(title);
-    card.appendChild(desc);
-    card.appendChild(stats);
-    card.appendChild(action);
-    focusRoomList.appendChild(card);
-  });
-}
-
-function joinFocusRoom(roomId) {
-  const room = getRoomById(roomId);
-  if (!room) return;
-
-  leaveFocusRoom(false);
-  if (!room.members.some(function (member) { return member.id === "you"; })) {
-    room.members.push({ id: "you", name: "You", status: room.status });
-  }
-
-  appData.activeRoomId = room.id;
-  saveData();
-  renderStudyCircles();
-}
-
 function leaveFocusRoom(shouldRender = true) {
   const room = getRoomById(appData.activeRoomId);
   if (room) {
@@ -2688,71 +2696,6 @@ function leaveFocusRoom(shouldRender = true) {
   stopRoomTimer();
   saveData();
   if (shouldRender) renderStudyCircles();
-}
-
-function renderActiveRoom() {
-  const room = getRoomById(appData.activeRoomId);
-
-  if (!room) {
-    activeRoomName.textContent = "No room joined";
-    activeRoomDescription.textContent = "Join a Focus Room to see the local prototype session.";
-    activeRoomSubject.textContent = "-";
-    activeRoomTimer.textContent = "0h 00m";
-    activeRoomStatus.textContent = "Paused";
-    activeRoomMembers.innerHTML = "";
-    roomStatusControls.innerHTML = "";
-    leaveRoomButton.disabled = true;
-    appendSimpleItem(activeRoomMembers, "No active room members yet.");
-    return;
-  }
-
-  leaveRoomButton.disabled = false;
-  activeRoomName.textContent = room.name;
-  activeRoomDescription.textContent = room.description;
-  activeRoomSubject.textContent = room.subject;
-  activeRoomTimer.textContent = formatShortTime(getRoomElapsedSeconds(room));
-  activeRoomStatus.textContent = room.status;
-  renderRoomStatusControls(room);
-  renderActiveRoomMembers(room);
-}
-
-function renderRoomStatusControls(room) {
-  const statuses = ["Studying", "Short Break", "Long Break", "Paused"];
-  roomStatusControls.innerHTML = "";
-  statuses.forEach(function (status) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = room.status === status ? "" : "secondary-button";
-    button.textContent = status;
-    button.addEventListener("click", function () { updateRoomStatus(room.id, status); });
-    roomStatusControls.appendChild(button);
-  });
-}
-
-function renderActiveRoomMembers(room) {
-  activeRoomMembers.innerHTML = "";
-  const members = room.members.length > 0 ? room.members : [{ id: "you", name: "You", status: room.status }];
-  members.forEach(function (member) {
-    appendMemberRow(activeRoomMembers, member.name, member.status);
-  });
-}
-
-function updateRoomStatus(roomId, status) {
-  const room = getRoomById(roomId);
-  if (!room) return;
-
-  room.elapsedSeconds = getRoomElapsedSeconds(room);
-  room.status = status;
-  room.statusStartedAt = status === "Studying" ? new Date().toISOString() : null;
-  room.members = room.members.map(function (member) {
-    return member.id === "you" ? { ...member, status } : member;
-  });
-
-  if (status === "Studying") startRoomTimer();
-  if (status !== "Studying") stopRoomTimer();
-
-  saveData();
-  renderStudyCircles();
 }
 
 function getRoomElapsedSeconds(room) {
@@ -2776,10 +2719,6 @@ function getCircleById(circleId) {
   });
 }
 
-function getSelectedCircle() {
-  return getCircleById(appData.selectedCircleId) || appData.studyCircles[0];
-}
-
 function getRoomById(roomId) {
   for (const circle of appData.studyCircles) {
     const room = circle.rooms.find(function (candidate) {
@@ -2800,6 +2739,1007 @@ function appendMemberRow(parent, label, value) {
   row.appendChild(name);
   row.appendChild(status);
   parent.appendChild(row);
+}
+
+function renderStudyCircles() {
+  const selectedCircle = getSelectedCircle();
+  const isWorkspaceView = appData.groupsView === "workspace" && selectedCircle;
+
+  groupsPageHeader.hidden = Boolean(isWorkspaceView);
+  groupsListView.hidden = Boolean(isWorkspaceView);
+  groupWorkspace.hidden = !isWorkspaceView;
+
+  if (isWorkspaceView) {
+    groupCardList.innerHTML = "";
+    renderGroupWorkspace(selectedCircle);
+    renderActiveRoom();
+    return;
+  }
+
+  appData.groupsView = "list";
+  appData.selectedCircleId = null;
+  renderGroupList();
+}
+
+function renderGroupList() {
+  groupCardList.innerHTML = "";
+  groupCountLabel.textContent = `${appData.studyCircles.length} ${appData.studyCircles.length === 1 ? "group" : "groups"}`;
+
+  if (appData.studyCircles.length === 0) {
+    appendSimpleItem(groupCardList, "No groups yet. Create one with your study partners.");
+    return;
+  }
+
+  appData.studyCircles.forEach(function (circle) {
+    const card = document.createElement("button");
+    const top = document.createElement("span");
+    const icon = document.createElement("span");
+    const titleWrap = document.createElement("span");
+    const name = document.createElement("strong");
+    const description = document.createElement("small");
+    const stats = document.createElement("span");
+    const challenge = getCurrentChallenge(circle);
+    const challengePreview = document.createElement("span");
+
+    card.type = "button";
+    card.className = "group-card";
+    top.className = "group-card-top";
+    icon.className = "group-avatar";
+    titleWrap.className = "group-card-title";
+    stats.className = "group-card-stats";
+    challengePreview.className = "group-card-challenge";
+
+    icon.textContent = circle.icon;
+    name.textContent = circle.name;
+    description.textContent = circle.description;
+    stats.innerHTML = `<span>${circle.members.length} members</span><span>${getActiveMemberCount(circle)} studying now</span><span>${formatShortTime(getGroupStudySeconds(circle))} today</span>`;
+    challengePreview.textContent = challenge ? `Challenge: ${challenge.title}` : "No active challenge";
+
+    titleWrap.appendChild(name);
+    titleWrap.appendChild(description);
+    top.appendChild(icon);
+    top.appendChild(titleWrap);
+    card.appendChild(top);
+    card.appendChild(stats);
+    card.appendChild(challengePreview);
+    card.addEventListener("click", function () { openGroupWorkspace(circle.id); });
+    groupCardList.appendChild(card);
+  });
+}
+
+function renderGroupWorkspace(circle) {
+  if (!circle) return;
+
+  groupWorkspaceIcon.textContent = circle.icon;
+  groupWorkspaceName.textContent = circle.name;
+  groupWorkspaceDescription.textContent = circle.description;
+  groupWorkspaceMeta.innerHTML = "";
+  [`${circle.members.length} members`, `${getActiveMemberCount(circle)} studying now`, `${circle.rooms.length} rooms`].forEach(function (label) {
+    const item = document.createElement("span");
+    item.textContent = label;
+    groupWorkspaceMeta.appendChild(item);
+  });
+
+  groupTabs.forEach(function (tab) {
+    tab.classList.toggle("active", tab.dataset.groupTab === appData.selectedCircleTab);
+  });
+
+  groupTabPanels.forEach(function (panel) {
+    panel.classList.toggle("active", panel.id === `group-tab-${appData.selectedCircleTab}`);
+  });
+
+  renderGroupOverview(circle);
+  renderGroupRooms(circle);
+  renderGroupChallenges(circle);
+  renderGroupMembers(circle);
+  renderGroupRanking(circle);
+}
+
+function openGroupWorkspace(circleId) {
+  appData.selectedCircleId = circleId;
+  appData.groupsView = "workspace";
+  appData.selectedCircleTab = appData.selectedCircleTab || "overview";
+  saveData();
+  renderStudyCircles();
+}
+
+function closeGroupWorkspace() {
+  appData.selectedCircleId = null;
+  appData.groupsView = "list";
+  saveData();
+  renderStudyCircles();
+}
+
+function renderGroupOverview(circle) {
+  groupStudyingNow.innerHTML = "";
+  groupOverviewSummary.innerHTML = "";
+  const activeMembers = circle.members.filter(function (member) {
+    return ["Studying", "Short Break", "Long Break"].includes(member.status);
+  });
+
+  if (activeMembers.length === 0) {
+    appendSimpleItem(groupStudyingNow, "No one is studying in this local prototype right now.");
+  } else {
+    activeMembers.forEach(function (member) {
+      groupStudyingNow.appendChild(createCompactRow(member.name, `${member.status} - ${member.subject}`, formatShortTime(member.totalSeconds)));
+    });
+  }
+
+  [
+    ["Group study time", formatShortTime(getGroupStudySeconds(circle))],
+    ["Studying now", getActiveMemberCount(circle)],
+    ["Sessions today", getGroupSessionCount(circle)]
+  ].forEach(function (item) {
+    const cell = document.createElement("div");
+    cell.innerHTML = `<span>${item[0]}</span><strong>${item[1]}</strong>`;
+    groupOverviewSummary.appendChild(cell);
+  });
+
+  renderCurrentChallenge(circle);
+  renderGroupActivity(circle);
+}
+
+function renderCurrentChallenge(circle) {
+  groupCurrentChallenge.innerHTML = "";
+  const challenge = getCurrentChallenge(circle);
+  if (!challenge) {
+    appendSimpleItem(groupCurrentChallenge, "No current challenge. Create one when the group has a shared target.");
+    return;
+  }
+
+  groupCurrentChallenge.appendChild(createChallengeCard(challenge, true));
+}
+
+function renderGroupActivity(circle) {
+  groupActivityList.innerHTML = "";
+  if (circle.activity.length === 0) {
+    appendSimpleItem(groupActivityList, "Local activity will appear here after rooms or challenges are used.");
+    return;
+  }
+
+  circle.activity.slice(0, 5).forEach(function (item) {
+    groupActivityList.appendChild(createCompactRow(item.text, formatActivityTime(item.createdAt), ""));
+  });
+}
+
+function renderGroupRooms(circle) {
+  groupRoomList.innerHTML = "";
+  if (circle.rooms.length === 0) {
+    appendSimpleItem(groupRoomList, "No focus rooms active. Start a room when you're ready to study together.");
+    return;
+  }
+
+  circle.rooms.forEach(function (room) {
+    const card = document.createElement("article");
+    const header = document.createElement("div");
+    const title = document.createElement("h3");
+    const purpose = document.createElement("p");
+    const stats = document.createElement("div");
+    const live = document.createElement("strong");
+    const action = document.createElement("button");
+    const activeRoomMembers = room.members.filter(function (member) {
+      return member.status === "Studying";
+    }).length;
+
+    card.className = "room-card";
+    header.className = "room-card-header";
+    purpose.className = "muted-text";
+    stats.className = "room-card-stats";
+    live.className = "room-live-copy";
+    title.textContent = room.name;
+    purpose.textContent = room.subject;
+    live.textContent = room.status === "Studying"
+      ? `${activeRoomMembers || room.members.length} studying now`
+      : `${room.members.length} ${room.members.length === 1 ? "member" : "members"} - ${room.status}`;
+    stats.innerHTML = `<span>${formatShortTime(getRoomElapsedSeconds(room))} elapsed</span><span>${room.maxMembers} max</span>`;
+    action.type = "button";
+    action.textContent = appData.activeRoomId === room.id ? "Joined" : room.status === "Paused" ? "Open" : "Join Room";
+    action.className = appData.activeRoomId === room.id ? "secondary-button" : "";
+    action.disabled = appData.activeRoomId !== room.id && room.members.length >= room.maxMembers;
+    action.addEventListener("click", function () { joinFocusRoom(room.id); });
+
+    header.appendChild(title);
+    header.appendChild(action);
+    card.appendChild(header);
+    card.appendChild(purpose);
+    card.appendChild(live);
+    card.appendChild(stats);
+    groupRoomList.appendChild(card);
+  });
+}
+
+function renderGroupChallenges(circle) {
+  groupChallengeList.innerHTML = "";
+  challengeStatusFilters.querySelectorAll("button").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.challengeStatus === appData.selectedChallengeStatus);
+  });
+
+  const selectedChallenge = getChallengeById(appData.selectedChallengeId);
+  challengeListView.hidden = Boolean(selectedChallenge);
+  challengeDetailView.hidden = !selectedChallenge;
+
+  if (selectedChallenge) {
+    renderChallengeDetail(circle, selectedChallenge);
+    return;
+  }
+
+  const challenges = circle.challenges.filter(function (challenge) {
+    return getChallengeStatus(challenge) === appData.selectedChallengeStatus;
+  });
+
+  if (challenges.length === 0) {
+    const emptyCopy = appData.selectedChallengeStatus === "completed"
+      ? "No completed challenges yet. Finished challenges will stay here."
+      : appData.selectedChallengeStatus === "upcoming"
+        ? "No upcoming challenges yet."
+        : "No active challenges yet. Create a competition or group goal.";
+    appendSimpleItem(groupChallengeList, emptyCopy);
+    return;
+  }
+
+  challenges.forEach(function (challenge) {
+    groupChallengeList.appendChild(createChallengeCard(challenge, false, circle));
+  });
+}
+
+function renderGroupMembers(circle) {
+  groupMemberList.innerHTML = "";
+  circle.members.forEach(function (member) {
+    const row = document.createElement("div");
+    row.className = "member-table-row";
+    row.innerHTML = `
+      <span class="group-avatar">${getInitials(member.name)}</span>
+      <span><strong>${member.name}</strong><small>${member.status} - ${member.subject}</small></span>
+      <span>${formatShortTime(member.totalSeconds)} today</span>
+      <span>${member.streak}-day streak</span>
+    `;
+    groupMemberList.appendChild(row);
+  });
+}
+
+function renderGroupRanking(circle) {
+  groupRankingList.innerHTML = "";
+  groupRankingFilters.querySelectorAll("button").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.rankingRange === appData.selectedRankingRange);
+  });
+
+  const header = document.createElement("div");
+  header.className = "ranking-row ranking-head";
+  header.innerHTML = "<span>Rank</span><span>Name</span><span>Study time</span><span>Streak</span><span>Tasks</span>";
+  groupRankingList.appendChild(header);
+
+  circle.members
+    .slice()
+    .sort(function (first, second) { return second.totalSeconds - first.totalSeconds; })
+    .forEach(function (member, index) {
+      const row = document.createElement("div");
+      row.className = "ranking-row";
+      row.innerHTML = `<span>#${index + 1}</span><span>${member.name}</span><span>${formatShortTime(member.totalSeconds)}</span><span>${member.streak}</span><span>${member.tasksCompleted}</span>`;
+      groupRankingList.appendChild(row);
+    });
+}
+
+function openGroupModal(mode) {
+  const circle = getSelectedCircle();
+  groupForm.dataset.mode = mode;
+  groupModal.hidden = false;
+  groupModalTitle.textContent = mode === "edit" ? "Group Settings" : "Create Group";
+  saveGroupButton.textContent = mode === "edit" ? "Save Changes" : "Create Group";
+  deleteGroupButton.hidden = mode !== "edit";
+  groupNameInput.value = mode === "edit" && circle ? circle.name : "";
+  groupIconInput.value = mode === "edit" && circle ? circle.icon : "";
+  groupDescriptionInput.value = mode === "edit" && circle ? circle.description : "";
+  groupPrivacyInput.value = mode === "edit" && circle ? circle.privacy : "private";
+  groupNameInput.focus();
+}
+
+function closeGroupModal() {
+  groupModal.hidden = true;
+  groupForm.reset();
+  groupForm.dataset.mode = "create";
+}
+
+function saveGroup(event) {
+  event.preventDefault();
+  const selectedCircle = getSelectedCircle();
+  const circleName = groupNameInput.value.trim();
+  const circleIcon = groupIconInput.value.trim().slice(0, 3).toUpperCase() || getInitials(circleName);
+  const circleDescription = groupDescriptionInput.value.trim() || "A shared StudyMate group.";
+  if (!circleName) return;
+
+  if (selectedCircle && groupForm.dataset.mode === "edit") {
+    selectedCircle.name = circleName;
+    selectedCircle.icon = circleIcon;
+    selectedCircle.description = circleDescription;
+    selectedCircle.privacy = groupPrivacyInput.value;
+    addGroupActivity(selectedCircle, "Group settings were updated.");
+  } else {
+    const newCircle = {
+      id: createId(),
+      name: circleName,
+      icon: circleIcon,
+      description: circleDescription,
+      privacy: groupPrivacyInput.value,
+      inviteCode: generateInviteCode(),
+      members: [{ id: "you", name: "You", status: "Paused", subject: getSelectedSubject().name, totalSeconds: appData.studySeconds, streak: appData.streak, tasksCompleted: getCompletedTaskCount() }],
+      rooms: [],
+      challenges: [],
+      activity: [],
+      createdAt: new Date().toISOString()
+    };
+    addGroupActivity(newCircle, "You created the group.");
+    appData.studyCircles.push(newCircle);
+    appData.selectedCircleId = newCircle.id;
+    appData.groupsView = "workspace";
+    appData.selectedCircleTab = "overview";
+  }
+
+  closeGroupModal();
+  saveData();
+  renderStudyCircles();
+}
+
+function deleteSelectedGroup() {
+  const circle = getSelectedCircle();
+  if (!circle) return;
+  if (!confirm(`Delete ${circle.name}?`)) return;
+
+  appData.studyCircles = appData.studyCircles.filter(function (candidate) { return candidate.id !== circle.id; });
+  appData.selectedCircleId = null;
+  appData.groupsView = "list";
+  if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) appData.activeRoomId = null;
+  closeGroupModal();
+  saveData();
+  renderStudyCircles();
+}
+
+function openJoinGroupModal() {
+  joinGroupModal.hidden = false;
+  joinGroupForm.reset();
+  joinGroupMessage.textContent = "";
+  joinCodeInput.focus();
+}
+
+function closeJoinGroupModal() {
+  joinGroupModal.hidden = true;
+  joinGroupForm.reset();
+  joinGroupMessage.textContent = "";
+}
+
+function joinGroupByCode(event) {
+  event.preventDefault();
+  const code = joinCodeInput.value.trim().toUpperCase();
+  const circle = appData.studyCircles.find(function (candidate) {
+    return candidate.inviteCode.toUpperCase() === code;
+  });
+
+  if (!circle) {
+    joinGroupMessage.textContent = "This code is not saved in this browser yet. Shared joining needs accounts and a backend later.";
+    return;
+  }
+
+  appData.selectedCircleId = circle.id;
+  appData.groupsView = "workspace";
+  appData.selectedCircleTab = "overview";
+  closeJoinGroupModal();
+  saveData();
+  renderStudyCircles();
+}
+
+function openInviteModal() {
+  const circle = getSelectedCircle();
+  if (!circle) return;
+  inviteModal.hidden = false;
+  inviteCodeDisplay.textContent = circle.inviteCode;
+  inviteCopyMessage.textContent = "Sharing across devices requires accounts and a backend later.";
+}
+
+function closeInviteModal() {
+  inviteModal.hidden = true;
+}
+
+function copyInviteCode() {
+  const circle = getSelectedCircle();
+  if (!circle) return;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(circle.inviteCode);
+    inviteCopyMessage.textContent = "Code copied for this local prototype.";
+  } else {
+    inviteCopyMessage.textContent = circle.inviteCode;
+  }
+}
+
+function openRoomModal() {
+  roomModal.hidden = false;
+  roomForm.reset();
+  roomMaxInput.value = 8;
+  roomNameInput.focus();
+}
+
+function closeRoomModal() {
+  roomModal.hidden = true;
+  roomForm.reset();
+  roomMaxInput.value = 8;
+}
+
+function createFocusRoom(event) {
+  event.preventDefault();
+  const circle = getSelectedCircle();
+  if (!circle) return;
+
+  circle.rooms.unshift({
+    id: createId(),
+    name: roomNameInput.value.trim(),
+    icon: getInitials(roomNameInput.value.trim()),
+    description: "A local prototype focus room.",
+    subject: roomSubjectInput.value.trim(),
+    maxMembers: Math.max(2, Number(roomMaxInput.value) || 8),
+    privacy: roomPrivacyInput.value,
+    status: "Paused",
+    elapsedSeconds: 0,
+    statusStartedAt: null,
+    members: []
+  });
+
+  addGroupActivity(circle, `Created room: ${roomNameInput.value.trim()}.`);
+  closeRoomModal();
+  appData.selectedCircleTab = "rooms";
+  saveData();
+  renderStudyCircles();
+}
+
+function joinFocusRoom(roomId) {
+  const room = getRoomById(roomId);
+  if (!room) return;
+
+  leaveFocusRoom(false);
+  if (!room.members.some(function (member) { return member.id === "you"; })) {
+    room.members.push({ id: "you", name: "You", status: room.status, subject: room.subject, joinedAt: new Date().toISOString() });
+  }
+
+  appData.activeRoomId = room.id;
+  appData.selectedCircleTab = "rooms";
+  const circle = getCircleForRoom(room.id);
+  if (circle) addGroupActivity(circle, `You joined ${room.name}.`);
+  saveData();
+  renderStudyCircles();
+}
+
+function renderActiveRoom() {
+  const room = getRoomById(appData.activeRoomId);
+
+  if (!room) {
+    groupRoomLive.hidden = true;
+    activeRoomName.textContent = "No room joined";
+    activeRoomDescription.textContent = "Join a room to see the local prototype session.";
+    activeRoomSubject.textContent = "-";
+    activeRoomTimer.textContent = "0h 00m";
+    activeRoomStatus.textContent = "Paused";
+    activeRoomMembers.innerHTML = "";
+    roomStatusControls.innerHTML = "";
+    leaveRoomButton.disabled = true;
+    return;
+  }
+
+  groupRoomLive.hidden = false;
+  leaveRoomButton.disabled = false;
+  activeRoomName.textContent = room.name;
+  activeRoomDescription.textContent = room.description;
+  activeRoomSubject.textContent = room.subject;
+  activeRoomTimer.textContent = formatShortTime(getRoomElapsedSeconds(room));
+  activeRoomStatus.textContent = room.status;
+  renderRoomStatusControls(room);
+  renderActiveRoomMembers(room);
+}
+
+function renderRoomStatusControls(room) {
+  const statuses = ["Studying", "Short Break", "Long Break", "Paused"];
+  roomStatusControls.innerHTML = "";
+  statuses.forEach(function (status) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = room.status === status ? "active" : "";
+    button.textContent = status;
+    button.addEventListener("click", function () { updateRoomStatus(room.id, status); });
+    roomStatusControls.appendChild(button);
+  });
+}
+
+function renderActiveRoomMembers(room) {
+  activeRoomMembers.innerHTML = "";
+  const members = room.members.length > 0 ? room.members : [{ id: "you", name: "You", status: room.status, subject: room.subject }];
+  members.forEach(function (member) {
+    activeRoomMembers.appendChild(createCompactRow(member.name, `${member.status} - ${member.subject || room.subject}`, getMemberRoomTime(member)));
+  });
+}
+
+function updateRoomStatus(roomId, status) {
+  const room = getRoomById(roomId);
+  if (!room) return;
+
+  room.elapsedSeconds = getRoomElapsedSeconds(room);
+  room.status = status;
+  room.statusStartedAt = status === "Studying" ? new Date().toISOString() : null;
+  room.members = room.members.map(function (member) {
+    return member.id === "you" ? { ...member, status, subject: room.subject } : member;
+  });
+
+  if (status === "Studying") startRoomTimer();
+  if (status !== "Studying") stopRoomTimer();
+
+  const circle = getCircleForRoom(room.id);
+  if (circle) addGroupActivity(circle, `You changed ${room.name} to ${status}.`);
+  saveData();
+  renderStudyCircles();
+}
+
+function getSelectedCircle() {
+  return getCircleById(appData.selectedCircleId);
+}
+
+function getCircleForRoom(roomId) {
+  return appData.studyCircles.find(function (circle) {
+    return circle.rooms.some(function (room) {
+      return String(room.id) === String(roomId);
+    });
+  });
+}
+
+function openChallengeModal() {
+  challengeDraft = createChallengeDraft();
+  challengeModal.hidden = false;
+  challengeForm.reset();
+  challengeTitleInput.value = "7-Day Study Sprint";
+  challengeTargetInput.value = 20;
+  challengeStartInput.value = challengeDraft.startDate;
+  challengeEndInput.value = challengeDraft.endDate;
+  renderChallengeModalStep();
+  challengeTitleInput.focus();
+}
+
+function closeChallengeModal() {
+  challengeModal.hidden = true;
+  challengeForm.reset();
+  challengeDraft = createChallengeDraft();
+}
+
+function createChallengeDraft() {
+  return {
+    step: 1,
+    format: "solo",
+    metric: "study-time",
+    durationDays: 7,
+    participantMode: "all",
+    startDate: getTodayKey(),
+    endDate: addDaysToDate(getTodayKey(), 7)
+  };
+}
+
+function renderChallengeModalStep() {
+  challengeSteps.forEach(function (step) {
+    step.classList.toggle("active", Number(step.dataset.challengeStep) === challengeDraft.step);
+  });
+
+  challengeStepLabel.textContent = `Step ${challengeDraft.step} of 4`;
+  challengePrevButton.hidden = challengeDraft.step === 1;
+  challengeNextButton.hidden = challengeDraft.step === 4;
+  challengeCreateButton.hidden = challengeDraft.step !== 4;
+
+  updateOptionState(challengeFormatOptions, "challengeFormat", challengeDraft.format);
+  updateOptionState(challengeMetricOptions, "challengeMetric", challengeDraft.metric);
+  updateDurationOptionState();
+  updateOptionState(challengeParticipantOptions, "participantMode", challengeDraft.participantMode);
+  updateParticipantHelp();
+}
+
+function updateOptionState(container, dataKey, value) {
+  container.querySelectorAll("button").forEach(function (button) {
+    button.classList.toggle("active", button.dataset[dataKey] === value);
+  });
+}
+
+function updateDurationOptionState() {
+  challengeDurationOptions.querySelectorAll("button").forEach(function (button) {
+    button.classList.toggle("active", String(button.dataset.durationDays) === String(challengeDraft.durationDays));
+  });
+}
+
+function updateParticipantHelp() {
+  const help = {
+    solo: "Solo challenges can include everyone or selected members.",
+    duo: "Duo challenges combine two members per pair. Random pairs work in this local prototype.",
+    teams: "Team challenges combine larger groups. Random teams work in this local prototype.",
+    "group-goal": "Group goals include everyone working toward one shared target."
+  };
+  challengeParticipantHelp.textContent = help[challengeDraft.format];
+
+  challengeParticipantOptions.querySelectorAll("button").forEach(function (button) {
+    const mode = button.dataset.participantMode;
+    const isGroupGoal = challengeDraft.format === "group-goal";
+    button.hidden = isGroupGoal ? mode !== "all" : false;
+  });
+}
+
+function goToChallengeStep(direction) {
+  if (challengeDraft.step === 3) syncChallengeDurationFields();
+  challengeDraft.step = Math.min(4, Math.max(1, challengeDraft.step + direction));
+  renderChallengeModalStep();
+}
+
+function syncChallengeDurationFields() {
+  challengeDraft.startDate = challengeStartInput.value || getTodayKey();
+  challengeDraft.endDate = challengeEndInput.value || addDaysToDate(challengeDraft.startDate, Number(challengeDraft.durationDays) || 7);
+}
+
+function createChallenge(event) {
+  event.preventDefault();
+  const circle = getSelectedCircle();
+  if (!circle) return;
+
+  syncChallengeDurationFields();
+  const metric = challengeDraft.metric;
+  const format = challengeDraft.format;
+  const title = challengeTitleInput.value.trim() || getDefaultChallengeTitle(format, metric);
+  const challenge = {
+    id: createId(),
+    title,
+    format,
+    metric,
+    target: Math.max(1, Number(challengeTargetInput.value) || 1),
+    unit: getChallengeUnit(metric),
+    startDate: challengeDraft.startDate,
+    endDate: challengeDraft.endDate,
+    participantMode: challengeDraft.participantMode,
+    participants: circle.members.map(function (member) { return member.id; }),
+    entries: [],
+    progress: 0,
+    yourProgress: 0,
+    completedAt: "",
+    result: null,
+    createdAt: new Date().toISOString()
+  };
+
+  challenge.entries = buildChallengeEntries(challenge, circle.members);
+  refreshChallengeProgress(challenge, circle);
+
+  circle.challenges.unshift(challenge);
+  addGroupActivity(circle, `Challenge started: ${challenge.title}.`);
+  closeChallengeModal();
+  appData.selectedCircleTab = "challenges";
+  appData.selectedChallengeStatus = getChallengeStatus(challenge);
+  appData.selectedChallengeId = challenge.id;
+  saveData();
+  renderStudyCircles();
+}
+
+function updateChallengeProgress(challengeId, amount) {
+  const circle = getSelectedCircle();
+  if (!circle) return;
+  const challenge = circle.challenges.find(function (candidate) { return candidate.id === challengeId; });
+  if (!challenge) return;
+
+  const entry = challenge.entries.find(function (candidate) {
+    return candidate.memberIds.includes("you") || candidate.id === "group";
+  });
+  if (entry) entry.progress = Math.max(0, entry.progress + amount);
+  refreshChallengeProgress(challenge, circle);
+  addGroupActivity(circle, `Updated challenge progress: ${challenge.title}.`);
+  saveData();
+  renderStudyCircles();
+}
+
+function createChallengeCard(challenge, compact, circle) {
+  const card = document.createElement("article");
+  const status = getChallengeStatus(challenge);
+  const leader = getChallengeLeader(challenge);
+  const progressPercent = getChallengeProgressPercent(challenge);
+  card.className = compact ? "challenge-card challenge-strip compact" : "challenge-card";
+  card.innerHTML = `
+    <div class="section-mini-header">
+      <div>
+        <h3>${challenge.title}</h3>
+        <p class="muted-text">${formatChallengeFormat(challenge.format)} - ${formatChallengeMetric(challenge.metric)} - ${getChallengeTimeLabel(challenge)}</p>
+      </div>
+      <span class="status-pill">${status}</span>
+    </div>
+    <div class="challenge-progress">
+      <span>${challenge.format === "group-goal" ? "Group progress" : "Current leader"}</span>
+      <strong>${challenge.format === "group-goal" ? `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)}` : `${leader.name} - ${formatChallengeValue(leader.progress, challenge.metric)}`}</strong>
+      <div class="progress-bar"><span style="width: ${progressPercent}%"></span></div>
+    </div>
+  `;
+
+  if (!compact) {
+    const actions = document.createElement("div");
+    actions.className = "compact-actions";
+    actions.appendChild(createSmallAction("Open", function () {
+      appData.selectedChallengeId = challenge.id;
+      saveData();
+      renderStudyCircles();
+    }));
+    actions.appendChild(createSmallAction("+1", function () { updateChallengeProgress(challenge.id, 1); }));
+    actions.appendChild(createSmallAction("-1", function () { updateChallengeProgress(challenge.id, -1); }));
+    card.appendChild(actions);
+  } else if (circle) {
+    card.addEventListener("click", function () {
+      appData.selectedCircleTab = "challenges";
+      appData.selectedChallengeId = challenge.id;
+      saveData();
+      renderStudyCircles();
+    });
+  }
+
+  return card;
+}
+
+function renderChallengeDetail(circle, challenge) {
+  refreshChallengeProgress(challenge, circle);
+  const leader = getChallengeLeader(challenge);
+  const isGroupGoal = challenge.format === "group-goal";
+  const status = getChallengeStatus(challenge);
+  const result = status === "completed" ? getChallengeResult(challenge) : null;
+  challengeDetailContent.innerHTML = "";
+
+  const header = document.createElement("article");
+  header.className = "challenge-detail-header";
+  header.innerHTML = `
+    <div>
+      <p class="eyebrow">${formatChallengeFormat(challenge.format)} - ${formatChallengeMetric(challenge.metric)}</p>
+      <h3>${challenge.title}</h3>
+      <p class="muted-text">${getChallengeTimeLabel(challenge)}</p>
+    </div>
+    <div class="summary-strip compact">
+      <div><span>Status</span><strong>${status}</strong></div>
+      <div><span>${isGroupGoal ? "Progress" : "Leader"}</span><strong>${isGroupGoal ? `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)}` : leader.name}</strong></div>
+      <div><span>Your progress</span><strong>${formatChallengeValue(challenge.yourProgress, challenge.metric)}</strong></div>
+    </div>
+  `;
+  challengeDetailContent.appendChild(header);
+
+  if (result) {
+    const resultBox = document.createElement("article");
+    resultBox.className = "challenge-result-box";
+    resultBox.innerHTML = `<h3>${isGroupGoal ? result.title : "Challenge Complete"}</h3><p>${result.copy}</p>`;
+    challengeDetailContent.appendChild(resultBox);
+  }
+
+  const list = document.createElement("div");
+  list.className = isGroupGoal ? "challenge-contribution-list" : "challenge-leaderboard";
+  const rows = challenge.entries.slice().sort(function (first, second) {
+    return second.progress - first.progress;
+  });
+
+  rows.forEach(function (entry, index) {
+    const row = document.createElement("div");
+    row.className = "ranking-row";
+    row.innerHTML = `<span>${isGroupGoal ? "" : `#${index + 1}`}</span><span>${entry.name}<small>${getEntryMembers(entry, circle)}</small></span><span>${formatChallengeValue(entry.progress, challenge.metric)}</span><span>${getEntryPercent(entry, challenge)}%</span><span>${entry.memberIds.includes("you") ? "You" : ""}</span>`;
+    list.appendChild(row);
+  });
+
+  challengeDetailContent.appendChild(list);
+}
+
+function createCompactRow(title, meta, value) {
+  const row = document.createElement("div");
+  row.className = "compact-row";
+  const copy = document.createElement("span");
+  const titleEl = document.createElement("strong");
+  const metaEl = document.createElement("small");
+  const valueEl = document.createElement("span");
+  titleEl.textContent = title;
+  metaEl.textContent = meta;
+  valueEl.textContent = value;
+  copy.appendChild(titleEl);
+  copy.appendChild(metaEl);
+  row.appendChild(copy);
+  if (value) row.appendChild(valueEl);
+  return row;
+}
+
+function getActiveMemberCount(circle) {
+  return circle.members.filter(function (member) {
+    return ["Studying", "Short Break", "Long Break"].includes(member.status);
+  }).length;
+}
+
+function getGroupStudySeconds(circle) {
+  return circle.members.reduce(function (total, member) {
+    return total + Number(member.totalSeconds || 0);
+  }, 0);
+}
+
+function getCurrentChallenge(circle) {
+  return circle.challenges.find(function (challenge) {
+    return getChallengeStatus(challenge) === "active";
+  }) || null;
+}
+
+function getChallengeById(challengeId) {
+  for (const circle of appData.studyCircles) {
+    const challenge = circle.challenges.find(function (candidate) {
+      return String(candidate.id) === String(challengeId);
+    });
+    if (challenge) return challenge;
+  }
+  return null;
+}
+
+function refreshChallengeProgress(challenge, circle) {
+  if (challenge.entries.length === 0) {
+    challenge.entries = buildChallengeEntries(challenge, circle.members);
+  }
+
+  challenge.entries.forEach(function (entry) {
+    if (entry.manual) return;
+    const members = circle.members.filter(function (member) {
+      return entry.memberIds.includes(member.id);
+    });
+    entry.progress = challenge.format === "group-goal"
+      ? getGroupMetricProgress(circle.members, challenge.metric)
+      : getGroupMetricProgress(members, challenge.metric);
+  });
+
+  const yourEntry = challenge.entries.find(function (entry) {
+    return entry.memberIds.includes("you") || entry.id === "group";
+  });
+  challenge.yourProgress = yourEntry ? yourEntry.progress : 0;
+  challenge.progress = challenge.format === "group-goal"
+    ? (challenge.entries[0] ? challenge.entries[0].progress : 0)
+    : Math.max(0, ...challenge.entries.map(function (entry) { return entry.progress; }));
+
+  if (getChallengeStatus(challenge) === "completed" && !challenge.result) {
+    challenge.result = getChallengeResult(challenge);
+    challenge.completedAt = new Date().toISOString();
+  }
+}
+
+function getChallengeStatus(challenge) {
+  const today = getTodayKey();
+  if (challenge.completedAt || today > challenge.endDate) return "completed";
+  if (today < challenge.startDate) return "upcoming";
+  return "active";
+}
+
+function getChallengeLeader(challenge) {
+  return challenge.entries.slice().sort(function (first, second) {
+    return second.progress - first.progress;
+  })[0] || { name: "No leader yet", progress: 0, memberIds: [] };
+}
+
+function getChallengeResult(challenge) {
+  if (challenge.format === "group-goal") {
+    const reached = challenge.progress >= challenge.target;
+    return {
+      title: reached ? "Goal Completed" : "Goal Not Reached",
+      copy: reached
+        ? `${formatChallengeValue(challenge.progress, challenge.metric)} completed together.`
+        : `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)} completed.`
+    };
+  }
+
+  const winner = getChallengeLeader(challenge);
+  return {
+    title: "Winner",
+    copy: `${winner.name} won with ${formatChallengeValue(winner.progress, challenge.metric)}.`
+  };
+}
+
+function getChallengeProgressPercent(challenge) {
+  if (challenge.format === "group-goal") {
+    return challenge.target === 0 ? 0 : Math.min(100, Math.round((challenge.progress / challenge.target) * 100));
+  }
+
+  const leader = getChallengeLeader(challenge);
+  return challenge.target === 0 ? 0 : Math.min(100, Math.round((leader.progress / challenge.target) * 100));
+}
+
+function getEntryPercent(entry, challenge) {
+  return challenge.target === 0 ? 0 : Math.min(100, Math.round((entry.progress / challenge.target) * 100));
+}
+
+function getGroupMetricProgress(members, metric) {
+  return members.reduce(function (total, member) {
+    return total + getMemberMetricProgress(member, metric);
+  }, 0);
+}
+
+function getMemberMetricProgress(member, metric) {
+  if (metric === "study-time") return Number((member.totalSeconds || 0) / 3600).toFixed(1) * 1;
+  if (metric === "tasks") return Number(member.tasksCompleted || 0);
+  if (metric === "study-days") return Number(member.streak || 0);
+  if (metric === "pomodoros") return Math.floor(Number(member.totalSeconds || 0) / 1500);
+  return 0;
+}
+
+function formatChallengeValue(value, metric) {
+  const safeValue = Number(value || 0);
+  if (metric === "study-time") return `${safeValue.toFixed(safeValue % 1 === 0 ? 0 : 1)}h`;
+  return `${Math.round(safeValue)}`;
+}
+
+function formatChallengeFormat(format) {
+  const labels = {
+    solo: "Solo",
+    duo: "Duo",
+    teams: "Teams",
+    "group-goal": "Group Goal"
+  };
+  return labels[format] || "Solo";
+}
+
+function formatChallengeMetric(metric) {
+  const labels = {
+    "study-time": "Study Time",
+    pomodoros: "Pomodoros",
+    tasks: "Tasks Completed",
+    "study-days": "Study Days"
+  };
+  return labels[metric] || "Study Time";
+}
+
+function getChallengeTimeLabel(challenge) {
+  const status = getChallengeStatus(challenge);
+  if (status === "upcoming") return `Starts ${challenge.startDate}`;
+  if (status === "completed") return `Completed ${challenge.endDate}`;
+  return `${getDaysRemaining(challenge.endDate)} days remaining`;
+}
+
+function getEntryMembers(entry, circle) {
+  return entry.memberIds
+    .map(function (memberId) {
+      const member = circle.members.find(function (candidate) { return candidate.id === memberId; });
+      return member ? member.name : "";
+    })
+    .filter(Boolean)
+    .join(" + ");
+}
+
+function getDefaultChallengeTitle(format, metric) {
+  if (format === "group-goal") return `${formatChallengeMetric(metric)} Group Goal`;
+  return `${formatChallengeFormat(format)} ${formatChallengeMetric(metric)} Challenge`;
+}
+
+function getGroupSessionCount(circle) {
+  return circle.members.reduce(function (total, member) {
+    return total + Math.floor(Number(member.totalSeconds || 0) / 1500);
+  }, 0);
+}
+
+function getChallengeUnit(type) {
+  const units = {
+    "study-time": "hours",
+    pomodoros: "pomodoros",
+    tasks: "tasks",
+    "study-days": "days",
+    streak: "days",
+    custom: "points"
+  };
+  return units[type] || "points";
+}
+
+function getDaysRemaining(dateKey) {
+  const today = new Date(`${getTodayKey()}T00:00:00`);
+  const end = new Date(`${dateKey}T00:00:00`);
+  return Math.max(0, Math.ceil((end - today) / 86400000));
+}
+
+function getMemberRoomTime(member) {
+  if (!member.joinedAt) return "";
+  return formatShortTime(Math.floor((Date.now() - new Date(member.joinedAt).getTime()) / 1000));
+}
+
+function addGroupActivity(circle, text) {
+  circle.activity.unshift({ id: createId(), text, createdAt: new Date().toISOString() });
+  circle.activity = circle.activity.slice(0, 12);
+}
+
+function formatActivityTime(dateString) {
+  return new Date(dateString).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function getInitials(text) {
+  const words = String(text || "Study Group").trim().split(/\s+/).slice(0, 2);
+  return words.map(function (word) { return word[0]; }).join("").toUpperCase() || "SG";
 }
 
 function generateInviteCode() {
@@ -2875,10 +3815,99 @@ examTabs.forEach(function (tab) {
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
 resetAccentButton.addEventListener("click", resetAccentColor);
-newCircleButton.addEventListener("click", prepareNewCircle);
-circleForm.addEventListener("submit", saveCircle);
+createGroupButton.addEventListener("click", function () { openGroupModal("create"); });
+joinGroupButton.addEventListener("click", openJoinGroupModal);
+backToGroupsButton.addEventListener("click", closeGroupWorkspace);
+groupInviteButton.addEventListener("click", openInviteModal);
+groupSettingsButton.addEventListener("click", function () { openGroupModal("edit"); });
+closeGroupModalButton.addEventListener("click", closeGroupModal);
+groupModal.addEventListener("click", function (event) {
+  if (event.target === groupModal) closeGroupModal();
+});
+groupForm.addEventListener("submit", saveGroup);
+deleteGroupButton.addEventListener("click", deleteSelectedGroup);
+closeJoinGroupModalButton.addEventListener("click", closeJoinGroupModal);
+joinGroupModal.addEventListener("click", function (event) {
+  if (event.target === joinGroupModal) closeJoinGroupModal();
+});
+joinGroupForm.addEventListener("submit", joinGroupByCode);
+closeInviteModalButton.addEventListener("click", closeInviteModal);
+inviteModal.addEventListener("click", function (event) {
+  if (event.target === inviteModal) closeInviteModal();
+});
+copyInviteButton.addEventListener("click", copyInviteCode);
+createRoomButton.addEventListener("click", openRoomModal);
+closeRoomModalButton.addEventListener("click", closeRoomModal);
+roomModal.addEventListener("click", function (event) {
+  if (event.target === roomModal) closeRoomModal();
+});
 roomForm.addEventListener("submit", createFocusRoom);
 leaveRoomButton.addEventListener("click", function () { leaveFocusRoom(true); });
+createChallengeButton.addEventListener("click", openChallengeModal);
+closeChallengeModalButton.addEventListener("click", closeChallengeModal);
+challengeModal.addEventListener("click", function (event) {
+  if (event.target === challengeModal) closeChallengeModal();
+});
+challengeForm.addEventListener("submit", createChallenge);
+challengePrevButton.addEventListener("click", function () { goToChallengeStep(-1); });
+challengeNextButton.addEventListener("click", function () { goToChallengeStep(1); });
+backToChallengesButton.addEventListener("click", function () {
+  appData.selectedChallengeId = null;
+  saveData();
+  renderStudyCircles();
+});
+challengeStatusFilters.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    appData.selectedChallengeStatus = button.dataset.challengeStatus;
+    appData.selectedChallengeId = null;
+    saveData();
+    renderStudyCircles();
+  });
+});
+challengeFormatOptions.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    challengeDraft.format = button.dataset.challengeFormat;
+    if (challengeDraft.format === "group-goal") challengeDraft.participantMode = "all";
+    renderChallengeModalStep();
+  });
+});
+challengeMetricOptions.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    challengeDraft.metric = button.dataset.challengeMetric;
+    renderChallengeModalStep();
+  });
+});
+challengeDurationOptions.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    challengeDraft.durationDays = button.dataset.durationDays;
+    if (challengeDraft.durationDays !== "custom") {
+      challengeStartInput.value = getTodayKey();
+      challengeEndInput.value = addDaysToDate(getTodayKey(), Number(challengeDraft.durationDays));
+    }
+    renderChallengeModalStep();
+  });
+});
+challengeParticipantOptions.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    challengeDraft.participantMode = button.dataset.participantMode;
+    renderChallengeModalStep();
+  });
+});
+groupTabs.forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    appData.selectedCircleTab = tab.dataset.groupTab;
+    if (appData.selectedCircleTab !== "challenges") appData.selectedChallengeId = null;
+    saveData();
+    renderStudyCircles();
+  });
+});
+groupRankingFilters.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () {
+    appData.selectedRankingRange = button.dataset.rankingRange;
+    saveData();
+    renderStudyCircles();
+  });
+});
 menuToggle.addEventListener("click", toggleSidebar);
 
 historyTabs.forEach(function (tab) {

@@ -481,154 +481,291 @@
     </section>
 
     <section class="app-section" id="study-circle">
-      <div class="section-header">
+      <div class="section-header" id="groups-page-header">
         <div>
           <p class="eyebrow">Community</p>
-          <h2>Study Circles</h2>
+          <h2>Groups</h2>
+          <p class="muted-text">Study together, stay accountable.</p>
         </div>
-        <button type="button" id="new-circle-button">Create Circle</button>
+        <div class="header-actions">
+          <button type="button" id="create-group-button">+ Create Group</button>
+          <button type="button" class="secondary-button" id="join-group-button">Join Group</button>
+        </div>
       </div>
 
-      <div class="groups-layout">
-        <aside class="panel circle-rail">
-          <div class="circle-rail-heading">
-            <div>
-              <p class="eyebrow">Level 1</p>
-              <h3>Your Circles</h3>
-            </div>
+      <div class="groups-list-view" id="groups-list-view">
+        <div class="section-mini-header">
+          <h3>My Groups</h3>
+          <span class="muted-text" id="group-count-label">0 groups</span>
+        </div>
+        <div class="group-card-grid" id="group-card-list"></div>
+      </div>
+
+      <div class="group-workspace" id="group-workspace" hidden>
+        <button type="button" class="text-button" id="back-to-groups">&lt; My Groups</button>
+
+        <article class="group-workspace-header">
+          <span class="group-avatar large" id="group-workspace-icon">SM</span>
+          <div>
+            <p class="eyebrow">Group Workspace</p>
+            <h2 id="group-workspace-name">StudyMate Circle</h2>
+            <p class="muted-text" id="group-workspace-description">A calm shared space for daily focus sessions.</p>
+            <div class="group-meta-row" id="group-workspace-meta"></div>
           </div>
-          <div class="circle-list" id="circle-list"></div>
-        </aside>
-
-        <section class="groups-main">
-          <article class="panel circle-detail-card">
-            <div class="circle-hero">
-              <span class="circle-icon" id="circle-icon-display">SM</span>
-              <div>
-                <p class="eyebrow">Study Circle</p>
-                <h3 id="circle-name-display">Select a circle</h3>
-                <p class="muted-text" id="circle-description-display">Create or select a Study Circle to manage members and Focus Rooms.</p>
-              </div>
-              <span class="status-pill" id="circle-invite-display">CODE</span>
-            </div>
-
-            <div class="circle-stats-grid">
-              <div>
-                <span>Members</span>
-                <strong id="circle-member-count">0</strong>
-              </div>
-              <div>
-                <span>Invite Code</span>
-                <strong id="circle-invite-code">------</strong>
-              </div>
-              <div>
-                <span>Focus Rooms</span>
-                <strong id="circle-room-count">0</strong>
-              </div>
-            </div>
-          </article>
-
-          <div class="groups-grid">
-            <article class="panel">
-              <h3>Create / Edit Circle</h3>
-              <form class="stacked-form" id="circle-form">
-                <label for="circle-name-input">Name</label>
-                <input id="circle-name-input" type="text" placeholder="Exam Prep Squad" required>
-                <label for="circle-icon-input">Icon</label>
-                <input id="circle-icon-input" type="text" maxlength="3" placeholder="EP" required>
-                <label for="circle-description-input">Description</label>
-                <textarea id="circle-description-input" rows="3" maxlength="180" placeholder="A focused circle for daily study accountability."></textarea>
-                <div class="form-footer">
-                  <span id="circle-form-mode">Create a new circle</span>
-                  <button type="submit" id="save-circle-button">Save Circle</button>
-                </div>
-              </form>
-            </article>
-
-            <article class="panel">
-              <h3>Members</h3>
-              <div class="member-list" id="circle-member-list"></div>
-            </article>
-
-            <article class="panel">
-              <h3>Leaderboard</h3>
-              <div class="circle-leaderboard" id="circle-leaderboard"></div>
-            </article>
-
-            <article class="panel chat-placeholder-card">
-              <h3>Chat</h3>
-              <p class="muted-text">Chat will live here later. For now, Study Circles focus on members, rooms, and session presence.</p>
-            </article>
+          <div class="workspace-actions">
+            <button type="button" class="secondary-button" id="group-invite-button">Invite</button>
+            <button type="button" class="secondary-button" id="group-settings-button">Settings</button>
           </div>
+        </article>
 
-          <div class="section-header room-header-row">
-            <div>
-              <p class="eyebrow">Level 2</p>
-              <h2>Focus Rooms</h2>
-            </div>
-            <span class="status-pill">Temporary sessions</span>
-          </div>
+        <div class="group-tabs" id="group-tabs">
+          <button type="button" class="group-tab active" data-group-tab="overview">Overview</button>
+          <button type="button" class="group-tab" data-group-tab="rooms">Focus Rooms</button>
+          <button type="button" class="group-tab" data-group-tab="challenges">Challenges</button>
+          <button type="button" class="group-tab" data-group-tab="members">Members</button>
+          <button type="button" class="group-tab" data-group-tab="ranking">Ranking</button>
+          <button type="button" class="group-tab" data-group-tab="chat">Chat</button>
+        </div>
 
-          <div class="rooms-layout">
-            <article class="panel">
-              <h3>Create Focus Room</h3>
-              <form class="stacked-form" id="room-form">
-                <label for="room-name-input">Room Name</label>
-                <input id="room-name-input" type="text" placeholder="Morning Sprint" required>
-                <label for="room-icon-input">Room Icon</label>
-                <input id="room-icon-input" type="text" maxlength="3" placeholder="MS" required>
-                <label for="room-description-input">Description</label>
-                <textarea id="room-description-input" rows="3" maxlength="160" placeholder="A focused study sprint with short check-ins."></textarea>
-                <label for="room-subject-input">Subject</label>
-                <input id="room-subject-input" type="text" placeholder="Physics" required>
-                <label for="room-max-input">Maximum Members</label>
-                <input id="room-max-input" type="number" min="2" max="50" value="8">
-                <label for="room-privacy-input">Visibility</label>
-                <select id="room-privacy-input">
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                </select>
-                <button type="submit">Create Focus Room</button>
-              </form>
+        <div class="group-tab-panel active" id="group-tab-overview">
+          <div class="group-overview-layout">
+            <article class="panel overview-primary">
+              <h3>Studying Now</h3>
+              <div class="compact-list" id="group-studying-now"></div>
             </article>
-
-            <section class="room-stack" id="focus-room-list"></section>
+            <div class="overview-summary-strip" id="group-overview-summary"></div>
+            <section class="inline-section current-challenge-strip">
+              <div class="section-mini-header">
+                <h3>Current Challenge</h3>
+              </div>
+              <div id="group-current-challenge"></div>
+            </section>
+            <section class="inline-section activity-feed-section">
+              <h3>Recent Activity</h3>
+              <div class="compact-list" id="group-activity-list"></div>
+            </section>
           </div>
+        </div>
 
-          <article class="panel active-room-panel" id="active-room-panel">
-            <div class="room-live-header">
+        <div class="group-tab-panel" id="group-tab-rooms">
+          <div class="section-mini-header">
+            <h3>Active Rooms</h3>
+            <button type="button" id="create-room-button">+ Create Room</button>
+          </div>
+          <div class="group-room-list" id="group-room-list"></div>
+          <article class="panel group-room-live" id="group-room-live" hidden>
+            <div class="section-mini-header">
               <div>
                 <p class="eyebrow">Inside Focus Room</p>
                 <h3 id="active-room-name">No room joined</h3>
-                <p class="muted-text" id="active-room-description">Join a Focus Room to see the live study session.</p>
+                <p class="muted-text" id="active-room-description">Join a room to see the local session.</p>
               </div>
               <button type="button" class="secondary-button" id="leave-room-button">Leave Room</button>
             </div>
-
-            <div class="room-session-grid">
-              <div>
-                <span>Current Subject</span>
-                <strong id="active-room-subject">-</strong>
-              </div>
-              <div>
-                <span>Current Timer</span>
-                <strong id="active-room-timer">0h 00m</strong>
-              </div>
-              <div>
-                <span>Current Status</span>
-                <strong id="active-room-status">Paused</strong>
-              </div>
+            <div class="summary-strip">
+              <div><span>Purpose</span><strong id="active-room-subject">-</strong></div>
+              <div><span>Timer</span><strong id="active-room-timer">0h 00m</strong></div>
+              <div><span>Status</span><strong id="active-room-status">Paused</strong></div>
             </div>
-
-            <div class="shared-session-card">
-              <h3>Shared Study Session</h3>
-              <div class="shared-session-controls" id="room-status-controls"></div>
-            </div>
-
-            <h3>Members</h3>
-            <div class="room-member-list" id="active-room-members"></div>
+            <div class="segmented-control" id="room-status-controls"></div>
+            <div class="compact-list" id="active-room-members"></div>
           </article>
-        </section>
+        </div>
+
+        <div class="group-tab-panel" id="group-tab-challenges">
+          <div id="challenge-list-view">
+            <div class="section-mini-header">
+              <div>
+                <h3>Challenges</h3>
+                <p class="muted-text">Local prototype competitions and group goals.</p>
+              </div>
+              <button type="button" id="create-challenge-button">+ Create Challenge</button>
+            </div>
+            <div class="challenge-filters" id="challenge-status-filters">
+              <button type="button" class="active" data-challenge-status="active">Active</button>
+              <button type="button" data-challenge-status="upcoming">Upcoming</button>
+              <button type="button" data-challenge-status="completed">Completed</button>
+            </div>
+            <div class="challenge-list" id="group-challenge-list"></div>
+          </div>
+          <div class="challenge-detail-view" id="challenge-detail-view" hidden>
+            <button type="button" class="text-button" id="back-to-challenges">&lt; Back to Challenges</button>
+            <div id="challenge-detail-content"></div>
+          </div>
+        </div>
+
+        <div class="group-tab-panel" id="group-tab-members">
+          <div class="section-mini-header">
+            <h3>Members</h3>
+            <span class="muted-text">Local prototype members</span>
+          </div>
+          <div class="member-table" id="group-member-list"></div>
+        </div>
+
+        <div class="group-tab-panel" id="group-tab-ranking">
+          <div class="section-mini-header">
+            <h3>Ranking</h3>
+            <div class="segmented-control" id="group-ranking-filters">
+              <button type="button" class="active" data-ranking-range="today">Today</button>
+              <button type="button" data-ranking-range="week">Week</button>
+              <button type="button" data-ranking-range="month">Month</button>
+              <button type="button" data-ranking-range="challenge">Challenge</button>
+            </div>
+          </div>
+          <div class="ranking-table" id="group-ranking-list"></div>
+        </div>
+
+        <div class="group-tab-panel" id="group-tab-chat">
+          <article class="panel chat-placeholder-card">
+            <h3>Chat</h3>
+            <div class="mock-message-list">
+              <div class="mock-bubble muted">Messages will appear here when shared accounts and realtime features are added.</div>
+            </div>
+            <p class="muted-text">This local prototype does not sync messages across devices yet.</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="group-modal" hidden>
+        <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="group-modal-title">
+          <div class="section-mini-header">
+            <h3 id="group-modal-title">Create Group</h3>
+            <button type="button" class="icon-button" id="close-group-modal" aria-label="Close group form">x</button>
+          </div>
+          <form class="stacked-form" id="group-form">
+            <label for="group-name-input">Group name</label>
+            <input id="group-name-input" type="text" placeholder="Academic Abyss" required>
+            <label for="group-description-input">Optional description</label>
+            <textarea id="group-description-input" rows="3" maxlength="180" placeholder="Daily accountability for exam prep."></textarea>
+            <label for="group-icon-input">Icon / initials</label>
+            <input id="group-icon-input" type="text" maxlength="3" placeholder="AA">
+            <label for="group-privacy-input">Privacy</label>
+            <select id="group-privacy-input">
+              <option value="private">Private local group</option>
+              <option value="public" disabled>Public later</option>
+            </select>
+            <button type="submit" id="save-group-button">Create Group</button>
+            <button type="button" class="delete-button" id="delete-group-button" hidden>Delete Group</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="join-group-modal" hidden>
+        <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="join-group-title">
+          <div class="section-mini-header">
+            <h3 id="join-group-title">Join Group</h3>
+            <button type="button" class="icon-button" id="close-join-group-modal" aria-label="Close join group form">x</button>
+          </div>
+          <form class="stacked-form" id="join-group-form">
+            <p class="muted-text">Invite codes are ready for the future shared backend. In this local prototype, joining only checks groups saved in this browser.</p>
+            <label for="join-code-input">Invite Code</label>
+            <input id="join-code-input" type="text" placeholder="SM-ABC123">
+            <button type="submit">Join</button>
+            <p class="muted-text" id="join-group-message"></p>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="invite-modal" hidden>
+        <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="invite-modal-title">
+          <div class="section-mini-header">
+            <h3 id="invite-modal-title">Invite</h3>
+            <button type="button" class="icon-button" id="close-invite-modal" aria-label="Close invite">x</button>
+          </div>
+          <div class="invite-code-box">
+            <span>Invite Code</span>
+            <strong id="invite-code-display">SM-000000</strong>
+          </div>
+          <button type="button" id="copy-invite-button">Copy Code</button>
+          <p class="muted-text" id="invite-copy-message">Sharing across devices requires accounts and a backend later.</p>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="room-modal" hidden>
+        <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="room-modal-title">
+          <div class="section-mini-header">
+            <h3 id="room-modal-title">Create Room</h3>
+            <button type="button" class="icon-button" id="close-room-modal" aria-label="Close room form">x</button>
+          </div>
+          <form class="stacked-form" id="room-form">
+            <label for="room-name-input">Room name</label>
+            <input id="room-name-input" type="text" placeholder="Morning Sprint" required>
+            <label for="room-subject-input">Subject / purpose</label>
+            <input id="room-subject-input" type="text" placeholder="Physics" required>
+            <label for="room-max-input">Maximum members</label>
+            <input id="room-max-input" type="number" min="2" max="50" value="8">
+            <label for="room-privacy-input">Privacy</label>
+            <select id="room-privacy-input">
+              <option value="public">Public within group</option>
+              <option value="private" disabled>Private later</option>
+            </select>
+            <button type="submit">Create Room</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-backdrop" id="challenge-modal" hidden>
+        <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="challenge-modal-title">
+          <div class="section-mini-header">
+            <h3 id="challenge-modal-title">Create Challenge</h3>
+            <button type="button" class="icon-button" id="close-challenge-modal" aria-label="Close challenge form">x</button>
+          </div>
+          <form class="stacked-form" id="challenge-form">
+            <div class="modal-step-indicator" id="challenge-step-label">Step 1 of 4</div>
+            <div class="challenge-step active" data-challenge-step="1">
+              <h4>Choose format</h4>
+              <div class="option-grid" id="challenge-format-options">
+                <button type="button" class="option-card active" data-challenge-format="solo">Solo<span>Members compete individually.</span></button>
+                <button type="button" class="option-card" data-challenge-format="duo">Duo<span>Members compete in pairs.</span></button>
+                <button type="button" class="option-card" data-challenge-format="teams">Teams<span>Members compete as teams.</span></button>
+                <button type="button" class="option-card" data-challenge-format="group-goal">Group Goal<span>Everyone cooperates.</span></button>
+              </div>
+            </div>
+            <div class="challenge-step" data-challenge-step="2">
+              <h4>Choose metric</h4>
+              <div class="option-grid" id="challenge-metric-options">
+                <button type="button" class="option-card active" data-challenge-metric="study-time">Study Time<span>Track focused hours.</span></button>
+                <button type="button" class="option-card" data-challenge-metric="pomodoros">Pomodoros<span>Track completed pomodoros.</span></button>
+                <button type="button" class="option-card" data-challenge-metric="tasks">Tasks Completed<span>Track finished tasks.</span></button>
+                <button type="button" class="option-card" data-challenge-metric="study-days">Study Days<span>Track active study days.</span></button>
+              </div>
+            </div>
+            <div class="challenge-step" data-challenge-step="3">
+              <h4>Choose duration</h4>
+              <label for="challenge-title-input">Challenge title</label>
+              <input id="challenge-title-input" type="text" placeholder="7-Day Study Sprint" required>
+              <label for="challenge-target-input">Target</label>
+              <input id="challenge-target-input" type="number" min="1" step="0.5" value="20">
+              <div class="challenge-duration-options" id="challenge-duration-options">
+                <button type="button" class="option-chip" data-duration-days="1">24 Hours</button>
+                <button type="button" class="option-chip" data-duration-days="3">3 Days</button>
+                <button type="button" class="option-chip active" data-duration-days="7">1 Week</button>
+                <button type="button" class="option-chip" data-duration-days="custom">Custom</button>
+              </div>
+              <div class="date-range-grid">
+                <label for="challenge-start-input">Start date</label>
+                <input id="challenge-start-input" type="date">
+                <label for="challenge-end-input">End date</label>
+                <input id="challenge-end-input" type="date">
+              </div>
+            </div>
+            <div class="challenge-step" data-challenge-step="4">
+              <h4>Choose participants</h4>
+              <p class="muted-text" id="challenge-participant-help">Solo challenges can include everyone or selected members.</p>
+              <div class="option-grid compact" id="challenge-participant-options">
+                <button type="button" class="option-card active" data-participant-mode="all">All members<span>Use all current local members.</span></button>
+                <button type="button" class="option-card" data-participant-mode="selected">Selected members<span>Prepared for manual selection later.</span></button>
+                <button type="button" class="option-card" data-participant-mode="random">Random groups<span>Auto-create pairs or teams.</span></button>
+                <button type="button" class="option-card" data-participant-mode="manual">Manual groups<span>Prepared for backend/manual setup later.</span></button>
+              </div>
+            </div>
+            <div class="form-footer">
+              <button type="button" class="secondary-button" id="challenge-prev-button">Back</button>
+              <button type="button" id="challenge-next-button">Next</button>
+              <button type="submit" id="challenge-create-button" hidden>Create Challenge</button>
+            </div>
+          </form>
+        </div>
       </div>
     </section>
     <section class="app-section" id="leaderboard">

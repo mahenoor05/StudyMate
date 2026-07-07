@@ -845,6 +845,444 @@ body.sidebar-collapsed .app-main {
   padding: 0.85rem;
 }
 
+.header-actions,
+.workspace-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.groups-list-view,
+.group-workspace {
+  display: grid;
+  gap: var(--space-4);
+}
+
+#groups-page-header[hidden],
+#groups-list-view[hidden],
+#group-workspace[hidden] {
+  display: none;
+}
+
+.group-card-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.group-card {
+  align-items: stretch;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  display: grid;
+  gap: var(--space-3);
+  justify-items: stretch;
+  min-height: 0;
+  padding: var(--space-4);
+  text-align: left;
+}
+
+.group-card:hover,
+.group-card.active {
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+}
+
+.group-card-top {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.group-avatar {
+  align-items: center;
+  background: color-mix(in srgb, var(--primary) 16%, var(--surface-soft));
+  border: 1px solid color-mix(in srgb, var(--primary) 34%, var(--border));
+  border-radius: 999px;
+  color: var(--primary);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 800;
+  height: 2.35rem;
+  justify-content: center;
+  width: 2.35rem;
+}
+
+.group-avatar.large {
+  font-size: 1rem;
+  height: 3.25rem;
+  width: 3.25rem;
+}
+
+.group-card-title {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.group-card-title strong,
+.group-card-title small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-card-title small,
+.group-card-challenge {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.group-card-stats,
+.room-card-stats,
+.group-meta-row {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: 0.82rem;
+}
+
+.group-card-stats span,
+.room-card-stats span,
+.group-meta-row span {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.group-workspace-header {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 0 0 var(--space-4);
+}
+
+.group-workspace-header h2 {
+  font-size: 1.55rem;
+  margin: 0;
+}
+
+.group-tabs,
+.segmented-control {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.group-tab,
+.segmented-control button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  min-height: 2rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.group-tab.active,
+.segmented-control button.active {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border-color: transparent;
+  color: var(--primary);
+}
+
+.group-tab-panel {
+  display: none;
+}
+
+.group-tab-panel.active {
+  display: block;
+}
+
+.group-overview-layout {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.overview-primary {
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+}
+
+.overview-summary-strip {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.overview-summary-strip div,
+.current-challenge-strip,
+.activity-feed-section {
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+.overview-summary-strip span {
+  color: var(--muted);
+  display: block;
+  font-size: 0.78rem;
+}
+
+.overview-summary-strip strong {
+  font-size: 1rem;
+}
+
+.metric-large {
+  display: block;
+  font-size: 1.7rem;
+  margin-top: var(--space-3);
+}
+
+.compact-list,
+.member-table,
+.ranking-table,
+.group-room-list,
+.challenge-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.compact-row,
+.member-table-row,
+.ranking-row {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: var(--space-3);
+  padding: 0.65rem 0.75rem;
+}
+
+.compact-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.compact-row span:first-child,
+.member-table-row span:nth-child(2) {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.compact-row small,
+.member-table-row small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.room-card,
+.challenge-card {
+  background: color-mix(in srgb, var(--surface) 76%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.room-live-copy {
+  font-size: 1.05rem;
+}
+
+.room-card-header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.room-card h3,
+.challenge-card h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.group-room-live {
+  margin-top: var(--space-4);
+}
+
+.challenge-progress {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.challenge-progress span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.challenge-filters,
+.challenge-duration-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+.challenge-filters button,
+.option-chip {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--muted);
+  min-height: 1.9rem;
+  padding: 0.3rem 0.65rem;
+}
+
+.challenge-filters button.active,
+.option-chip.active {
+  background: color-mix(in srgb, var(--primary) 11%, transparent);
+  color: var(--primary);
+}
+
+.challenge-card {
+  cursor: default;
+}
+
+.challenge-strip {
+  cursor: pointer;
+}
+
+.challenge-detail-view {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.challenge-detail-header,
+.challenge-result-box {
+  background: color-mix(in srgb, var(--surface) 64%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.challenge-detail-header h3 {
+  font-size: 1.35rem;
+  margin: 0;
+}
+
+.summary-strip.compact {
+  margin: 0;
+}
+
+.option-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.option-grid.compact {
+  grid-template-columns: 1fr;
+}
+
+.option-card {
+  align-items: start;
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--text);
+  display: grid;
+  gap: 0.25rem;
+  justify-items: start;
+  min-height: 0;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.option-card span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 400;
+}
+
+.option-card.active {
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border));
+}
+
+.challenge-step {
+  display: none;
+  gap: var(--space-3);
+}
+
+.challenge-step.active {
+  display: grid;
+}
+
+.challenge-step h4 {
+  margin: 0;
+}
+
+.modal-step-indicator {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.date-range-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr 1fr;
+}
+
+.date-range-grid label {
+  grid-column: span 1;
+}
+
+.member-table-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.ranking-row {
+  grid-template-columns: 70px minmax(0, 1fr) 120px 90px 90px;
+}
+
+.ranking-head {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.compact-modal {
+  max-width: 480px;
+}
+
+.invite-code-box {
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+}
+
+.invite-code-box span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.invite-code-box strong {
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+}
+
 .muted-bubble {
   color: var(--muted);
 }
@@ -1681,6 +2119,10 @@ body.sidebar-collapsed .app-main {
   .session-layout,
   .home-hero,
   .plan-page-layout,
+  .group-workspace-header,
+  .group-overview-layout,
+  .overview-summary-strip,
+  .date-range-grid,
   .summary-grid,
   .circle-grid,
   .theme-grid,
@@ -1735,6 +2177,8 @@ body.sidebar-collapsed .app-main {
   .home-start-row,
   .session-meta-grid,
   .stats-grid,
+  .member-table-row,
+  .ranking-row,
   .task-columns,
   .leaderboard-row,
   .session-actions,
