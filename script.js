@@ -19,6 +19,23 @@ const timerModes = [
   { id: "custom", name: "Custom Timer", description: "Choose your own focus and break duration.", focusMinutes: 30, breakMinutes: 0 }
 ];
 
+const examPresets = [
+  { category: "Engineering", name: "JEE Main", subjects: ["Physics", "Chemistry", "Mathematics"] },
+  { category: "Engineering", name: "JEE Advanced", subjects: ["Physics", "Chemistry", "Mathematics"] },
+  { category: "Engineering", name: "GUJCET", subjects: ["Physics", "Chemistry", "Mathematics / Biology"] },
+  { category: "Engineering", name: "BITSAT", subjects: ["Physics", "Chemistry", "Mathematics", "English"] },
+  { category: "Engineering", name: "MHT CET", subjects: ["Physics", "Chemistry", "Mathematics"] },
+  { category: "Medical", name: "NEET UG", subjects: ["Physics", "Chemistry", "Botany", "Zoology"] },
+  { category: "University / Competitive", name: "CUET UG", subjects: [] },
+  { category: "University / Competitive", name: "GATE", subjects: [] },
+  { category: "University / Competitive", name: "CAT", subjects: ["Quantitative Aptitude", "DILR", "VARC"] },
+  { category: "School", name: "Class 10 Boards", subjects: [] },
+  { category: "School", name: "Class 12 Boards", subjects: [] },
+  { category: "College", name: "Semester Exam", subjects: [] },
+  { category: "College", name: "Internal Test", subjects: [] },
+  { category: "Other", name: "Custom Exam", subjects: [] }
+];
+
 const menuToggle = document.getElementById("menu-toggle");
 const navButtons = document.querySelectorAll(".nav-link");
 const sections = document.querySelectorAll(".app-section");
@@ -97,6 +114,7 @@ const planGoalBar = document.getElementById("plan-goal-bar");
 
 const goalForm = document.getElementById("goal-form");
 const goalInput = document.getElementById("goal-input");
+const goalDisplay = document.getElementById("goal-display");
 const goalDecreaseButton = document.getElementById("goal-decrease");
 const goalIncreaseButton = document.getElementById("goal-increase");
 const plannerPrev = document.getElementById("planner-prev");
@@ -120,14 +138,31 @@ const analyticsChart = document.getElementById("analytics-chart");
 const leaderboardTable = document.getElementById("leaderboard-table");
 const leaderboardTabs = document.querySelectorAll(".leaderboard-tab");
 
+const openExamModalButton = document.getElementById("open-exam-modal");
+const closeExamModalButton = document.getElementById("close-exam-modal");
+const examModal = document.getElementById("exam-modal");
+const examPresetStep = document.getElementById("exam-preset-step");
+const examPresetList = document.getElementById("exam-preset-list");
+const examBackToPresets = document.getElementById("exam-back-to-presets");
 const examForm = document.getElementById("exam-form");
+const selectedExamLabel = document.getElementById("selected-exam-label");
+const customExamNameField = document.getElementById("custom-exam-name-field");
 const examNameInput = document.getElementById("exam-name-input");
-const examSubjectInput = document.getElementById("exam-subject-input");
 const examDateInput = document.getElementById("exam-date-input");
-const examTimeInput = document.getElementById("exam-time-input");
-const examTopicsInput = document.getElementById("exam-topics-input");
-const examNotesInput = document.getElementById("exam-notes-input");
+const examTitleInput = document.getElementById("exam-title-input");
+const examSubjectsInput = document.getElementById("exam-subjects-input");
 const examList = document.getElementById("exam-list");
+const examCountLabel = document.getElementById("exam-count-label");
+const examListView = document.getElementById("exam-list-view");
+const examWorkspace = document.getElementById("exam-workspace");
+const backToExamsButton = document.getElementById("back-to-exams");
+const examWorkspaceType = document.getElementById("exam-workspace-type");
+const examWorkspaceTitle = document.getElementById("exam-workspace-title");
+const examWorkspaceCountdown = document.getElementById("exam-workspace-countdown");
+const editExamButton = document.getElementById("edit-exam-button");
+const deleteExamButton = document.getElementById("delete-exam-button");
+const examTabs = document.querySelectorAll(".exam-tab");
+const examTabPanels = document.querySelectorAll(".exam-tab-panel");
 
 const distractionForm = document.getElementById("distraction-form");
 const distractionCategory = document.getElementById("distraction-category");
@@ -175,6 +210,7 @@ const leaveRoomButton = document.getElementById("leave-room-button");
 let sessionTimerId = null;
 let roomTimerId = null;
 let appData = createDefaultData();
+let selectedExamPreset = null;
 
 function createDefaultData() {
   const generalSubject = createSubject("General Study");
@@ -195,6 +231,8 @@ function createDefaultData() {
     selectedHistoryRange: "today",
     selectedAnalyticsRange: "today",
     selectedLeaderboardRange: "today",
+    selectedExamId: null,
+    selectedExamTab: "overview",
     plannerMonth: new Date().getMonth(),
     plannerYear: new Date().getFullYear(),
     selectedPlannerDate: getTodayKey(),
@@ -348,6 +386,8 @@ function normalizeData() {
   appData.selectedHistoryRange = appData.selectedHistoryRange || "today";
   appData.selectedAnalyticsRange = appData.selectedAnalyticsRange || "today";
   appData.selectedLeaderboardRange = appData.selectedLeaderboardRange || "today";
+  appData.selectedExamId = appData.selectedExamId || null;
+  appData.selectedExamTab = appData.selectedExamTab || "overview";
   appData.plannerMonth = Number.isInteger(appData.plannerMonth) ? appData.plannerMonth : new Date().getMonth();
   appData.plannerYear = Number(appData.plannerYear) || new Date().getFullYear();
   appData.selectedPlannerDate = appData.selectedPlannerDate || getTodayKey();
@@ -355,6 +395,7 @@ function normalizeData() {
   appData.tasks = appData.tasks.map(normalizeTask);
   appData.plannerItems = appData.plannerItems.map(normalizePlannerItem);
   appData.exams = appData.exams.map(normalizeExam);
+  if (appData.selectedExamId && !getExamById(appData.selectedExamId)) appData.selectedExamId = null;
   appData.studyCircles = appData.studyCircles.map(normalizeCircle);
 
   if (!getCircleById(appData.selectedCircleId)) {
@@ -391,26 +432,65 @@ function normalizePlannerItem(item) {
 }
 
 function normalizeExam(exam) {
-  const topics = Array.isArray(exam.topics) ? exam.topics : [];
+  const flatTopics = Array.isArray(exam.topics) ? exam.topics : [];
+  const rawSubjects = Array.isArray(exam.subjects) && exam.subjects.length > 0
+    ? exam.subjects
+    : [{ name: exam.subject || "General Study", topics: flatTopics }];
 
   return {
     id: exam.id || createId(),
     name: exam.name || "Untitled Exam",
-    subject: exam.subject || "General Study",
+    type: exam.type || "Custom Exam",
     date: exam.date || getTodayKey(),
     time: exam.time || "",
     notes: exam.notes || "",
-    topics: topics.map(function (topic) {
-      if (typeof topic === "string") {
-        return { id: createId(), title: topic, completed: false };
-      }
+    createdAt: exam.createdAt || new Date().toISOString(),
+    milestones: Array.isArray(exam.milestones) ? exam.milestones.map(normalizeExamMilestone) : [],
+    subjects: rawSubjects.map(normalizeExamSubject)
+  };
+}
 
-      return {
-        id: topic.id || createId(),
-        title: topic.title || "Untitled topic",
-        completed: Boolean(topic.completed)
-      };
-    })
+function normalizeExamSubject(subject) {
+  const subjectName = typeof subject === "string" ? subject : subject.name;
+  const oldTopics = Array.isArray(subject.topics) ? subject.topics : [];
+  const chapters = Array.isArray(subject.chapters) && subject.chapters.length > 0
+    ? subject.chapters
+    : oldTopics.length > 0 ? [{ name: "General", topics: oldTopics }] : [];
+
+  return {
+    id: subject.id || createId(),
+    name: subjectName || "Subject",
+    chapters: chapters.map(normalizeExamChapter)
+  };
+}
+
+function normalizeExamChapter(chapter) {
+  return {
+    id: chapter.id || createId(),
+    name: chapter.name || "Chapter",
+    topics: Array.isArray(chapter.topics) ? chapter.topics.map(normalizeExamTopic) : []
+  };
+}
+
+function normalizeExamTopic(topic) {
+  if (typeof topic === "string") {
+    return { id: createId(), name: topic, completed: false };
+  }
+
+  return {
+    id: topic.id || createId(),
+    name: topic.name || topic.title || "Topic",
+    completed: Boolean(topic.completed)
+  };
+}
+
+function normalizeExamMilestone(milestone) {
+  return {
+    id: milestone.id || createId(),
+    title: milestone.title || "Milestone",
+    subjectId: milestone.subjectId || "",
+    dueDate: milestone.dueDate || "",
+    completed: Boolean(milestone.completed)
   };
 }
 
@@ -506,8 +586,13 @@ function formatShortTime(seconds) {
 }
 
 function formatGoalHours(hours) {
-  const value = Number(hours.toFixed(2));
-  return `${value} ${value === 1 ? "Hour" : "Hours"}`;
+  const totalMinutes = Math.round(Number(hours) * 60);
+  const displayHours = Math.floor(totalMinutes / 60);
+  const displayMinutes = totalMinutes % 60;
+
+  if (displayHours === 0) return `${displayMinutes}m`;
+  if (displayMinutes === 0) return `${displayHours}h`;
+  return `${displayHours}h ${displayMinutes}m`;
 }
 
 function formatClockTime(dateString) {
@@ -608,6 +693,75 @@ function getNearestExam() {
     .sort(function (first, second) { return new Date(first.date) - new Date(second.date); })[0];
 }
 
+function getExamById(examId) {
+  return appData.exams.find(function (exam) {
+    return String(exam.id) === String(examId);
+  });
+}
+
+function getSelectedExam() {
+  return getExamById(appData.selectedExamId);
+}
+
+function getExamDaysLeft(dateKey) {
+  const today = new Date(`${getTodayKey()}T00:00:00`);
+  const examDate = new Date(`${dateKey}T00:00:00`);
+  return Math.round((examDate - today) / 86400000);
+}
+
+function getExamStats(exam) {
+  let totalTopics = 0;
+  let completedTopics = 0;
+
+  exam.subjects.forEach(function (subject) {
+    subject.chapters.forEach(function (chapter) {
+      chapter.topics.forEach(function (topic) {
+        totalTopics += 1;
+        if (topic.completed) completedTopics += 1;
+      });
+    });
+  });
+
+  const completedMilestones = exam.milestones.filter(function (milestone) {
+    return milestone.completed;
+  }).length;
+
+  return {
+    totalTopics,
+    completedTopics,
+    remainingTopics: Math.max(totalTopics - completedTopics, 0),
+    progressPercent: totalTopics === 0 ? 0 : Math.round((completedTopics / totalTopics) * 100),
+    completedMilestones,
+    totalMilestones: exam.milestones.length
+  };
+}
+
+function getExamSubjectSummary(exam) {
+  if (exam.subjects.length === 0) return "No subjects yet";
+  if (exam.subjects.length <= 3) {
+    return exam.subjects.map(function (subject) { return subject.name; }).join(" · ");
+  }
+  return `${exam.subjects.length} subjects`;
+}
+
+function getCountdownMessage(daysLeft) {
+  if (daysLeft < 0) return "Exam completed";
+  if (daysLeft <= 2) return "Keep it simple. Revise what matters most.";
+  if (daysLeft <= 7) return "Prioritize high-value revision.";
+  if (daysLeft <= 14) return "Time to get specific.";
+  if (daysLeft <= 30) return "Focus on unfinished areas.";
+  if (daysLeft <= 60) return "Good time to start tightening the plan.";
+  return "Plenty of time. Build consistency.";
+}
+
+function getExamStatusLabel(daysLeft) {
+  if (daysLeft < 0) return "Completed";
+  if (daysLeft <= 7) return "Very close";
+  if (daysLeft <= 14) return "Soon";
+  if (daysLeft <= 30) return "Coming up";
+  return "Plenty of time";
+}
+
 function getRangeLabel(range) {
   if (range === "week") return "This Week";
   if (range === "month") return "This Month";
@@ -694,18 +848,18 @@ function updateHome() {
   if (appData.activeSession) {
     homeActiveSubject.textContent = "Continue where you left off";
     homeActiveCopy.textContent = selectedSubject.name;
-    homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Live";
-    homeSessionStart.textContent = `Started ${formatClockTime(appData.activeSession.startedAt)}`;
-    homeSessionMode.textContent = appData.activeSession.mode;
+    homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Running";
+    homeSessionStart.textContent = appData.activeSession.mode;
+    homeSessionMode.textContent = "";
     homeSessionElapsed.textContent = formatLongTime(getSessionElapsedSeconds());
     homeContinueSession.textContent = "Continue";
     homeSubjectSelect.disabled = true;
   } else {
     homeActiveSubject.textContent = "Ready to focus?";
     homeActiveCopy.textContent = "Choose what you want to study today.";
-    homeActiveStatus.textContent = "Idle";
-    homeSessionStart.textContent = "Not started";
-    homeSessionMode.textContent = getSelectedTimerMode().name;
+    homeActiveStatus.textContent = "";
+    homeSessionStart.textContent = getSelectedTimerMode().name;
+    homeSessionMode.textContent = "Not started";
     homeSessionElapsed.textContent = "0h 00m 00s";
     homeContinueSession.textContent = "Start Session";
     homeSubjectSelect.disabled = false;
@@ -777,10 +931,11 @@ function renderTimerModeIndicators() {
 function updateGoal() {
   const goalPercent = getGoalPercent();
   goalInput.value = appData.goalHours;
+  goalDisplay.textContent = formatGoalHours(appData.goalHours);
   planGoalProgress.textContent = `${goalPercent}%`;
   planGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
   planGoalBar.style.width = `${goalPercent}%`;
-  planSummaryGoal.textContent = formatGoalHours(appData.goalHours).replace(" Hours", "h").replace(" Hour", "h");
+  planSummaryGoal.textContent = formatGoalHours(appData.goalHours);
 }
 
 function updateInsights() {
@@ -874,7 +1029,16 @@ function renderHomeNextExam(exam) {
 
   if (!exam) {
     homeNextExam.className = "compact-empty";
-    homeNextExam.textContent = "No exams saved yet.";
+    homeNextExam.innerHTML = "";
+    const empty = document.createElement("span");
+    const action = document.createElement("button");
+    empty.textContent = "No exams saved yet.";
+    action.type = "button";
+    action.className = "text-button";
+    action.textContent = "Add your first exam →";
+    action.addEventListener("click", function () { showSection("exams"); openExamModal(); });
+    homeNextExam.appendChild(empty);
+    homeNextExam.appendChild(action);
     return;
   }
 
@@ -882,16 +1046,21 @@ function renderHomeNextExam(exam) {
   const title = document.createElement("strong");
   const meta = document.createElement("span");
   const progress = document.createElement("small");
-  const completedTopics = exam.topics.filter(function (topic) { return topic.completed; }).length;
-  const totalTopics = exam.topics.length;
+  const action = document.createElement("button");
+  const stats = getExamStats(exam);
 
   title.textContent = exam.name;
-  meta.textContent = `${getExamCountdown(exam.date)} - ${exam.subject}`;
-  progress.textContent = totalTopics > 0 ? `${completedTopics}/${totalTopics} topics done` : "No syllabus topics yet";
+  meta.textContent = `${getExamCountdown(exam.date)} - ${getExamSubjectSummary(exam)}`;
+  progress.textContent = `${stats.progressPercent}% complete`;
+  action.type = "button";
+  action.className = "text-button";
+  action.textContent = "Open Exam";
+  action.addEventListener("click", function () { openExamWorkspace(exam.id); });
 
   homeNextExam.appendChild(title);
   homeNextExam.appendChild(meta);
   homeNextExam.appendChild(progress);
+  homeNextExam.appendChild(action);
 }
 
 function renderHomeWeekPreview() {
@@ -1318,7 +1487,7 @@ function renderTasks() {
   planSummaryPlanned.textContent = getTodayTasks().length;
   planSummaryDone.textContent = completedTasks.length;
   completedTaskSummary.textContent = `Completed (${completedTasks.length})`;
-  completedTaskDetails.open = completedTasks.length > 0;
+  completedTaskDetails.open = false;
 
   renderTaskGroup(pendingTaskList, pendingTasks);
   renderTaskGroup(completedTaskList, completedTasks);
@@ -1332,6 +1501,7 @@ function renderTaskGroup(listElement, tasks) {
 
   tasks.forEach(function (task) {
     const listItem = document.createElement("li");
+    listItem.className = "task-row";
     if (task.completed) listItem.classList.add("completed");
 
     const checkbox = document.createElement("input");
@@ -1355,12 +1525,17 @@ function renderTaskGroup(listElement, tasks) {
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
     deleteButton.className = "delete-button";
-    deleteButton.textContent = "Delete";
+    deleteButton.textContent = "×";
+    deleteButton.title = "Delete task";
+    deleteButton.setAttribute("aria-label", `Delete ${task.text}`);
     deleteButton.addEventListener("click", function () { deleteTask(task.id); });
 
     listItem.appendChild(checkbox);
-    listItem.appendChild(taskText);
-    if (taskMeta.textContent) listItem.appendChild(taskMeta);
+    const taskContent = document.createElement("span");
+    taskContent.className = "task-content";
+    taskContent.appendChild(taskText);
+    if (taskMeta.textContent) taskContent.appendChild(taskMeta);
+    listItem.appendChild(taskContent);
     listItem.appendChild(deleteButton);
     listElement.appendChild(listItem);
   });
@@ -1523,10 +1698,16 @@ function renderPlannerItems() {
     card.className = "planner-item";
     const title = document.createElement("strong");
     const type = document.createElement("small");
+    const action = document.createElement("button");
     title.textContent = exam.name;
-    type.textContent = `Exam - ${exam.subject}`;
+    type.textContent = `Exam - ${exam.type}`;
+    action.type = "button";
+    action.className = "text-button";
+    action.textContent = "Open Exam";
+    action.addEventListener("click", function () { openExamWorkspace(exam.id); });
     card.appendChild(title);
     card.appendChild(type);
+    card.appendChild(action);
     plannerItems.appendChild(card);
   });
 }
@@ -1549,88 +1730,139 @@ function changePlannerMonth(direction) {
 
 function addExam(event) {
   event.preventDefault();
-  const topics = examTopicsInput.value
-    .split("\n")
-    .map(function (topic) { return topic.trim(); })
-    .filter(Boolean)
-    .map(function (topic) {
-      return { id: createId(), title: topic, completed: false };
-    });
+  if (!selectedExamPreset) return;
 
-  appData.exams.push({
+  const subjectNames = examSubjectsInput.value
+    .split(",")
+    .map(function (subject) { return subject.trim(); })
+    .filter(Boolean);
+  const isCustom = selectedExamPreset.name === "Custom Exam";
+  const customName = examNameInput.value.trim();
+  const title = examTitleInput.value.trim();
+  const existingExam = getExamById(appData.selectedExamId);
+  const baseName = isCustom ? customName : selectedExamPreset.name;
+  const examName = examForm.dataset.mode === "edit"
+    ? customName || (existingExam ? existingExam.name : baseName)
+    : title && !isCustom ? `${baseName} - ${title}` : baseName;
+
+  if (!examName || !examDateInput.value) return;
+
+  const exam = {
     id: createId(),
-    name: examNameInput.value.trim(),
-    subject: examSubjectInput.value.trim(),
+    type: selectedExamPreset.name,
+    name: examName,
     date: examDateInput.value,
-    time: examTimeInput.value,
-    topics,
-    notes: examNotesInput.value.trim()
-  });
+    time: "",
+    subjects: subjectNames.map(function (subjectName) {
+      return { id: createId(), name: subjectName, chapters: [] };
+    }),
+    notes: "",
+    milestones: [],
+    createdAt: new Date().toISOString()
+  };
 
-  examForm.reset();
+  if (existingExam && examForm.dataset.mode === "edit") {
+    existingExam.type = exam.type;
+    existingExam.name = exam.name;
+    existingExam.date = exam.date;
+    existingExam.subjects = mergeExamSubjects(existingExam.subjects, subjectNames);
+  } else {
+    appData.exams.push(exam);
+    appData.selectedExamId = exam.id;
+  }
+
+  closeExamModal();
   saveData();
   renderExams();
   renderPlanner();
+  updateHome();
+  if (appData.selectedExamId) renderExamWorkspace();
+}
+
+function mergeExamSubjects(existingSubjects, subjectNames) {
+  return subjectNames.map(function (subjectName) {
+    const existing = existingSubjects.find(function (subject) {
+      return subject.name.toLowerCase() === subjectName.toLowerCase();
+    });
+    return existing || { id: createId(), name: subjectName, chapters: [] };
+  });
 }
 
 function renderExams() {
   examList.innerHTML = "";
+  examCountLabel.textContent = `${appData.exams.length} ${appData.exams.length === 1 ? "exam" : "exams"}`;
 
   if (appData.exams.length === 0) {
-    appendSimpleItem(examList, "No exams saved yet.");
+    const empty = document.createElement("article");
+    empty.className = "exam-empty-state";
+    const title = document.createElement("h3");
+    const copy = document.createElement("p");
+    const action = document.createElement("button");
+    title.textContent = "No exams yet.";
+    copy.textContent = "Add the exam you're preparing for.";
+    action.type = "button";
+    action.textContent = "+ Add Exam";
+    action.addEventListener("click", openExamModal);
+    empty.appendChild(title);
+    empty.appendChild(copy);
+    empty.appendChild(action);
+    examList.appendChild(empty);
     return;
   }
 
   appData.exams
     .slice()
-    .sort(function (first, second) {
-      return new Date(first.date) - new Date(second.date);
-    })
+    .sort(function (first, second) { return new Date(first.date) - new Date(second.date); })
     .forEach(function (exam) {
-      const card = document.createElement("article");
-      card.className = "exam-card";
+      const stats = getExamStats(exam);
+      const daysLeft = getExamDaysLeft(exam.date);
+      const card = document.createElement("button");
+      const header = document.createElement("span");
+      const title = document.createElement("strong");
+      const type = document.createElement("small");
+      const countdown = document.createElement("span");
+      const subjects = document.createElement("span");
+      const progressText = document.createElement("span");
+      const progressBar = document.createElement("span");
+      const progressFill = document.createElement("span");
+      const status = document.createElement("span");
 
-      const title = document.createElement("h3");
-      const meta = document.createElement("p");
-      const countdown = document.createElement("strong");
-      const topicList = document.createElement("ul");
-      const notes = document.createElement("p");
-      const deleteButton = document.createElement("button");
+      card.type = "button";
+      card.className = "exam-card";
+      card.addEventListener("click", function () { openExamWorkspace(exam.id); });
+      header.className = "exam-card-header";
+      type.className = "muted-text";
+      countdown.className = "exam-countdown";
+      subjects.className = "muted-text";
+      progressText.className = "exam-progress-text";
+      progressBar.className = "progress-bar exam-card-progress";
+      status.className = "status-pill exam-status";
 
       title.textContent = exam.name;
-      meta.className = "muted-text";
-      meta.textContent = `${exam.subject} - ${exam.date}${exam.time ? ` at ${exam.time}` : ""}`;
+      type.textContent = exam.type;
       countdown.textContent = getExamCountdown(exam.date);
-      topicList.className = "syllabus-list";
-      notes.className = "muted-text";
-      notes.textContent = exam.notes;
-      deleteButton.type = "button";
-      deleteButton.className = "delete-button";
-      deleteButton.textContent = "Delete Exam";
-      deleteButton.addEventListener("click", function () { deleteExam(exam.id); });
+      subjects.textContent = getExamSubjectSummary(exam);
+      progressText.textContent = `${stats.progressPercent}% complete`;
+      progressFill.style.width = `${stats.progressPercent}%`;
+      status.textContent = getExamStatusLabel(daysLeft);
 
-      exam.topics.forEach(function (topic) {
-        const item = document.createElement("li");
-        const checkbox = document.createElement("input");
-        const label = document.createElement("span");
-        checkbox.type = "checkbox";
-        checkbox.checked = topic.completed;
-        checkbox.addEventListener("change", function () { toggleExamTopic(exam.id, topic.id); });
-        label.textContent = topic.title;
-        item.classList.toggle("completed", topic.completed);
-        item.appendChild(checkbox);
-        item.appendChild(label);
-        topicList.appendChild(item);
-      });
-
-      card.appendChild(title);
-      card.appendChild(meta);
+      header.appendChild(title);
+      header.appendChild(status);
+      progressBar.appendChild(progressFill);
+      card.appendChild(header);
+      card.appendChild(type);
       card.appendChild(countdown);
-      if (exam.topics.length > 0) card.appendChild(topicList);
-      if (exam.notes) card.appendChild(notes);
-      card.appendChild(deleteButton);
+      card.appendChild(subjects);
+      card.appendChild(progressText);
+      card.appendChild(progressBar);
       examList.appendChild(card);
     });
+
+  if (appData.selectedExamId && getSelectedExam()) {
+    examListView.hidden = true;
+    examWorkspace.hidden = false;
+    renderExamWorkspace();
+  }
 }
 
 function getExamCountdown(dateKey) {
@@ -1644,29 +1876,487 @@ function getExamCountdown(dateKey) {
   return `${daysLeft} days left`;
 }
 
-function toggleExamTopic(examId, topicId) {
-  appData.exams = appData.exams.map(function (exam) {
-    if (exam.id !== examId) return exam;
+function openExamWorkspace(examId) {
+  appData.selectedExamId = examId;
+  appData.selectedExamTab = appData.selectedExamTab || "overview";
+  examListView.hidden = true;
+  examWorkspace.hidden = false;
+  showSection("exams");
+  saveData();
+  renderExamWorkspace();
+}
 
-    return {
-      ...exam,
-      topics: exam.topics.map(function (topic) {
-        return topic.id === topicId ? { ...topic, completed: !topic.completed } : topic;
-      })
-    };
-  });
-
+function closeExamWorkspace() {
+  appData.selectedExamId = null;
+  examListView.hidden = false;
+  examWorkspace.hidden = true;
   saveData();
   renderExams();
 }
 
-function deleteExam(examId) {
-  appData.exams = appData.exams.filter(function (exam) {
-    return exam.id !== examId;
+function renderExamWorkspace() {
+  const exam = getSelectedExam();
+  if (!exam) {
+    closeExamWorkspace();
+    return;
+  }
+
+  examWorkspaceType.textContent = exam.type;
+  examWorkspaceTitle.textContent = exam.name;
+  examWorkspaceCountdown.textContent = `${getExamCountdown(exam.date)} - ${getCountdownMessage(getExamDaysLeft(exam.date))}`;
+
+  examTabs.forEach(function (tab) {
+    const isActive = tab.dataset.examTab === appData.selectedExamTab;
+    tab.classList.toggle("active", isActive);
+    tab.classList.toggle("secondary-button", !isActive);
   });
+
+  examTabPanels.forEach(function (panel) {
+    panel.classList.toggle("active", panel.id === `exam-tab-${appData.selectedExamTab}`);
+  });
+
+  renderExamOverview(exam);
+  renderExamSyllabus(exam);
+  renderExamPlan(exam);
+  renderExamProgress(exam);
+}
+
+function renderExamOverview(exam) {
+  const panel = document.getElementById("exam-tab-overview");
+  const stats = getExamStats(exam);
+  panel.innerHTML = "";
+  panel.appendChild(createExamSummaryStrip(exam, stats));
+
+  const progressArea = document.createElement("article");
+  progressArea.className = "secondary-surface exam-progress-area";
+  progressArea.innerHTML = `<h3>Syllabus Progress</h3><strong>${stats.progressPercent}% complete</strong><p class="muted-text">${stats.remainingTopics} topics remaining</p>`;
+  const bar = document.createElement("div");
+  const fill = document.createElement("span");
+  bar.className = "progress-bar";
+  fill.style.width = `${stats.progressPercent}%`;
+  bar.appendChild(fill);
+  progressArea.appendChild(bar);
+  panel.appendChild(progressArea);
+
+  const next = document.createElement("article");
+  next.className = "inline-section";
+  const nextMilestone = exam.milestones.find(function (milestone) { return !milestone.completed; });
+  next.innerHTML = `<h3>Next Planned Step</h3><p class="muted-text">${nextMilestone ? nextMilestone.title : "No milestones yet. Create the next thing you want to finish."}</p>`;
+  panel.appendChild(next);
+}
+
+function createExamSummaryStrip(exam, stats) {
+  const strip = document.createElement("div");
+  strip.className = "summary-strip exam-summary-strip";
+  [
+    ["Countdown", getExamCountdown(exam.date)],
+    ["Exam Date", exam.date],
+    ["Subjects", exam.subjects.length],
+    ["Remaining", stats.remainingTopics]
+  ].forEach(function (item) {
+    const cell = document.createElement("div");
+    cell.innerHTML = `<span>${item[0]}</span><strong>${item[1]}</strong>`;
+    strip.appendChild(cell);
+  });
+  return strip;
+}
+
+function renderExamSyllabus(exam) {
+  const panel = document.getElementById("exam-tab-syllabus");
+  panel.innerHTML = "";
+  const toolbar = document.createElement("div");
+  toolbar.className = "exam-toolbar";
+  toolbar.innerHTML = "<h3>Syllabus</h3>";
+  toolbar.appendChild(createSmallAction("Add subject", function () { addExamSubject(exam.id); }));
+  panel.appendChild(toolbar);
+
+  if (exam.subjects.length === 0) {
+    appendSimpleItem(panel, "No syllabus topics yet. Add your first subject ->");
+    return;
+  }
+
+  exam.subjects.forEach(function (subject) {
+    panel.appendChild(renderSubjectSyllabus(exam, subject));
+  });
+}
+
+function renderSubjectSyllabus(exam, subject) {
+  const details = document.createElement("details");
+  details.className = "syllabus-subject";
+  details.open = true;
+  const summary = document.createElement("summary");
+  const stats = getSubjectStats(subject);
+  summary.innerHTML = `<strong>${subject.name}</strong><span>${stats.progressPercent}%</span>`;
+  details.appendChild(summary);
+
+  const actions = document.createElement("div");
+  actions.className = "compact-actions";
+  actions.appendChild(createSmallAction("Add chapter", function () { addExamChapter(exam.id, subject.id); }));
+  actions.appendChild(createSmallAction("Delete subject", function () { deleteExamSubject(exam.id, subject.id); }, "danger"));
+  details.appendChild(actions);
+
+  subject.chapters.forEach(function (chapter) {
+    details.appendChild(renderChapterSyllabus(exam, subject, chapter));
+  });
+  return details;
+}
+
+function renderChapterSyllabus(exam, subject, chapter) {
+  const details = document.createElement("details");
+  details.className = "syllabus-chapter";
+  const stats = getChapterStats(chapter);
+  const summary = document.createElement("summary");
+  summary.innerHTML = `<strong>${chapter.name}</strong><span>${stats.completedTopics}/${stats.totalTopics}</span>`;
+  details.appendChild(summary);
+
+  const list = document.createElement("ul");
+  list.className = "shared-list syllabus-topic-list";
+  chapter.topics.forEach(function (topic) {
+    const item = document.createElement("li");
+    const checkbox = document.createElement("input");
+    const label = document.createElement("span");
+    const edit = createSmallAction("Edit", function () { editExamTopic(exam.id, subject.id, chapter.id, topic.id); });
+    const del = createSmallAction("×", function () { deleteExamTopic(exam.id, subject.id, chapter.id, topic.id); }, "danger");
+    checkbox.type = "checkbox";
+    checkbox.checked = topic.completed;
+    checkbox.addEventListener("change", function () { toggleExamTopic(exam.id, subject.id, chapter.id, topic.id); });
+    label.textContent = topic.name;
+    item.classList.toggle("completed", topic.completed);
+    item.appendChild(checkbox);
+    item.appendChild(label);
+    item.appendChild(edit);
+    item.appendChild(del);
+    list.appendChild(item);
+  });
+  details.appendChild(list);
+
+  const actions = document.createElement("div");
+  actions.className = "compact-actions";
+  actions.appendChild(createSmallAction("Add topic", function () { addExamTopic(exam.id, subject.id, chapter.id); }));
+  actions.appendChild(createSmallAction("Delete chapter", function () { deleteExamChapter(exam.id, subject.id, chapter.id); }, "danger"));
+  details.appendChild(actions);
+  return details;
+}
+
+function renderExamPlan(exam) {
+  const panel = document.getElementById("exam-tab-plan");
+  panel.innerHTML = "";
+  const toolbar = document.createElement("div");
+  toolbar.className = "exam-toolbar";
+  toolbar.innerHTML = "<h3>Milestones</h3>";
+  toolbar.appendChild(createSmallAction("Add milestone", function () { addExamMilestone(exam.id); }));
+  panel.appendChild(toolbar);
+
+  const list = document.createElement("ul");
+  list.className = "shared-list exam-milestone-list";
+  if (exam.milestones.length === 0) {
+    appendSimpleItem(list, "No milestones yet. Create the next thing you want to finish.");
+  } else {
+    exam.milestones.forEach(function (milestone) {
+      const item = document.createElement("li");
+      const checkbox = document.createElement("input");
+      const title = document.createElement("span");
+      const meta = document.createElement("small");
+      const del = createSmallAction("×", function () { deleteExamMilestone(exam.id, milestone.id); }, "danger");
+      checkbox.type = "checkbox";
+      checkbox.checked = milestone.completed;
+      checkbox.addEventListener("change", function () { toggleExamMilestone(exam.id, milestone.id); });
+      title.textContent = milestone.title;
+      meta.textContent = milestone.dueDate || "No due date";
+      item.classList.toggle("completed", milestone.completed);
+      item.appendChild(checkbox);
+      item.appendChild(title);
+      item.appendChild(meta);
+      item.appendChild(del);
+      list.appendChild(item);
+    });
+  }
+  panel.appendChild(list);
+}
+
+function renderExamProgress(exam) {
+  const panel = document.getElementById("exam-tab-progress");
+  const stats = getExamStats(exam);
+  panel.innerHTML = "";
+  panel.appendChild(createExamSummaryStrip(exam, stats));
+  const list = document.createElement("div");
+  list.className = "shared-list exam-progress-list";
+  exam.subjects.forEach(function (subject) {
+    const row = document.createElement("div");
+    const subjectStats = getSubjectStats(subject);
+    row.className = "insight-row";
+    row.innerHTML = `<span>${subject.name}</span><strong>${subjectStats.progressPercent}%</strong>`;
+    list.appendChild(row);
+  });
+  if (exam.subjects.length === 0) appendSimpleItem(list, "Add subjects to see subject progress.");
+  panel.appendChild(list);
+}
+
+function createSmallAction(text, handler, tone) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = tone === "danger" ? "text-danger-button" : "text-button";
+  button.textContent = text;
+  button.addEventListener("click", handler);
+  return button;
+}
+
+function getSubjectStats(subject) {
+  let totalTopics = 0;
+  let completedTopics = 0;
+  subject.chapters.forEach(function (chapter) {
+    const stats = getChapterStats(chapter);
+    totalTopics += stats.totalTopics;
+    completedTopics += stats.completedTopics;
+  });
+  return {
+    totalTopics,
+    completedTopics,
+    progressPercent: totalTopics === 0 ? 0 : Math.round((completedTopics / totalTopics) * 100)
+  };
+}
+
+function getChapterStats(chapter) {
+  const totalTopics = chapter.topics.length;
+  const completedTopics = chapter.topics.filter(function (topic) { return topic.completed; }).length;
+  return {
+    totalTopics,
+    completedTopics,
+    progressPercent: totalTopics === 0 ? 0 : Math.round((completedTopics / totalTopics) * 100)
+  };
+}
+
+function addExamSubject(examId) {
+  const name = prompt("Subject name");
+  if (!name) return;
+  const exam = getExamById(examId);
+  if (!exam) return;
+  exam.subjects.push({ id: createId(), name: name.trim(), chapters: [] });
+  persistExamChange();
+}
+
+function deleteExamSubject(examId, subjectId) {
+  const exam = getExamById(examId);
+  if (!exam) return;
+  exam.subjects = exam.subjects.filter(function (subject) { return subject.id !== subjectId; });
+  persistExamChange();
+}
+
+function addExamChapter(examId, subjectId) {
+  const name = prompt("Chapter name");
+  if (!name) return;
+  const subject = getExamSubject(examId, subjectId);
+  if (!subject) return;
+  subject.chapters.push({ id: createId(), name: name.trim(), topics: [] });
+  persistExamChange();
+}
+
+function deleteExamChapter(examId, subjectId, chapterId) {
+  const subject = getExamSubject(examId, subjectId);
+  if (!subject) return;
+  subject.chapters = subject.chapters.filter(function (chapter) { return chapter.id !== chapterId; });
+  persistExamChange();
+}
+
+function addExamTopic(examId, subjectId, chapterId) {
+  const name = prompt("Topic name");
+  if (!name) return;
+  const chapter = getExamChapter(examId, subjectId, chapterId);
+  if (!chapter) return;
+  chapter.topics.push({ id: createId(), name: name.trim(), completed: false });
+  persistExamChange();
+}
+
+function editExamTopic(examId, subjectId, chapterId, topicId) {
+  const topic = getExamTopic(examId, subjectId, chapterId, topicId);
+  if (!topic) return;
+  const name = prompt("Edit topic", topic.name);
+  if (!name) return;
+  topic.name = name.trim();
+  persistExamChange();
+}
+
+function deleteExamTopic(examId, subjectId, chapterId, topicId) {
+  const chapter = getExamChapter(examId, subjectId, chapterId);
+  if (!chapter) return;
+  chapter.topics = chapter.topics.filter(function (topic) { return topic.id !== topicId; });
+  persistExamChange();
+}
+
+function toggleExamTopic(examId, subjectId, chapterId, topicId) {
+  const topic = getExamTopic(examId, subjectId, chapterId, topicId);
+  if (!topic) return;
+  topic.completed = !topic.completed;
+  persistExamChange();
+}
+
+function addExamMilestone(examId) {
+  const title = prompt("Milestone title");
+  if (!title) return;
+  const dueDate = prompt("Due date (YYYY-MM-DD), optional") || "";
+  const exam = getExamById(examId);
+  if (!exam) return;
+  exam.milestones.push({ id: createId(), title: title.trim(), subjectId: "", dueDate: dueDate.trim(), completed: false });
+  persistExamChange();
+}
+
+function toggleExamMilestone(examId, milestoneId) {
+  const exam = getExamById(examId);
+  if (!exam) return;
+  const milestone = exam.milestones.find(function (candidate) { return candidate.id === milestoneId; });
+  if (!milestone) return;
+  milestone.completed = !milestone.completed;
+  persistExamChange();
+}
+
+function deleteExamMilestone(examId, milestoneId) {
+  const exam = getExamById(examId);
+  if (!exam) return;
+  exam.milestones = exam.milestones.filter(function (milestone) { return milestone.id !== milestoneId; });
+  persistExamChange();
+}
+
+function getExamSubject(examId, subjectId) {
+  const exam = getExamById(examId);
+  return exam ? exam.subjects.find(function (subject) { return subject.id === subjectId; }) : null;
+}
+
+function getExamChapter(examId, subjectId, chapterId) {
+  const subject = getExamSubject(examId, subjectId);
+  return subject ? subject.chapters.find(function (chapter) { return chapter.id === chapterId; }) : null;
+}
+
+function getExamTopic(examId, subjectId, chapterId, topicId) {
+  const chapter = getExamChapter(examId, subjectId, chapterId);
+  return chapter ? chapter.topics.find(function (topic) { return topic.id === topicId; }) : null;
+}
+
+function persistExamChange() {
   saveData();
   renderExams();
   renderPlanner();
+  updateHome();
+  renderExamWorkspace();
+}
+
+function deleteSelectedExam() {
+  const exam = getSelectedExam();
+  if (!exam) return;
+  if (!confirm(`Delete ${exam.name}?`)) return;
+  appData.exams = appData.exams.filter(function (candidate) { return candidate.id !== exam.id; });
+  appData.selectedExamId = null;
+  saveData();
+  closeExamWorkspace();
+  renderPlanner();
+  updateHome();
+}
+
+function editSelectedExam() {
+  const exam = getSelectedExam();
+  if (!exam) return;
+  openExamModal(exam);
+}
+
+function renderExamPresets() {
+  examPresetList.innerHTML = "";
+  const categories = [...new Set(examPresets.map(function (preset) { return preset.category; }))];
+  categories.forEach(function (category) {
+    const group = document.createElement("section");
+    const heading = document.createElement("h4");
+    const grid = document.createElement("div");
+    group.className = "exam-preset-group";
+    grid.className = "exam-preset-grid";
+    heading.textContent = category;
+    group.appendChild(heading);
+
+    examPresets
+      .filter(function (preset) { return preset.category === category; })
+      .forEach(function (preset) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "exam-preset-button";
+        button.textContent = preset.name;
+        button.addEventListener("click", function () { chooseExamPreset(preset); });
+        grid.appendChild(button);
+      });
+
+    group.appendChild(grid);
+    examPresetList.appendChild(group);
+  });
+}
+
+function openExamModal(exam) {
+  const isExistingExam = exam && exam.id && Array.isArray(exam.subjects);
+  examModal.hidden = false;
+  renderExamPresets();
+
+  if (isExistingExam) {
+    examForm.dataset.mode = "edit";
+    selectedExamPreset = examPresets.find(function (preset) { return preset.name === exam.type; }) || { category: "Other", name: exam.type || "Custom Exam", subjects: [] };
+    examPresetStep.hidden = true;
+    examForm.hidden = false;
+    selectedExamLabel.textContent = selectedExamPreset.name;
+    customExamNameField.hidden = false;
+    examNameInput.value = exam.name;
+    examDateInput.value = exam.date;
+    examTitleInput.value = "";
+    examSubjectsInput.value = exam.subjects.map(function (subject) { return subject.name; }).join(", ");
+    examNameInput.focus();
+    return;
+  }
+
+  selectedExamPreset = null;
+  examForm.dataset.mode = "create";
+  examPresetStep.hidden = false;
+  examForm.hidden = true;
+  examForm.reset();
+  selectedExamLabel.textContent = "Choose exam";
+  customExamNameField.hidden = true;
+}
+
+function closeExamModal() {
+  examModal.hidden = true;
+  selectedExamPreset = null;
+  examForm.dataset.mode = "create";
+  examForm.reset();
+  examPresetStep.hidden = false;
+  examForm.hidden = true;
+}
+
+function chooseExamPreset(preset) {
+  if (!preset || !preset.name) return;
+  selectedExamPreset = {
+    category: preset.category,
+    name: preset.name,
+    subjects: Array.isArray(preset.subjects) ? preset.subjects.slice() : []
+  };
+  const isCustom = selectedExamPreset.name === "Custom Exam";
+  examPresetStep.hidden = true;
+  examForm.hidden = false;
+  selectedExamLabel.textContent = selectedExamPreset.name;
+  customExamNameField.hidden = !isCustom;
+  examNameInput.required = isCustom;
+  examNameInput.value = "";
+  examTitleInput.value = "";
+  examDateInput.value = "";
+  examSubjectsInput.value = selectedExamPreset.subjects.join(", ");
+  if (isCustom) {
+    examNameInput.focus();
+  } else {
+    examDateInput.focus();
+  }
+}
+
+function showExamPresetStep() {
+  selectedExamPreset = null;
+  examPresetStep.hidden = false;
+  examForm.hidden = true;
+  examForm.reset();
+  selectedExamLabel.textContent = "Choose exam";
+}
+
+function handleExamModalBackdrop(event) {
+  if (event.target === examModal) closeExamModal();
 }
 
 function addDistraction(event) {
@@ -2167,7 +2857,21 @@ taskModal.addEventListener("click", handleTaskModalBackdrop);
 plannerPrev.addEventListener("click", function () { changePlannerMonth(-1); });
 plannerNext.addEventListener("click", function () { changePlannerMonth(1); });
 plannerForm.addEventListener("submit", addPlannerItem);
+openExamModalButton.addEventListener("click", function () { openExamModal(); });
+closeExamModalButton.addEventListener("click", closeExamModal);
+examBackToPresets.addEventListener("click", showExamPresetStep);
+examModal.addEventListener("click", handleExamModalBackdrop);
 examForm.addEventListener("submit", addExam);
+backToExamsButton.addEventListener("click", closeExamWorkspace);
+editExamButton.addEventListener("click", editSelectedExam);
+deleteExamButton.addEventListener("click", deleteSelectedExam);
+examTabs.forEach(function (tab) {
+  tab.addEventListener("click", function () {
+    appData.selectedExamTab = tab.dataset.examTab;
+    saveData();
+    renderExamWorkspace();
+  });
+});
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
 resetAccentButton.addEventListener("click", resetAccentColor);

@@ -12,7 +12,7 @@
       <path d="M4 6h16M4 12h16M4 18h16"></path>
     </svg>
     <svg class="menu-icon close-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18"></path>
+      <path d="M9 6l6 6-6 6"></path>
     </svg>
   </button>
 
@@ -108,7 +108,7 @@
         <aside class="secondary-surface today-summary-card">
           <p class="eyebrow">Today</p>
           <strong id="home-total-time">0h 00m</strong>
-          <p class="muted-text" id="home-goal-hours">of 0 Hours goal</p>
+          <p class="muted-text" id="home-goal-hours">of 0h goal</p>
           <div class="progress-bar" aria-label="Daily goal progress">
             <span id="home-goal-bar"></span>
           </div>
@@ -268,14 +268,15 @@
               <h3>Today's Goal</h3>
               <strong id="plan-goal-progress">0%</strong>
             </div>
-            <p class="goal-copy" id="plan-goal-copy">0h / 0 Hours</p>
+            <p class="goal-copy" id="plan-goal-copy">0h / 0h</p>
             <div class="progress-bar"><span id="plan-goal-bar"></span></div>
             <form class="goal-stepper" id="goal-form">
-              <button type="button" class="icon-button" id="goal-decrease" aria-label="Decrease goal">-</button>
+              <button type="button" class="quick-goal-button" id="goal-decrease" aria-label="Decrease goal by 15 minutes">-15m</button>
+              <strong class="goal-display" id="goal-display">2h</strong>
+              <button type="button" class="quick-goal-button" id="goal-increase" aria-label="Increase goal by 15 minutes">+15m</button>
               <label class="sr-only" for="goal-input">Daily Study Goal (Hours)</label>
               <input id="goal-input" type="number" min="0.25" step="0.25" placeholder="3.5">
-              <button type="button" class="icon-button" id="goal-increase" aria-label="Increase goal">+</button>
-              <button type="submit" class="text-button">Save</button>
+              <button type="submit" class="text-button">Save exact</button>
             </form>
           </article>
 
@@ -360,33 +361,82 @@
     </section>
 
     <section class="app-section" id="exams">
-      <div class="section-header">
+      <div class="section-header exams-main-header">
         <div>
-          <p class="eyebrow">Exams</p>
-          <h2>Exam Tracker</h2>
+          <h2>Exams</h2>
+          <p class="muted-text">Keep track of what you're preparing for.</p>
         </div>
+        <button type="button" id="open-exam-modal">+ Add Exam</button>
       </div>
 
-      <div class="exam-layout">
-        <article class="panel">
-          <h3>Create Exam</h3>
-          <form class="stacked-form" id="exam-form">
-            <label for="exam-name-input">Exam Name</label>
-            <input id="exam-name-input" type="text" placeholder="DBMS Final" required>
-            <label for="exam-subject-input">Subject</label>
-            <input id="exam-subject-input" type="text" placeholder="Database Systems" required>
+      <div id="exam-list-view">
+        <div class="section-mini-header">
+          <h3>My Exams</h3>
+          <span class="muted-text" id="exam-count-label">0 exams</span>
+        </div>
+        <section class="exam-list" id="exam-list"></section>
+      </div>
+
+      <div class="exam-workspace" id="exam-workspace" hidden>
+        <button type="button" class="text-button" id="back-to-exams">← Back to Exams</button>
+        <div class="exam-workspace-header">
+          <div>
+            <p class="eyebrow" id="exam-workspace-type">Exam</p>
+            <h2 id="exam-workspace-title">Exam name</h2>
+            <p class="muted-text" id="exam-workspace-countdown">0 days remaining</p>
+          </div>
+          <div class="exam-workspace-actions">
+            <button type="button" class="secondary-button" id="edit-exam-button">Edit</button>
+            <button type="button" class="text-danger-button" id="delete-exam-button">Delete</button>
+          </div>
+        </div>
+
+        <div class="exam-tabs" role="tablist" aria-label="Exam workspace tabs">
+          <button type="button" class="exam-tab active" data-exam-tab="overview">Overview</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="syllabus">Syllabus</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="plan">Plan</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="progress">Progress</button>
+        </div>
+
+        <section class="exam-tab-panel active" id="exam-tab-overview"></section>
+        <section class="exam-tab-panel" id="exam-tab-syllabus"></section>
+        <section class="exam-tab-panel" id="exam-tab-plan"></section>
+        <section class="exam-tab-panel" id="exam-tab-progress"></section>
+      </div>
+
+      <div class="modal-backdrop" id="exam-modal" hidden>
+        <div class="modal-card exam-modal-card" role="dialog" aria-modal="true" aria-labelledby="exam-modal-title">
+          <div class="section-mini-header">
+            <h3 id="exam-modal-title">Add Exam</h3>
+            <button type="button" class="icon-button" id="close-exam-modal" aria-label="Close exam form">x</button>
+          </div>
+
+          <div class="exam-preset-step" id="exam-preset-step">
+            <p class="muted-text">Choose your exam to get suggested subjects.</p>
+            <div class="exam-preset-list" id="exam-preset-list"></div>
+          </div>
+
+          <form class="stacked-form" id="exam-form" hidden>
+            <div class="exam-selected-preset">
+              <span>Selected exam</span>
+              <strong id="selected-exam-label">Custom Exam</strong>
+            </div>
+            <div id="custom-exam-name-field">
+              <label for="exam-name-input">Exam Name</label>
+              <input id="exam-name-input" type="text" placeholder="My exam">
+            </div>
             <label for="exam-date-input">Exam Date</label>
             <input id="exam-date-input" type="date" required>
-            <label for="exam-time-input">Optional Time</label>
-            <input id="exam-time-input" type="time">
-            <label for="exam-topics-input">Syllabus Topics</label>
-            <textarea id="exam-topics-input" rows="4" placeholder="Normalization&#10;Transactions&#10;Indexing"></textarea>
-            <label for="exam-notes-input">Notes</label>
-            <textarea id="exam-notes-input" rows="3" placeholder="Focus on previous paper questions"></textarea>
-            <button type="submit">Save Exam</button>
+            <label for="exam-title-input">Optional custom title / attempt name</label>
+            <input id="exam-title-input" type="text" placeholder="January attempt">
+            <label for="exam-subjects-input">Subjects</label>
+            <input id="exam-subjects-input" type="text" placeholder="Physics, Chemistry, Mathematics">
+            <div class="form-footer">
+              <button type="button" class="secondary-button" id="exam-back-to-presets">Back</button>
+              <button type="submit">Create Exam</button>
+            </div>
           </form>
-        </article>
-        <section class="exam-list" id="exam-list"></section>
+        </div>
       </div>
     </section>
 
