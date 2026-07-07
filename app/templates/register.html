@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register - StudyMate</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/studymate-mark.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-brand-panel">
+      <img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt="" class="auth-logo">
+      <p class="eyebrow">StudyMate</p>
+      <h1>Start with an account, grow into a full study system.</h1>
+      <p class="muted-text">This phase adds secure login. Your timers, tasks, and study data will move from local storage to the database in a later phase.</p>
+    </section>
+
+    <section class="auth-card" aria-labelledby="register-title">
+      <div>
+        <p class="eyebrow">Register</p>
+        <h2 id="register-title">Create your account</h2>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="auth-messages">
+            {% for category, message in messages %}
+              <p class="auth-message {{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <form method="post" class="auth-form">
+        <label for="display_name">Display name</label>
+        <input id="display_name" name="display_name" type="text" value="{{ form_data.display_name }}" autocomplete="name" required>
+
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" value="{{ form_data.username }}" autocomplete="username" required>
+
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" value="{{ form_data.email }}" autocomplete="email" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+
+        <label for="confirm_password">Confirm password</label>
+        <input id="confirm_password" name="confirm_password" type="password" minlength="8" autocomplete="new-password" required>
+
+        <button type="submit">Create Account</button>
+      </form>
+
+      <p class="auth-switch">Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+    </section>
+  </main>
+</body>
+</html>

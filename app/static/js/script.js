@@ -12,6 +12,8 @@ const themes = [
   { id: "light", name: "Minimal Light", accent: "#2563eb", secondaryAccent: "#14b8a6" }
 ];
 
+const studyMateUser = window.STUDYMATE_USER || {};
+
 const timerModes = [
   { id: "stopwatch", name: "Stopwatch", description: "Count up while you study.", focusMinutes: null, breakMinutes: 0 },
   { id: "pomodoro", name: "Pomodoro", description: "25 minutes focus, then a 5 minute break.", focusMinutes: 25, breakMinutes: 5 },
@@ -1181,7 +1183,7 @@ function updateHome() {
     summaryParts.push(`next exam ${getExamCountdown(nearestExam.date).toLowerCase()}`);
   }
 
-  dashboardGreeting.textContent = `${greeting}, Mahenoor`;
+  dashboardGreeting.textContent = `${greeting}, ${studyMateUser.displayName || "StudyMate learner"}`;
   todayDate.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   homeDaySummary.textContent = summaryParts.join(" - ");
   homeTotalTime.textContent = formatShortTime(appData.studySeconds);

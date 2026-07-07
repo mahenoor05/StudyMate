@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - StudyMate</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/studymate-mark.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-brand-panel">
+      <img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt="" class="auth-logo">
+      <p class="eyebrow">StudyMate</p>
+      <h1>Welcome back to your focus workspace.</h1>
+      <p class="muted-text">Log in to open your StudyMate dashboard. Your current study features still use this browser's local storage for now.</p>
+    </section>
+
+    <section class="auth-card" aria-labelledby="login-title">
+      <div>
+        <p class="eyebrow">Login</p>
+        <h2 id="login-title">Open StudyMate</h2>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="auth-messages">
+            {% for category, message in messages %}
+              <p class="auth-message {{ category }}">{{ message }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <form method="post" class="auth-form">
+        <label for="login">Email or username</label>
+        <input id="login" name="login" type="text" value="{{ login_value }}" autocomplete="username" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit">Login</button>
+      </form>
+
+      <p class="auth-switch">New to StudyMate? <a href="{{ url_for('auth.register') }}">Create an account</a></p>
+    </section>
+  </main>
+</body>
+</html>

@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StudyMate</title>
-  <link rel="icon" type="image/svg+xml" href="assets/studymate-mark.svg">
-  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/studymate-mark.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <div class="app-loader" id="app-loader" aria-live="polite">
-    <img src="assets/studymate-mark.svg" alt="" class="loader-mark">
+    <img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt="" class="loader-mark">
     <strong>StudyMate</strong>
     <span>Preparing your workspace...</span>
   </div>
@@ -25,7 +25,7 @@
 
   <aside class="sidebar">
     <div class="brand">
-      <span class="brand-mark"><img src="assets/studymate-mark.svg" alt=""></span>
+      <span class="brand-mark"><img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt=""></span>
       <div>
         <h1>StudyMate</h1>
         <p>Focus OS</p>
@@ -80,6 +80,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.4-.2-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V22h-4v-.5a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.2.1-2-3.4.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3v-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.4.2.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V2h4v.5a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.2-.1 2 3.4-.1.1A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.5 1h.1v4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg>
         <span>Settings</span>
       </button>
+      <a class="nav-link logout-link" href="{{ url_for('auth.logout') }}" title="Logout">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5"></path><path d="M15 12H3"></path><path d="M21 4v16"></path></svg>
+        <span>Logout</span>
+      </a>
     </nav>
   </aside>
 
@@ -911,6 +915,13 @@
     </section>
   </main>
 
-  <script src="script.js"></script>
+  <script>
+    window.STUDYMATE_USER = {
+      displayName: {{ current_user.display_name|tojson }},
+      username: {{ current_user.username|tojson }},
+      email: {{ current_user.email|tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
