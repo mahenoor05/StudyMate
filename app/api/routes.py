@@ -49,6 +49,19 @@ def clean_payload(value):
     return value if isinstance(value, dict) else {}
 
 
+def serialize_profile(user):
+    return {
+        "displayName": user.display_name,
+        "username": user.username,
+        "email": user.email,
+        "bio": user.bio or "",
+        "avatarStyle": user.avatar_style or "initials",
+        "avatarColor": user.avatar_color or "violet",
+        "onboardingCompleted": bool(user.onboarding_completed),
+        "createdAt": iso_datetime(user.created_at),
+    }
+
+
 def scoped_or_404(model, record_id):
     return model.query.filter_by(id=record_id, user_id=current_user.id).first_or_404()
 
@@ -127,6 +140,7 @@ def save_subjects(user_id, subjects):
             client_id=str(payload.get("id") or ""),
             user_id=user_id,
             name=payload.get("name") or "Subject",
+            color_key=payload.get("colorKey") or "blue",
             payload=payload,
         )
         db.session.add(subject)
@@ -312,7 +326,31 @@ def get_app_data():
     return jsonify({
         "appData": state.payload if state else None,
         "hasData": has_data,
+        "profile": serialize_profile(current_user),
     })
+
+
+@api_bp.get("/profile")
+@login_required
+def get_profile():
+    return jsonify({"profile": serialize_profile(current_user)})
+
+
+@api_bp.patch("/profile")
+@login_required
+def update_profile():
+    data = request.get_json(silent=True) or {}
+    display_name = str(data.get("displayName") or current_user.display_name).strip()
+    if not display_name:
+        return jsonify({"error": "Display name is required."}), 400
+    current_user.display_name = display_name[:120]
+    current_user.bio = str(data.get("bio") or "").strip()[:280]
+    current_user.avatar_style = str(data.get("avatarStyle") or "initials")[:40]
+    current_user.avatar_color = str(data.get("avatarColor") or "violet")[:40]
+    if "onboardingCompleted" in data:
+        current_user.onboarding_completed = bool(data.get("onboardingCompleted"))
+    db.session.commit()
+    return jsonify({"profile": serialize_profile(current_user)})
 
 
 @api_bp.put("/app-data")
@@ -351,6 +389,7 @@ def update_subject(record_id):
     data = request.get_json(silent=True) or {}
     subject.payload = {**subject.payload, **clean_payload(data)}
     subject.name = subject.payload.get("name") or subject.name
+    subject.color_key = subject.payload.get("colorKey") or subject.color_key
     db.session.commit()
     return jsonify({"subject": subject.payload})
 

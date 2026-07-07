@@ -20,6 +20,17 @@ let databaseLoaded = false;
 let isHydratingFromServer = false;
 let syncTimerId = null;
 
+const subjectPalette = [
+  { key: "blue", name: "Blue", value: "#38bdf8" },
+  { key: "violet", name: "Violet", value: "#8b6cff" },
+  { key: "pink", name: "Pink", value: "#f472b6" },
+  { key: "teal", name: "Teal", value: "#2dd4bf" },
+  { key: "green", name: "Green", value: "#34d399" },
+  { key: "amber", name: "Amber", value: "#f59e0b" },
+  { key: "coral", name: "Coral", value: "#fb7185" },
+  { key: "indigo", name: "Indigo", value: "#6366f1" }
+];
+
 const timerModes = [
   { id: "stopwatch", name: "Stopwatch", description: "Count up while you study.", focusMinutes: null, breakMinutes: 0 },
   { id: "pomodoro", name: "Pomodoro", description: "25 minutes focus, then a 5 minute break.", focusMinutes: 25, breakMinutes: 5 },
@@ -128,6 +139,7 @@ const recentSessionList = document.getElementById("recent-session-list");
 const historyTabs = document.querySelectorAll(".history-tab");
 const subjectForm = document.getElementById("subject-form");
 const subjectInput = document.getElementById("subject-input");
+const subjectColorInput = document.getElementById("subject-color-input");
 const intentionForm = document.getElementById("intention-form");
 const intentionInput = document.getElementById("intention-input");
 const intentionCount = document.getElementById("intention-count");
@@ -208,6 +220,27 @@ const themeGrid = document.getElementById("theme-grid");
 const accentInput = document.getElementById("accent-input");
 const saveAccentButton = document.getElementById("save-accent");
 const resetAccentButton = document.getElementById("reset-accent");
+const profileAvatar = document.getElementById("profile-avatar");
+const profileDisplayName = document.getElementById("profile-display-name");
+const profileUsername = document.getElementById("profile-username");
+const profileBio = document.getElementById("profile-bio");
+const editProfileButton = document.getElementById("edit-profile-button");
+const profileModal = document.getElementById("profile-modal");
+const closeProfileModalButton = document.getElementById("close-profile-modal");
+const profileForm = document.getElementById("profile-form");
+const profileNameInput = document.getElementById("profile-name-input");
+const profileBioInput = document.getElementById("profile-bio-input");
+const profileAvatarStyleInput = document.getElementById("profile-avatar-style-input");
+const profileAvatarColorInput = document.getElementById("profile-avatar-color-input");
+const onboardingModal = document.getElementById("onboarding-modal");
+const onboardingStartButton = document.getElementById("onboarding-start");
+const onboardingExamOptions = document.getElementById("onboarding-exam-options");
+const onboardingExamsNext = document.getElementById("onboarding-exams-next");
+const onboardingSkipExams = document.getElementById("onboarding-skip-exams");
+const onboardingProfileForm = document.getElementById("onboarding-profile-form");
+const onboardingDisplayName = document.getElementById("onboarding-display-name");
+const onboardingAvatarStyle = document.getElementById("onboarding-avatar-style");
+const onboardingBio = document.getElementById("onboarding-bio");
 
 const createGroupButton = document.getElementById("create-group-button");
 const joinGroupButton = document.getElementById("join-group-button");
@@ -302,7 +335,9 @@ let selectedExamPreset = null;
 let challengeDraft = createChallengeDraft();
 
 function createDefaultData() {
-  const generalSubject = createSubject("General Study");
+  const subjects = [];
+  const generalSubject = createSubject("General Study", getNextSubjectColorKey(subjects));
+  subjects.push(generalSubject);
 
   return {
     date: getTodayKey(),
@@ -330,7 +365,7 @@ function createDefaultData() {
     selectedPlannerDate: getTodayKey(),
     activeSession: null,
     tasks: [],
-    subjects: [generalSubject],
+    subjects,
     sessions: [],
     dailyHistory: {},
     plannerItems: [],
@@ -347,10 +382,40 @@ function createDefaultData() {
   };
 }
 
-function createSubject(name) {
+function getSubjectColorValue(subjectOrKey) {
+  const key = typeof subjectOrKey === "string" ? subjectOrKey : subjectOrKey.colorKey;
+  const color = subjectPalette.find(function (item) { return item.key === key; }) || subjectPalette[0];
+  return color.value;
+}
+
+function getNextSubjectColorKey(subjects) {
+  const subjectList = Array.isArray(subjects) ? subjects : appData.subjects;
+  const used = subjectList.map(function (subject) { return subject.colorKey; });
+  const openColor = subjectPalette.find(function (color) { return !used.includes(color.key); });
+  return (openColor || subjectPalette[subjectList.length % subjectPalette.length]).key;
+}
+
+function getInitials(name) {
+  return (name || "SM")
+    .split(" ")
+    .map(function (part) { return part[0]; })
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function createSubjectDot(subject) {
+  const dot = document.createElement("span");
+  dot.className = "subject-dot";
+  dot.style.background = getSubjectColorValue(subject);
+  return dot;
+}
+
+function createSubject(name, colorKey) {
   return {
     id: createId(),
     name,
+    colorKey: colorKey || getNextSubjectColorKey(),
     seconds: 0
   };
 }
@@ -436,6 +501,7 @@ async function loadData() {
   try {
     const response = await studyMateApi("app-data");
     databaseLoaded = true;
+    if (response.profile) updateProfileState(response.profile);
     if (response.appData) {
       isHydratingFromServer = true;
       appData = {
@@ -461,6 +527,36 @@ async function loadData() {
   if (appData.activeSession && appData.sessionState !== "paused") {
     resumeSessionTimer();
   }
+}
+
+function updateProfileState(profile) {
+  studyMateUser.displayName = profile.displayName || studyMateUser.displayName;
+  studyMateUser.username = profile.username || studyMateUser.username;
+  studyMateUser.email = profile.email || studyMateUser.email;
+  studyMateUser.bio = profile.bio || "";
+  studyMateUser.avatarStyle = profile.avatarStyle || "initials";
+  studyMateUser.avatarColor = profile.avatarColor || "violet";
+  studyMateUser.onboardingCompleted = Boolean(profile.onboardingCompleted);
+}
+
+function renderProfile() {
+  if (!profileAvatar) return;
+  profileAvatar.textContent = getInitials(studyMateUser.displayName);
+  profileAvatar.dataset.avatarStyle = studyMateUser.avatarStyle || "initials";
+  profileAvatar.style.background = `linear-gradient(135deg, ${getSubjectColorValue(studyMateUser.avatarColor || "violet")}, var(--accent))`;
+  profileDisplayName.textContent = studyMateUser.displayName || "StudyMate learner";
+  profileUsername.textContent = `@${studyMateUser.username} - ${studyMateUser.email}`;
+  profileBio.textContent = studyMateUser.bio || "No bio yet.";
+}
+
+async function saveProfilePayload(payload) {
+  const response = await studyMateApi("profile", {
+    method: "PATCH",
+    body: JSON.stringify(payload)
+  });
+  updateProfileState(response.profile);
+  renderProfile();
+  updateHome();
 }
 
 function loadOlderData() {
@@ -504,10 +600,11 @@ function migrateOldData(oldData) {
     migrated.distractions = Array.isArray(parsed.distractions) ? parsed.distractions : [];
 
     if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
-      migrated.subjects = parsed.subjects.map(function (subject) {
+      migrated.subjects = parsed.subjects.map(function (subject, index) {
         return {
           id: subject.id || createId(),
           name: subject.name || "Subject",
+          colorKey: subject.colorKey || subjectPalette[index % subjectPalette.length].key,
           seconds: Number(subject.seconds || 0)
         };
       });
@@ -574,6 +671,12 @@ function normalizeData() {
   appData.plannerYear = Number(appData.plannerYear) || new Date().getFullYear();
   appData.selectedPlannerDate = appData.selectedPlannerDate || getTodayKey();
   appData.selectedSubjectId = getSubjectById(appData.selectedSubjectId) ? appData.selectedSubjectId : appData.subjects[0].id;
+  appData.subjects = appData.subjects.map(function (subject, index) {
+    return {
+      ...subject,
+      colorKey: subject.colorKey || subjectPalette[index % subjectPalette.length].key
+    };
+  });
   appData.tasks = appData.tasks.map(normalizeTask);
   appData.dailyHistory = normalizeDailyHistory(appData.dailyHistory);
   appData.distractions = appData.distractions.map(normalizeDistraction);
@@ -996,6 +1099,58 @@ async function importLegacyLocalData() {
   }
 }
 
+function showOnboardingStep(stepNumber) {
+  if (!onboardingModal) return;
+  onboardingModal.querySelectorAll(".onboarding-step").forEach(function (step) {
+    step.classList.toggle("active", step.dataset.onboardingStep === String(stepNumber));
+  });
+}
+
+function renderOnboardingExamOptions() {
+  if (!onboardingExamOptions) return;
+  onboardingExamOptions.innerHTML = "";
+  examPresets.forEach(function (preset) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "onboarding-choice";
+    button.dataset.examName = preset.name;
+    button.innerHTML = `<strong>${preset.name}</strong><span>${preset.category}</span>`;
+    button.addEventListener("click", function () { button.classList.toggle("selected"); });
+    onboardingExamOptions.appendChild(button);
+  });
+}
+
+function createOnboardingExams() {
+  onboardingExamOptions.querySelectorAll(".onboarding-choice.selected").forEach(function (button) {
+    const preset = examPresets.find(function (item) { return item.name === button.dataset.examName; });
+    if (!preset || appData.exams.some(function (exam) { return exam.type === preset.name; })) return;
+    appData.exams.push({
+      id: createId(),
+      type: preset.name,
+      name: preset.name,
+      date: getTodayKey(),
+      time: "",
+      subjects: (preset.subjects.length ? preset.subjects : ["General"]).map(function (subjectName) {
+        return { id: createId(), name: subjectName, chapters: [] };
+      }),
+      notes: "",
+      milestones: [],
+      createdAt: new Date().toISOString()
+    });
+  });
+  saveData();
+}
+
+function maybeShowOnboarding() {
+  if (!onboardingModal || studyMateUser.onboardingCompleted) return;
+  renderOnboardingExamOptions();
+  onboardingDisplayName.value = studyMateUser.displayName || "";
+  onboardingAvatarStyle.value = studyMateUser.avatarStyle || "initials";
+  onboardingBio.value = studyMateUser.bio || "";
+  onboardingModal.hidden = false;
+  showOnboardingStep(1);
+}
+
 function showSection(sectionId) {
   sections.forEach(function (section) {
     section.classList.toggle("active", section.id === sectionId);
@@ -1258,6 +1413,7 @@ function updateAllDisplays() {
   renderPlanner();
   renderExams();
   renderLeaderboard();
+  renderProfile();
 }
 
 function updateHome() {
@@ -1481,6 +1637,18 @@ function renderSubjectOptions() {
   sessionSubjectSelect.value = getSubjectById(currentValue) ? currentValue : appData.selectedSubjectId;
 }
 
+function renderColorOptions(selectElement, selectedKey) {
+  if (!selectElement) return;
+  selectElement.innerHTML = "";
+  subjectPalette.forEach(function (color) {
+    const option = document.createElement("option");
+    option.value = color.key;
+    option.textContent = color.name;
+    option.selected = color.key === selectedKey;
+    selectElement.appendChild(option);
+  });
+}
+
 function renderTaskSubjectOptions() {
   if (!taskSubjectInput) return;
 
@@ -1523,6 +1691,7 @@ function appendTaskPreview(parent, task) {
   const metaParts = [];
 
   taskText.textContent = task.text;
+  if (task.subjectId) item.style.borderLeft = `3px solid ${getSubjectColorValue(getSubjectById(task.subjectId) || "blue")}`;
   if (task.date) metaParts.push(task.date === getTodayKey() ? "Today" : task.date);
   if (task.subjectId) metaParts.push(getSubjectName(task.subjectId));
   if (task.repeat === "daily") metaParts.push("Daily");
@@ -1620,7 +1789,11 @@ function renderSubjectBreakdown(container) {
       row.className = "insight-row";
       const name = document.createElement("span");
       const time = document.createElement("strong");
-      name.textContent = subject.name;
+      const label = document.createElement("span");
+      label.className = "subject-label";
+      label.appendChild(createSubjectDot(subject));
+      label.appendChild(document.createTextNode(subject.name));
+      name.appendChild(label);
       time.textContent = formatShortTime(subject.seconds);
       row.appendChild(name);
       row.appendChild(time);
@@ -2227,7 +2400,10 @@ function renderRecentSessions() {
     const time = document.createElement("span");
     const duration = document.createElement("strong");
     const result = document.createElement("small");
-    title.textContent = session.subjectName || getSubjectName(session.subjectId);
+    const sessionSubject = getSubjectById(session.subjectId);
+    title.className = "subject-label";
+    title.appendChild(createSubjectDot(sessionSubject || { colorKey: "blue" }));
+    title.appendChild(document.createTextNode(session.subjectName || getSubjectName(session.subjectId)));
     meta.textContent = session.mode || "Timer";
     time.textContent = `${formatClockTime(session.startedAt)} -> ${formatClockTime(session.endedAt)}`;
     duration.textContent = formatShortTime(session.durationSeconds);
@@ -2525,6 +2701,7 @@ function changeSessionSubject() {
 function openSubjectModal() {
   subjectModal.hidden = false;
   subjectInput.value = "";
+  renderColorOptions(subjectColorInput, getNextSubjectColorKey());
   subjectInput.focus();
 }
 
@@ -2545,12 +2722,13 @@ function addSubject(event) {
   if (existingSubject) {
     appData.selectedSubjectId = existingSubject.id;
   } else {
-    const subject = createSubject(subjectName);
+    const subject = createSubject(subjectName, subjectColorInput.value);
     appData.subjects.push(subject);
     appData.selectedSubjectId = subject.id;
   }
 
   subjectInput.value = "";
+  renderColorOptions(subjectColorInput, getNextSubjectColorKey());
   closeSubjectModal();
   saveData();
   updateAllDisplays();
@@ -2680,6 +2858,7 @@ function renderTaskGroup(listElement, tasks) {
     const listItem = document.createElement("li");
     listItem.className = "task-row";
     if (task.completed) listItem.classList.add("completed");
+    if (task.subjectId) listItem.style.borderLeft = `3px solid ${getSubjectColorValue(getSubjectById(task.subjectId) || "blue")}`;
 
     const checkbox = document.createElement("input");
     checkbox.className = "task-checkbox";
@@ -3615,7 +3794,7 @@ function renderThemes() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "theme-option";
-    button.textContent = theme.name;
+    button.innerHTML = `<span class="theme-swatch" style="--swatch-primary:${theme.accent};--swatch-accent:${theme.secondaryAccent}"></span><strong>${theme.name}</strong>`;
     button.classList.toggle("active", appData.theme === theme.id);
     button.addEventListener("click", function () {
       appData.theme = theme.id;
@@ -3626,6 +3805,30 @@ function renderThemes() {
     });
     themeGrid.appendChild(button);
   });
+}
+
+function openProfileModal() {
+  profileNameInput.value = studyMateUser.displayName || "";
+  profileBioInput.value = studyMateUser.bio || "";
+  profileAvatarStyleInput.value = studyMateUser.avatarStyle || "initials";
+  renderColorOptions(profileAvatarColorInput, studyMateUser.avatarColor || "violet");
+  profileModal.hidden = false;
+  profileNameInput.focus();
+}
+
+function closeProfileModal() {
+  profileModal.hidden = true;
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  await saveProfilePayload({
+    displayName: profileNameInput.value.trim(),
+    bio: profileBioInput.value.trim(),
+    avatarStyle: profileAvatarStyleInput.value,
+    avatarColor: profileAvatarColorInput.value
+  });
+  closeProfileModal();
 }
 
 function getCurrentTheme() {
@@ -4823,6 +5026,29 @@ examTabs.forEach(function (tab) {
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
 resetAccentButton.addEventListener("click", resetAccentColor);
+editProfileButton.addEventListener("click", openProfileModal);
+closeProfileModalButton.addEventListener("click", closeProfileModal);
+profileModal.addEventListener("click", function (event) {
+  if (event.target === profileModal) closeProfileModal();
+});
+profileForm.addEventListener("submit", saveProfile);
+onboardingStartButton.addEventListener("click", function () { showOnboardingStep(2); });
+onboardingExamsNext.addEventListener("click", function () {
+  createOnboardingExams();
+  showOnboardingStep(3);
+});
+onboardingSkipExams.addEventListener("click", function () { showOnboardingStep(3); });
+onboardingProfileForm.addEventListener("submit", async function (event) {
+  event.preventDefault();
+  await saveProfilePayload({
+    displayName: onboardingDisplayName.value.trim(),
+    bio: onboardingBio.value.trim(),
+    avatarStyle: onboardingAvatarStyle.value,
+    avatarColor: studyMateUser.avatarColor || "violet",
+    onboardingCompleted: true
+  });
+  onboardingModal.hidden = true;
+});
 createGroupButton.addEventListener("click", function () { openGroupModal("create"); });
 joinGroupButton.addEventListener("click", openJoinGroupModal);
 backToGroupsButton.addEventListener("click", closeGroupWorkspace);
@@ -4955,6 +5181,7 @@ async function initializeApp() {
   renderDistractions();
   renderStudyCircles();
   updateAllDisplays();
+  maybeShowOnboarding();
 }
 
 initializeApp();

@@ -19,6 +19,44 @@
     <button type="button" id="import-local-data">Import existing local data</button>
   </div>
 
+  <div class="modal-backdrop onboarding-backdrop" id="onboarding-modal" hidden>
+    <div class="modal-card onboarding-card" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+      <div class="onboarding-step active" data-onboarding-step="1">
+        <img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt="" class="auth-logo">
+        <p class="eyebrow">StudyMate</p>
+        <h2 id="onboarding-title">Welcome, {{ current_user.display_name }}</h2>
+        <p class="muted-text">Build your first focused study day.</p>
+        <button type="button" id="onboarding-start">Get Started</button>
+      </div>
+      <div class="onboarding-step" data-onboarding-step="2">
+        <p class="eyebrow">Preparing for</p>
+        <h2>Choose exams</h2>
+        <div class="onboarding-choice-grid" id="onboarding-exam-options"></div>
+        <div class="button-row">
+          <button type="button" id="onboarding-exams-next">Continue</button>
+          <button type="button" class="text-button" id="onboarding-skip-exams">Skip for now</button>
+        </div>
+      </div>
+      <div class="onboarding-step" data-onboarding-step="3">
+        <p class="eyebrow">Personalize</p>
+        <h2>Your profile</h2>
+        <form class="stacked-form" id="onboarding-profile-form">
+          <label for="onboarding-display-name">Display name</label>
+          <input id="onboarding-display-name" type="text" maxlength="120">
+          <label for="onboarding-avatar-style">Avatar style</label>
+          <select id="onboarding-avatar-style">
+            <option value="initials">Initials</option>
+            <option value="spark">Spark</option>
+            <option value="orbit">Orbit</option>
+          </select>
+          <label for="onboarding-bio">Bio</label>
+          <textarea id="onboarding-bio" rows="3" maxlength="280" placeholder="What are you working toward?"></textarea>
+          <button type="submit">Enter StudyMate</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <button class="menu-toggle" id="menu-toggle" type="button" aria-label="Toggle sidebar" title="Toggle sidebar">
     <svg class="menu-icon open-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 6h16M4 12h16M4 18h16"></path>
@@ -305,6 +343,8 @@
           <form class="stacked-form" id="subject-form">
             <label for="subject-input">Subject name</label>
             <input id="subject-input" type="text" placeholder="Python">
+            <label for="subject-color-input">Color</label>
+            <select id="subject-color-input"></select>
             <button type="submit">Add Subject</button>
           </form>
         </div>
@@ -904,6 +944,17 @@
         </div>
       </div>
 
+      <article class="panel profile-card">
+        <div class="profile-avatar" id="profile-avatar">SM</div>
+        <div>
+          <p class="eyebrow">Account</p>
+          <h3 id="profile-display-name">{{ current_user.display_name }}</h3>
+          <p class="muted-text" id="profile-username">@{{ current_user.username }} · {{ current_user.email }}</p>
+          <p id="profile-bio" class="muted-text">No bio yet.</p>
+        </div>
+        <button type="button" class="secondary-button" id="edit-profile-button">Edit Profile</button>
+      </article>
+
       <article class="panel">
         <h3>Themes</h3>
         <div class="theme-grid" id="theme-grid"></div>
@@ -918,13 +969,41 @@
         </div>
       </article>
     </section>
+
+    <div class="modal-backdrop" id="profile-modal" hidden>
+      <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+        <div class="section-mini-header">
+          <h3 id="profile-modal-title">Edit Profile</h3>
+          <button type="button" class="icon-button" id="close-profile-modal" aria-label="Close profile form">x</button>
+        </div>
+        <form class="stacked-form" id="profile-form">
+          <label for="profile-name-input">Display name</label>
+          <input id="profile-name-input" type="text" maxlength="120">
+          <label for="profile-bio-input">Bio</label>
+          <textarea id="profile-bio-input" rows="3" maxlength="280"></textarea>
+          <label for="profile-avatar-style-input">Avatar style</label>
+          <select id="profile-avatar-style-input">
+            <option value="initials">Initials</option>
+            <option value="spark">Spark</option>
+            <option value="orbit">Orbit</option>
+          </select>
+          <label for="profile-avatar-color-input">Avatar color</label>
+          <select id="profile-avatar-color-input"></select>
+          <button type="submit">Save Profile</button>
+        </form>
+      </div>
+    </div>
   </main>
 
   <script>
     window.STUDYMATE_USER = {
       displayName: {{ current_user.display_name|tojson }},
       username: {{ current_user.username|tojson }},
-      email: {{ current_user.email|tojson }}
+      email: {{ current_user.email|tojson }},
+      bio: {{ (current_user.bio or '')|tojson }},
+      avatarStyle: {{ current_user.avatar_style|tojson }},
+      avatarColor: {{ current_user.avatar_color|tojson }},
+      onboardingCompleted: {{ current_user.onboarding_completed|tojson }}
     };
   </script>
   <script src="{{ url_for('static', filename='js/script.js') }}"></script>

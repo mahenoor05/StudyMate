@@ -14,6 +14,9 @@ class User(UserMixin, db.Model):
     display_name = db.Column(db.String(120), nullable=False)
     avatar_url = db.Column(db.String(255), nullable=True)
     bio = db.Column(db.Text, nullable=True)
+    avatar_style = db.Column(db.String(40), default="initials", nullable=False)
+    avatar_color = db.Column(db.String(40), default="violet", nullable=False)
+    onboarding_completed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     def set_password(self, password):
@@ -28,6 +31,7 @@ class Subject(db.Model):
     client_id = db.Column(db.String(80), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     name = db.Column(db.String(120), nullable=False)
+    color_key = db.Column(db.String(40), default="blue", nullable=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     payload = db.Column(db.JSON, default=dict, nullable=False)
 

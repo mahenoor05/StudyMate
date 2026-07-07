@@ -199,6 +199,47 @@ body {
   color: var(--muted);
 }
 
+.onboarding-card {
+  max-width: 680px;
+  width: min(100%, 680px);
+}
+
+.onboarding-step {
+  display: none;
+  gap: var(--space-4);
+}
+
+.onboarding-step.active {
+  display: grid;
+}
+
+.onboarding-choice-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  max-height: 320px;
+  overflow: auto;
+}
+
+.onboarding-choice {
+  background: color-mix(in srgb, var(--surface-soft) 86%, transparent);
+  border-color: var(--border);
+  color: var(--text);
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+}
+
+.onboarding-choice span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.onboarding-choice.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
 .loader-mark {
   animation: loaderPulse 900ms ease-in-out infinite alternate;
   height: 3rem;
@@ -662,6 +703,40 @@ body.sidebar-collapsed .app-main {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: var(--space-4);
+}
+
+.profile-card {
+  align-items: center;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.profile-avatar {
+  align-items: center;
+  border: 1px solid color-mix(in srgb, white 18%, transparent);
+  border-radius: 50%;
+  color: white;
+  display: inline-flex;
+  font-weight: 800;
+  height: 4rem;
+  justify-content: center;
+  width: 4rem;
+}
+
+.subject-dot {
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 0.58rem;
+  width: 0.58rem;
+}
+
+.subject-label {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.45rem;
+  min-width: 0;
 }
 
 .panel h3,
@@ -1833,7 +1908,18 @@ body.sidebar-collapsed .app-main {
   background: var(--surface-soft);
   border: 1px solid var(--border);
   color: var(--text);
+  display: grid;
+  gap: 0.45rem;
   text-align: left;
+}
+
+.theme-swatch {
+  background:
+    linear-gradient(135deg, var(--swatch-primary), var(--swatch-accent));
+  border-radius: 999px;
+  display: block;
+  height: 0.55rem;
+  width: 100%;
 }
 
 .theme-option.active {
@@ -2608,7 +2694,7 @@ body.sidebar-collapsed .app-main {
 .text-button {
   background: transparent;
   border-color: transparent;
-  color: var(--primary-dark);
+  color: color-mix(in srgb, var(--primary-dark) 82%, var(--text));
   min-height: auto;
   padding: 0.25rem 0.1rem;
 }
@@ -3013,9 +3099,11 @@ body.sidebar-collapsed .app-main {
 
   .section-mini-header,
   .home-topline,
-  .plan-header {
+  .plan-header,
+  .profile-card {
     align-items: flex-start;
     display: grid;
+    grid-template-columns: 1fr;
   }
 
   .timer-mode-switcher,
