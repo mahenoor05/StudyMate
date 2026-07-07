@@ -43,12 +43,12 @@ def upgrade():
     if not has_column("user", "onboarding_completed"):
         op.add_column(
             "user",
-            sa.Column("onboarding_completed", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+            sa.Column("onboarding_completed", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
 
-    op.execute("UPDATE user SET avatar_style = 'initials' WHERE avatar_style IS NULL OR avatar_style = ''")
-    op.execute("UPDATE user SET avatar_color = 'violet' WHERE avatar_color IS NULL OR avatar_color = ''")
-    op.execute("UPDATE user SET onboarding_completed = 0 WHERE onboarding_completed IS NULL")
+    op.execute('UPDATE "user" SET avatar_style = \'initials\' WHERE avatar_style IS NULL OR avatar_style = \'\'')
+    op.execute('UPDATE "user" SET avatar_color = \'violet\' WHERE avatar_color IS NULL OR avatar_color = \'\'')
+    op.execute('UPDATE "user" SET onboarding_completed = false WHERE onboarding_completed IS NULL')
 
 
 def downgrade():
