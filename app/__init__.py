@@ -2,7 +2,7 @@ import os
 
 from flask import Flask
 
-from .extensions import db, login_manager
+from .extensions import db, login_manager, migrate
 from .models import User
 
 
@@ -19,6 +19,7 @@ def create_app():
     os.makedirs(app.instance_path, exist_ok=True)
 
     db.init_app(app)
+    migrate.init_app(app, db)
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to open StudyMate."
@@ -28,9 +29,11 @@ def create_app():
         return db.session.get(User, int(user_id))
 
     from .auth.routes import auth_bp
+    from .api.routes import api_bp
     from .main.routes import main_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(api_bp)
     app.register_blueprint(main_bp)
 
     @app.cli.command("init-db")

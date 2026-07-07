@@ -13,6 +13,11 @@ const themes = [
 ];
 
 const studyMateUser = window.STUDYMATE_USER || {};
+const legacyImportBanner = document.getElementById("legacy-import-banner");
+const importLocalDataButton = document.getElementById("import-local-data");
+let databaseLoaded = false;
+let isHydratingFromServer = false;
+let syncTimerId = null;
 
 const timerModes = [
   { id: "stopwatch", name: "Stopwatch", description: "Count up while you study.", focusMinutes: null, breakMinutes: 0 },
@@ -382,22 +387,68 @@ function addDaysToDate(dateKey, days) {
   return date.toISOString().slice(0, 10);
 }
 
-function loadData() {
+async function studyMateApi(path, options = {}) {
+  const response = await fetch(`/api/${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    },
+    ...options
+  });
+
+  const data = await response.json().catch(function () { return {}; });
+  if (!response.ok) throw new Error(data.error || "StudyMate API request failed.");
+  return data;
+}
+
+function getLegacyBrowserData() {
   const savedData = localStorage.getItem(STORAGE_KEY);
 
   if (savedData) {
-    appData = parseSavedData(savedData);
-  } else {
-    appData = loadOlderData();
+    return parseSavedData(savedData);
   }
 
+  return loadOlderData();
+}
+
+function hasLegacyPersonalData(data) {
+  if (!data) return false;
+  return ["tasks", "subjects", "sessions", "plannerItems", "exams", "distractions"].some(function (key) {
+    return Array.isArray(data[key]) && data[key].length > 0;
+  });
+}
+
+function showLegacyImportIfNeeded(shouldShow) {
+  if (legacyImportBanner) legacyImportBanner.hidden = !shouldShow;
+}
+
+async function loadData() {
+  const browserData = getLegacyBrowserData();
+  appData = browserData;
   normalizeData();
 
-  if (appData.date !== getTodayKey()) {
-    resetDailyData();
+  try {
+    const response = await studyMateApi("app-data");
+    databaseLoaded = true;
+    if (response.appData) {
+      isHydratingFromServer = true;
+      appData = {
+        ...createDefaultData(),
+        ...response.appData
+      };
+      normalizeData();
+      showLegacyImportIfNeeded(false);
+      isHydratingFromServer = false;
+    } else {
+      showLegacyImportIfNeeded(!response.hasData && hasLegacyPersonalData(browserData));
+    }
+  } catch (error) {
+    databaseLoaded = false;
+    console.warn(error.message);
   }
 
-  saveData();
+  if (appData.date !== getTodayKey()) resetDailyData();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
 
   if (appData.activeSession && appData.sessionState !== "paused") {
     resumeSessionTimer();
@@ -901,6 +952,36 @@ function resetDailyData() {
 function saveData() {
   syncDailyHistory(getTodayKey());
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  queueDatabaseSync();
+}
+
+function queueDatabaseSync() {
+  if (!databaseLoaded || isHydratingFromServer) return;
+  window.clearTimeout(syncTimerId);
+  syncTimerId = window.setTimeout(function () {
+    studyMateApi("app-data", {
+      method: "PUT",
+      body: JSON.stringify(appData)
+    }).catch(function (error) {
+      console.warn(error.message);
+    });
+  }, 450);
+}
+
+async function importLegacyLocalData() {
+  if (!importLocalDataButton) return;
+  importLocalDataButton.disabled = true;
+  try {
+    await studyMateApi("import-local", {
+      method: "POST",
+      body: JSON.stringify(appData)
+    });
+    databaseLoaded = true;
+    showLegacyImportIfNeeded(false);
+  } catch (error) {
+    console.warn(error.message);
+    importLocalDataButton.disabled = false;
+  }
 }
 
 function showSection(sectionId) {
@@ -4849,11 +4930,19 @@ leaderboardTabs.forEach(function (tab) {
   });
 });
 
-loadData();
-applyAppearance();
-applySidebarState();
-renderThemes();
-renderTasks();
-renderDistractions();
-renderStudyCircles();
-updateAllDisplays();
+if (importLocalDataButton) {
+  importLocalDataButton.addEventListener("click", importLegacyLocalData);
+}
+
+async function initializeApp() {
+  await loadData();
+  applyAppearance();
+  applySidebarState();
+  renderThemes();
+  renderTasks();
+  renderDistractions();
+  renderStudyCircles();
+  updateAllDisplays();
+}
+
+initializeApp();

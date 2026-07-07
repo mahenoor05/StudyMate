@@ -12,6 +12,7 @@ Phase 6A includes:
 - Password hashing with Werkzeug.
 - Protected access to the StudyMate app.
 - Basic user personalization on the Home greeting.
+- Phase 6B Priority 1 personal data sync for subjects, sessions, tasks, goals, distractions, planner events, exams, syllabus, and milestones.
 
 The study features still use browser `localStorage` for now. Phase 6B will move personal study data into user-owned database tables.
 
@@ -55,7 +56,9 @@ pip install -r requirements.txt
 Create the database tables:
 
 ```bash
-flask --app run.py init-db
+flask --app run.py db init
+flask --app run.py db migrate -m "add personal study data"
+flask --app run.py db upgrade
 ```
 
 Run the app:
@@ -73,6 +76,6 @@ http://127.0.0.1:5000
 ## Development Notes
 
 - The SQLite file is created at `instance/studymate.sqlite`.
-- To reset development data, stop the Flask server, delete `instance/studymate.sqlite`, then run `flask --app run.py init-db` again.
+- To reset development data, stop the Flask server, delete `instance/studymate.sqlite`, then run `flask --app run.py db upgrade` again.
 - Do not commit `.env` files or local database files.
 - For local development, Flask uses a simple fallback secret key. Before production, set a real `SECRET_KEY` environment variable.

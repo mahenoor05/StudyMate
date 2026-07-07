@@ -172,6 +172,33 @@ body {
   visibility: hidden;
 }
 
+.legacy-import-banner {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-solid) 94%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  left: 50%;
+  max-width: min(92vw, 620px);
+  padding: 0.75rem;
+  position: fixed;
+  top: 0.85rem;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 30;
+}
+
+.legacy-import-banner[hidden] {
+  display: none;
+}
+
+.legacy-import-banner span {
+  color: var(--muted);
+}
+
 .loader-mark {
   animation: loaderPulse 900ms ease-in-out infinite alternate;
   height: 3rem;
