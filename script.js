@@ -2,14 +2,14 @@ const STORAGE_KEY = "studymate-app-v4";
 const OLD_STORAGE_KEYS = ["studymate-app-v3", "studymate-app-v2", "studymate-dashboard"];
 
 const themes = [
-  { id: "midnight", name: "Midnight Black", accent: "#7c5cff" },
-  { id: "amoled", name: "AMOLED Black", accent: "#00f5a0" },
-  { id: "ocean", name: "Ocean Blue", accent: "#38bdf8" },
-  { id: "nebula", name: "Purple Nebula", accent: "#a78bfa" },
-  { id: "forest", name: "Forest Green", accent: "#34d399" },
-  { id: "sakura", name: "Sakura Pink", accent: "#f9a8d4" },
-  { id: "coffee", name: "Warm Coffee", accent: "#f59e0b" },
-  { id: "light", name: "Minimal Light", accent: "#2563eb" }
+  { id: "midnight", name: "Midnight Black", accent: "#8b6cff", secondaryAccent: "#35d4ff" },
+  { id: "amoled", name: "AMOLED Black", accent: "#f8fafc", secondaryAccent: "#00f5a0" },
+  { id: "ocean", name: "Ocean Blue", accent: "#38bdf8", secondaryAccent: "#2dd4bf" },
+  { id: "nebula", name: "Purple Nebula", accent: "#a78bfa", secondaryAccent: "#f472b6" },
+  { id: "forest", name: "Forest Green", accent: "#34d399", secondaryAccent: "#bef264" },
+  { id: "sakura", name: "Sakura Pink", accent: "#f9a8d4", secondaryAccent: "#fb7185" },
+  { id: "coffee", name: "Warm Coffee", accent: "#f59e0b", secondaryAccent: "#fbbf24" },
+  { id: "light", name: "Minimal Light", accent: "#2563eb", secondaryAccent: "#14b8a6" }
 ];
 
 const timerModes = [
@@ -39,6 +39,7 @@ const examPresets = [
 const menuToggle = document.getElementById("menu-toggle");
 const navButtons = document.querySelectorAll(".nav-link");
 const sections = document.querySelectorAll(".app-section");
+const appLoader = document.getElementById("app-loader");
 
 const todayDate = document.getElementById("today-date");
 const dashboardGreeting = document.getElementById("dashboard-greeting");
@@ -66,6 +67,12 @@ const homeNextExam = document.getElementById("home-next-exam");
 const homeWeekPreview = document.getElementById("home-week-preview");
 
 const sessionStatus = document.getElementById("session-status");
+const focusWorkspace = document.getElementById("focus-workspace");
+const focusSetup = document.getElementById("focus-setup");
+const focusActive = document.getElementById("focus-active");
+const focusComplete = document.getElementById("focus-complete");
+const focusOptionalSetup = document.getElementById("focus-optional-setup");
+const preSessionDisplay = document.getElementById("pre-session-display");
 const sessionDisplay = document.getElementById("session-display");
 const sessionProgressBar = document.getElementById("session-progress-bar");
 const timerModePrev = document.getElementById("timer-mode-prev");
@@ -73,14 +80,40 @@ const timerModeNext = document.getElementById("timer-mode-next");
 const timerModeTitle = document.getElementById("timer-mode-title");
 const timerModeDescription = document.getElementById("timer-mode-description");
 const timerModeIndicators = document.getElementById("timer-mode-indicators");
+const preSessionModeMeta = document.getElementById("pre-session-mode-meta");
 const customTimerSettings = document.getElementById("custom-timer-settings");
 const customFocusInput = document.getElementById("custom-focus-input");
 const customBreakInput = document.getElementById("custom-break-input");
 const sessionSubjectSelect = document.getElementById("session-subject-select");
+const sessionGoalInput = document.getElementById("session-goal-input");
+const openSubjectModalButton = document.getElementById("open-subject-modal");
+const subjectModal = document.getElementById("subject-modal");
+const closeSubjectModalButton = document.getElementById("close-subject-modal");
+const sessionPhaseLabel = document.getElementById("session-phase-label");
+const sessionActiveSubject = document.getElementById("session-active-subject");
+const sessionActiveGoal = document.getElementById("session-active-goal");
+const sessionModePill = document.getElementById("session-mode-pill");
+const sessionPhaseCopy = document.getElementById("session-phase-copy");
+const sessionNextPhase = document.getElementById("session-next-phase");
 const sessionStartButton = document.getElementById("session-start");
 const sessionPauseButton = document.getElementById("session-pause");
 const sessionResetButton = document.getElementById("session-reset");
 const sessionSkipButton = document.getElementById("session-skip");
+const sessionFinishButton = document.getElementById("session-finish");
+const focusGoalProgress = document.getElementById("focus-goal-progress");
+const focusSessionCount = document.getElementById("focus-session-count");
+const openDistractionModalButton = document.getElementById("open-distraction-modal");
+const focusDistractionModal = document.getElementById("focus-distraction-modal");
+const closeFocusDistractionButton = document.getElementById("close-focus-distraction");
+const focusDistractionForm = document.getElementById("focus-distraction-form");
+const focusDistractionCategory = document.getElementById("focus-distraction-category");
+const focusDistractionNote = document.getElementById("focus-distraction-note");
+const completeSessionTitle = document.getElementById("complete-session-title");
+const completeSessionSummary = document.getElementById("complete-session-summary");
+const goalResultOptions = document.getElementById("goal-result-options");
+const sessionReviewNote = document.getElementById("session-review-note");
+const saveSessionReviewButton = document.getElementById("save-session-review");
+const startAnotherSessionButton = document.getElementById("start-another-session");
 const sessionTotalToday = document.getElementById("session-total-today");
 const sessionSubjectBreakdown = document.getElementById("session-subject-breakdown");
 const recentSessionList = document.getElementById("recent-session-list");
@@ -127,14 +160,8 @@ const plannerTypeInput = document.getElementById("planner-type-input");
 const plannerTitleInput = document.getElementById("planner-title-input");
 const plannerItems = document.getElementById("planner-items");
 
-const insightTotalTime = document.getElementById("insight-total-time");
-const insightTasks = document.getElementById("insight-tasks");
-const insightStreak = document.getElementById("insight-streak");
-const subjectInsights = document.getElementById("subject-insights");
 const analyticsTabs = document.querySelectorAll(".analytics-tab");
-const analyticsTotalLabel = document.getElementById("analytics-total-label");
-const analyticsChartTitle = document.getElementById("analytics-chart-title");
-const analyticsChart = document.getElementById("analytics-chart");
+const insightsContent = document.getElementById("insights-content");
 const leaderboardTable = document.getElementById("leaderboard-table");
 const leaderboardTabs = document.querySelectorAll(".leaderboard-tab");
 
@@ -279,6 +306,9 @@ function createDefaultData() {
     streak: 0,
     focusIntention: "",
     selectedSubjectId: generalSubject.id,
+    sessionState: "pre-session",
+    currentSessionDraft: { goal: "" },
+    pendingSessionReview: null,
     timerModeIndex: 0,
     customFocusMinutes: 30,
     customBreakMinutes: 0,
@@ -294,6 +324,7 @@ function createDefaultData() {
     tasks: [],
     subjects: [generalSubject],
     sessions: [],
+    dailyHistory: {},
     plannerItems: [],
     exams: [],
     distractions: [],
@@ -366,7 +397,7 @@ function loadData() {
 
   saveData();
 
-  if (appData.activeSession) {
+  if (appData.activeSession && appData.sessionState !== "paused") {
     resumeSessionTimer();
   }
 }
@@ -408,6 +439,7 @@ function migrateOldData(oldData) {
     migrated.focusIntention = parsed.focusIntention || "";
     migrated.tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
     migrated.sessions = Array.isArray(parsed.sessions) ? parsed.sessions : [];
+    migrated.dailyHistory = parsed.dailyHistory && typeof parsed.dailyHistory === "object" ? parsed.dailyHistory : {};
     migrated.distractions = Array.isArray(parsed.distractions) ? parsed.distractions : [];
 
     if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
@@ -441,6 +473,7 @@ function normalizeData() {
   if (!Array.isArray(appData.tasks)) appData.tasks = [];
   if (!Array.isArray(appData.subjects) || appData.subjects.length === 0) appData.subjects = [createSubject("General Study")];
   if (!Array.isArray(appData.sessions)) appData.sessions = [];
+  if (!appData.dailyHistory || typeof appData.dailyHistory !== "object") appData.dailyHistory = {};
   if (!Array.isArray(appData.plannerItems)) appData.plannerItems = [];
   if (!Array.isArray(appData.exams)) appData.exams = [];
   if (!Array.isArray(appData.distractions)) appData.distractions = [];
@@ -450,6 +483,13 @@ function normalizeData() {
   appData.goalHours = Number(appData.goalHours) || 2;
   appData.streak = Number(appData.streak) || 0;
   appData.focusIntention = appData.focusIntention || "";
+  appData.sessionState = ["pre-session", "active", "paused", "break", "complete"].includes(appData.sessionState) ? appData.sessionState : "pre-session";
+  appData.currentSessionDraft = appData.currentSessionDraft && typeof appData.currentSessionDraft === "object" ? appData.currentSessionDraft : { goal: "" };
+  appData.currentSessionDraft.goal = appData.currentSessionDraft.goal || "";
+  appData.pendingSessionReview = appData.pendingSessionReview && typeof appData.pendingSessionReview === "object" ? appData.pendingSessionReview : null;
+  if (appData.activeSession && appData.sessionState === "pre-session") {
+    appData.sessionState = appData.activeSession.phase === "break" ? "break" : "active";
+  }
   appData.timerModeIndex = Number(appData.timerModeIndex) || 0;
   appData.timerModeIndex = appData.timerModeIndex % timerModes.length;
   appData.customFocusMinutes = Number(appData.customFocusMinutes) || 30;
@@ -474,6 +514,8 @@ function normalizeData() {
   appData.selectedPlannerDate = appData.selectedPlannerDate || getTodayKey();
   appData.selectedSubjectId = getSubjectById(appData.selectedSubjectId) ? appData.selectedSubjectId : appData.subjects[0].id;
   appData.tasks = appData.tasks.map(normalizeTask);
+  appData.dailyHistory = normalizeDailyHistory(appData.dailyHistory);
+  appData.distractions = appData.distractions.map(normalizeDistraction);
   appData.plannerItems = appData.plannerItems.map(normalizePlannerItem);
   appData.exams = appData.exams.map(normalizeExam);
   if (appData.selectedExamId && !getExamById(appData.selectedExamId)) appData.selectedExamId = null;
@@ -500,6 +542,35 @@ function normalizeTask(task) {
     subjectId: task.subjectId || "",
     repeat,
     completedDates
+  };
+}
+
+function normalizeDailyHistory(history) {
+  const normalized = {};
+  Object.keys(history || {}).forEach(function (dateKey) {
+    const entry = history[dateKey] || {};
+    normalized[dateKey] = {
+      studySeconds: Number(entry.studySeconds || 0),
+      sessions: Number(entry.sessions || 0),
+      subjectTotals: entry.subjectTotals && typeof entry.subjectTotals === "object" ? entry.subjectTotals : {},
+      tasksCompleted: Number(entry.tasksCompleted || 0),
+      tasksPlanned: Number(entry.tasksPlanned || 0),
+      goalHours: Number(entry.goalHours || appData.goalHours || 2),
+      distractions: Array.isArray(entry.distractions) ? entry.distractions : []
+    };
+  });
+  return normalized;
+}
+
+function normalizeDistraction(entry) {
+  return {
+    id: entry.id || createId(),
+    category: entry.category || "Other",
+    reason: entry.reason || entry.note || "",
+    time: entry.time || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    date: entry.date || appData.date || getTodayKey(),
+    timestamp: entry.timestamp || new Date().toISOString(),
+    sessionId: entry.sessionId || null
   };
 }
 
@@ -745,16 +816,88 @@ function normalizeGroupActivity(activity) {
   });
 }
 
+function syncDailyHistory(dateKey) {
+  if (!dateKey) return;
+  appData.dailyHistory[dateKey] = buildDailyHistoryEntry(dateKey);
+}
+
+function buildDailyHistoryEntry(dateKey) {
+  const sessions = getSessionsForDate(dateKey);
+  const subjectTotals = getSubjectTotalsFromSessions(sessions);
+  const distractions = getDistractionsForDate(dateKey);
+  const tasks = getTasksForDate(dateKey);
+  const completedTasks = tasks.filter(function (task) {
+    return isTaskCompletedOnDate(task, dateKey);
+  });
+  let studySeconds = getSecondsFromSessions(sessions);
+
+  if (dateKey === getTodayKey()) {
+    studySeconds = Math.max(studySeconds, appData.studySeconds);
+    appData.subjects.forEach(function (subject) {
+      if (subject.seconds > 0) subjectTotals[subject.name] = Math.max(subjectTotals[subject.name] || 0, subject.seconds);
+    });
+  }
+
+  return {
+    studySeconds,
+    sessions: sessions.length,
+    subjectTotals,
+    tasksCompleted: completedTasks.length,
+    tasksPlanned: tasks.length,
+    goalHours: Number(appData.goalHours || 2),
+    distractions
+  };
+}
+
+function getSessionsForDate(dateKey) {
+  return appData.sessions.filter(function (session) {
+    return (session.date || getDateKeyFromDate(new Date(session.startedAt))) === dateKey;
+  });
+}
+
+function getSubjectTotalsFromSessions(sessions) {
+  return sessions.reduce(function (totals, session) {
+    const subjectName = session.subjectName || getSubjectName(session.subjectId);
+    totals[subjectName] = (totals[subjectName] || 0) + Number(session.durationSeconds || 0);
+    return totals;
+  }, {});
+}
+
+function getDistractionsForDate(dateKey) {
+  return appData.distractions.filter(function (entry) {
+    return (entry.date || appData.date || getTodayKey()) === dateKey;
+  });
+}
+
+function getTasksForDate(dateKey) {
+  return appData.tasks.filter(function (task) {
+    if (task.repeat === "daily") return true;
+    if (task.date) return task.date === dateKey;
+    return dateKey === getTodayKey();
+  });
+}
+
+function isTaskCompletedOnDate(task, dateKey) {
+  if (task.repeat === "daily") {
+    return Array.isArray(task.completedDates) && task.completedDates.includes(dateKey);
+  }
+
+  return Boolean(task.completed) && (!task.date || task.date === dateKey);
+}
+
 function resetDailyData() {
+  syncDailyHistory(appData.date);
   appData.date = getTodayKey();
   appData.studySeconds = 0;
   appData.distractions = [];
   appData.subjects = appData.subjects.map(function (subject) {
     return { ...subject, seconds: 0 };
   });
+  syncDailyHistory(getTodayKey());
 }
 
 function saveData() {
+  syncDailyHistory(getTodayKey());
   localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
 }
 
@@ -1005,6 +1148,7 @@ function getSelectedSubject() {
 
 function getSessionElapsedSeconds() {
   if (!appData.activeSession) return 0;
+  if (appData.sessionState === "paused") return appData.activeSession.elapsedSeconds;
   return appData.activeSession.elapsedSeconds + Math.floor((Date.now() - new Date(appData.activeSession.startedAt).getTime()) / 1000);
 }
 
@@ -1101,18 +1245,42 @@ function updateSessionPage() {
   const isCountdown = Boolean(focusSeconds);
   const remaining = isCountdown ? Math.max(focusSeconds - elapsed, 0) : elapsed;
   const progressPercent = isCountdown ? Math.min((elapsed / focusSeconds) * 100, 100) : 0;
+  const state = getFocusState();
+  const subject = appData.activeSession
+    ? getSubjectById(appData.activeSession.subjectId) || getSelectedSubject()
+    : getSelectedSubject();
+  const goal = appData.activeSession ? appData.activeSession.goal : appData.currentSessionDraft.goal;
 
   timerModeTitle.textContent = mode.name;
   timerModeDescription.textContent = mode.description;
+  preSessionDisplay.textContent = formatPreSessionTimer(mode);
+  preSessionModeMeta.textContent = getModeMetaText(mode);
   customTimerSettings.classList.toggle("active", mode.id === "custom");
   customFocusInput.value = appData.customFocusMinutes;
   customBreakInput.value = appData.customBreakMinutes;
+  sessionGoalInput.value = appData.currentSessionDraft.goal || "";
+  focusWorkspace.dataset.sessionState = state;
+  focusSetup.hidden = state !== "pre-session";
+  focusActive.hidden = !["active", "paused", "break"].includes(state);
+  focusComplete.hidden = state !== "complete";
+  focusOptionalSetup.hidden = state !== "pre-session";
+  if (state === "complete") renderCompletionReview(appData.pendingSessionReview);
   sessionDisplay.textContent = isCountdown ? formatLongTime(remaining) : formatLongTime(elapsed);
-  sessionStatus.textContent = appData.activeSession
-    ? appData.activeSession.phase === "break" ? "Break" : "Studying"
-    : "Not started";
+  sessionStatus.textContent = getFocusStatusLabel(state);
+  sessionPhaseLabel.textContent = appData.activeSession && appData.activeSession.phase === "break" ? "Break" : "Focus";
+  sessionPhaseCopy.textContent = isCountdown
+    ? `${formatLongTime(remaining)} remaining`
+    : state === "paused" ? "Paused" : "Counting up while you study.";
+  sessionNextPhase.textContent = getNextPhaseCopy();
+  sessionActiveSubject.textContent = subject.name;
+  sessionActiveGoal.textContent = goal ? goal : "No session goal set.";
+  sessionModePill.textContent = appData.activeSession ? appData.activeSession.mode : mode.name;
+  sessionPauseButton.textContent = state === "paused" ? "Resume" : "Pause";
+  sessionSkipButton.hidden = !appData.activeSession || appData.activeSession.modeId === "stopwatch";
   sessionProgressBar.style.width = `${progressPercent}%`;
   sessionTotalToday.textContent = formatShortTime(appData.studySeconds);
+  focusGoalProgress.textContent = `${getGoalPercent()}%`;
+  focusSessionCount.textContent = getSessionsForDate(getTodayKey()).length;
   intentionInput.value = appData.focusIntention;
   intentionCount.textContent = `${appData.focusIntention.length}/180`;
   renderTimerModeIndicators();
@@ -1122,12 +1290,51 @@ function updateSessionPage() {
 function renderTimerModeIndicators() {
   timerModeIndicators.innerHTML = "";
   timerModes.forEach(function (mode, index) {
-    const dot = document.createElement("span");
-    dot.className = "mode-dot";
-    dot.classList.toggle("active", index === appData.timerModeIndex);
-    dot.textContent = mode.name;
-    timerModeIndicators.appendChild(dot);
+    const label = document.createElement("span");
+    label.className = "mode-dot";
+    label.classList.toggle("active", index === appData.timerModeIndex);
+    label.setAttribute("aria-label", mode.name);
+    timerModeIndicators.appendChild(label);
   });
+}
+
+function formatPreSessionTimer(mode) {
+  const focusMinutes = mode.id === "custom" ? appData.customFocusMinutes : mode.focusMinutes;
+  if (!focusMinutes) return "0h 00m 00s";
+  return formatLongTime(focusMinutes * 60);
+}
+
+function getModeMetaText(mode) {
+  const focusMinutes = mode.id === "custom" ? appData.customFocusMinutes : mode.focusMinutes;
+  const breakMinutes = mode.id === "custom" ? appData.customBreakMinutes : mode.breakMinutes;
+  if (!focusMinutes) return "Open timer - no break";
+  return `${focusMinutes}m focus - ${breakMinutes ? `${breakMinutes}m break` : "no break"}`;
+}
+
+function getFocusState() {
+  if (appData.pendingSessionReview) return "complete";
+  if (!appData.activeSession) return "pre-session";
+  if (appData.sessionState === "paused") return "paused";
+  if (appData.activeSession.phase === "break") return "break";
+  return "active";
+}
+
+function getFocusStatusLabel(state) {
+  const labels = {
+    "pre-session": "Not started",
+    active: "Studying",
+    paused: "Paused",
+    break: "Break",
+    complete: "Complete"
+  };
+  return labels[state] || "Not started";
+}
+
+function getNextPhaseCopy() {
+  if (!appData.activeSession) return "Choose a session style to see the next phase.";
+  if (appData.activeSession.phase === "break") return "Next: back to setup.";
+  if (!appData.activeSession.breakSeconds) return "Next: session review.";
+  return `Next: ${Math.round(appData.activeSession.breakSeconds / 60)}m break`;
 }
 
 function updateGoal() {
@@ -1142,9 +1349,7 @@ function updateGoal() {
 
 function updateInsights() {
   const range = appData.selectedAnalyticsRange;
-  const sessions = getSessionsForRange(range);
-  const tasks = getTasksForRange(range);
-  const totalSeconds = range === "today" ? appData.studySeconds : getSecondsFromSessions(sessions);
+  syncDailyHistory(getTodayKey());
 
   analyticsTabs.forEach(function (tab) {
     const isActive = tab.dataset.analyticsRange === range;
@@ -1152,12 +1357,19 @@ function updateInsights() {
     tab.classList.toggle("secondary-button", !isActive);
   });
 
-  analyticsTotalLabel.textContent = `${getRangeLabel(range)} Total`;
-  insightTotalTime.textContent = formatShortTime(totalSeconds);
-  insightTasks.textContent = tasks.filter(function (task) { return task.completed; }).length;
-  insightStreak.textContent = `${appData.streak} days`;
-  renderAnalyticsSubjectBreakdown(sessions, range);
-  renderAnalyticsChart(range);
+  insightsContent.innerHTML = "";
+
+  if (range === "week") {
+    renderWeekInsights();
+    return;
+  }
+
+  if (range === "month") {
+    renderMonthInsights();
+    return;
+  }
+
+  renderTodayInsights();
 }
 
 function renderSubjectOptions() {
@@ -1301,7 +1513,7 @@ function renderSubjectBreakdown(container) {
   });
 
   if (subjectsWithTime.length === 0) {
-    appendSimpleItem(container, "No subject time yet.");
+    appendSimpleItem(container, "No subject time yet. Start a session to see your breakdown.");
     return;
   }
 
@@ -1321,82 +1533,576 @@ function renderSubjectBreakdown(container) {
     });
 }
 
-function renderAnalyticsSubjectBreakdown(sessions, range) {
-  subjectInsights.innerHTML = "";
+function renderTodayInsights() {
+  const today = getTodayKey();
+  const entry = getHistoryEntry(today);
+  const sessions = getSessionsForDate(today);
+  const tasks = getTasksForDate(today);
+  const completedTasks = tasks.filter(function (task) { return isTaskCompletedOnDate(task, today); });
+  const goalSeconds = Math.max(1, Number(entry.goalHours || appData.goalHours || 2) * 3600);
+  const goalPercent = Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100));
 
-  if (range === "today") {
-    renderSubjectBreakdown(subjectInsights);
-    return;
-  }
+  insightsContent.appendChild(createInsightSummaryStrip([
+    { label: "Studied", value: formatShortTime(entry.studySeconds) },
+    { label: "Sessions", value: String(entry.sessions) },
+    { label: "Tasks done", value: `${completedTasks.length}/${tasks.length}` },
+    { label: "Goal progress", value: `${goalPercent}%` }
+  ]));
 
-  const totalsBySubject = {};
-  sessions.forEach(function (session) {
-    const subjectName = session.subjectName || getSubjectName(session.subjectId);
-    totalsBySubject[subjectName] = (totalsBySubject[subjectName] || 0) + Number(session.durationSeconds || 0);
-  });
+  const layout = createElement("div", "insights-main-grid");
+  layout.appendChild(createPanel("Today timeline", renderTodayTimeline(sessions)));
+  layout.appendChild(createPanel("Session review", renderTodaySessionReview(sessions)));
+  insightsContent.appendChild(layout);
 
-  const rows = Object.keys(totalsBySubject).map(function (subjectName) {
-    return { name: subjectName, seconds: totalsBySubject[subjectName] };
-  });
+  const lower = createElement("div", "insights-lower-grid");
+  lower.appendChild(createPanel("Subject breakdown", renderSubjectDistribution(entry.subjectTotals, entry.studySeconds)));
+  lower.appendChild(createPanel("Tasks and goal", renderTaskGoalReview(tasks.length, completedTasks.length, entry.studySeconds, goalSeconds)));
+  lower.appendChild(createPanel("Top distractions today", renderDistractionReview(entry.distractions)));
+  insightsContent.appendChild(lower);
 
-  if (rows.length === 0) {
-    appendSimpleItem(subjectInsights, "No subject time for this range yet.");
-    return;
-  }
-
-  rows
-    .sort(function (first, second) { return second.seconds - first.seconds; })
-    .forEach(function (rowData) {
-      const row = document.createElement("div");
-      row.className = "insight-row";
-      const name = document.createElement("span");
-      const time = document.createElement("strong");
-      name.textContent = rowData.name;
-      time.textContent = formatShortTime(rowData.seconds);
-      row.appendChild(name);
-      row.appendChild(time);
-      subjectInsights.appendChild(row);
-    });
+  insightsContent.appendChild(renderInsightSentences([entry], "today"));
 }
 
-function renderAnalyticsChart(range) {
-  analyticsChart.innerHTML = "";
-  const days = range === "month" ? 30 : 7;
-  const labels = [];
-  const totals = [];
+function renderWeekInsights() {
+  const days = getRecentDateKeys(7);
+  const entries = days.map(getHistoryEntry);
+  const totalSeconds = sumEntries(entries, "studySeconds");
+  const activeDays = entries.filter(function (entry) { return entry.studySeconds > 0; }).length;
+  const averageSeconds = Math.round(totalSeconds / 7);
+  const goalRate = getGoalCompletionRate(entries);
 
+  insightsContent.appendChild(createInsightSummaryStrip([
+    { label: "Weekly total", value: formatShortTime(totalSeconds) },
+    { label: "Average per day", value: formatShortTime(averageSeconds) },
+    { label: "Active days", value: `${activeDays}/7` },
+    { label: "Goal completion", value: `${goalRate}%` }
+  ]));
+
+  const layout = createElement("div", "insights-main-grid");
+  layout.appendChild(createPanel("Weekly study chart", renderWeeklyStudyChart(days, entries)));
+  layout.appendChild(createPanel("Weekly patterns", renderWeeklyPatterns(days, entries)));
+  insightsContent.appendChild(layout);
+
+  const lower = createElement("div", "insights-lower-grid two-column");
+  lower.appendChild(createPanel("Subject distribution", renderSubjectDistribution(mergeSubjectTotals(entries), totalSeconds)));
+  lower.appendChild(createPanel("Task performance", renderTaskPerformance(entries)));
+  lower.appendChild(createPanel("Goal consistency", renderGoalConsistency(days, entries)));
+  insightsContent.appendChild(lower);
+
+  insightsContent.appendChild(renderInsightSentences(entries, "week"));
+}
+
+function renderMonthInsights() {
+  const days = getMonthDateKeys();
+  const entries = days.map(getHistoryEntry);
+  const totalSeconds = sumEntries(entries, "studySeconds");
+  const activeDays = entries.filter(function (entry) { return entry.studySeconds > 0; }).length;
+  const totalSessions = sumEntries(entries, "sessions");
+  const averageStudyDay = activeDays ? Math.round(totalSeconds / activeDays) : 0;
+  const longestStreak = getLongestEntryStreak(entries);
+
+  insightsContent.appendChild(createInsightSummaryStrip([
+    { label: "Month total", value: formatShortTime(totalSeconds) },
+    { label: "Active days", value: String(activeDays) },
+    { label: "Avg study day", value: formatShortTime(averageStudyDay) },
+    { label: "Sessions", value: String(totalSessions) },
+    { label: "Longest streak", value: `${longestStreak} days` }
+  ]));
+
+  const layout = createElement("div", "insights-main-grid");
+  layout.appendChild(createPanel("Monthly heatmap", renderMonthlyHeatmap(days, entries)));
+  layout.appendChild(createPanel("Performance summary", renderMonthlySummary(days, entries)));
+  insightsContent.appendChild(layout);
+
+  const lower = createElement("div", "insights-lower-grid two-column");
+  lower.appendChild(createPanel("Weekly comparison", renderMonthlyWeekComparison(days, entries)));
+  lower.appendChild(createPanel("Subject trends", renderMonthlySubjectTrends(days, entries)));
+  insightsContent.appendChild(lower);
+
+  insightsContent.appendChild(renderInsightSentences(entries, "month"));
+}
+
+function createInsightSummaryStrip(items) {
+  const strip = createElement("div", "insight-summary-strip");
+  items.forEach(function (item) {
+    const block = createElement("div", "insight-summary-item");
+    const value = document.createElement("strong");
+    const label = document.createElement("span");
+    value.textContent = item.value;
+    label.textContent = item.label;
+    block.appendChild(value);
+    block.appendChild(label);
+    strip.appendChild(block);
+  });
+  return strip;
+}
+
+function createPanel(title, content) {
+  const panel = createElement("article", "panel insight-panel");
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+  panel.appendChild(heading);
+  panel.appendChild(content);
+  return panel;
+}
+
+function renderTodayTimeline(sessions) {
+  const timeline = createElement("div", "study-timeline");
+  if (sessions.length === 0) {
+    appendCompactEmpty(timeline, "No study sessions yet today.");
+    return timeline;
+  }
+
+  const labels = createElement("div", "timeline-labels");
+  ["6 AM", "9 AM", "12 PM", "3 PM", "6 PM", "9 PM"].forEach(function (label) {
+    const tick = document.createElement("span");
+    tick.textContent = label;
+    labels.appendChild(tick);
+  });
+  timeline.appendChild(labels);
+
+  const track = createElement("div", "timeline-track");
+  sessions.slice().reverse().forEach(function (session) {
+    const start = new Date(session.startedAt);
+    const end = new Date(session.endedAt || session.startedAt);
+    const startMinutes = start.getHours() * 60 + start.getMinutes();
+    const durationMinutes = Math.max(5, Math.round((end - start) / 60000));
+    const left = Math.max(0, Math.min(100, ((startMinutes - 360) / 960) * 100));
+    const width = Math.max(8, Math.min(100 - left, (durationMinutes / 960) * 100));
+    const block = createElement("span", "timeline-block");
+    block.style.left = `${left}%`;
+    block.style.width = `${width}%`;
+    block.title = `${session.subjectName || getSubjectName(session.subjectId)}: ${formatShortTime(session.durationSeconds)}`;
+    block.textContent = session.subjectName || getSubjectName(session.subjectId);
+    track.appendChild(block);
+  });
+  timeline.appendChild(track);
+  return timeline;
+}
+
+function renderTodaySessionReview(sessions) {
+  const list = createElement("div", "insight-compact-list");
+  if (sessions.length === 0) {
+    appendCompactEmpty(list, "Complete a study session to review it here.");
+    return list;
+  }
+
+  const longest = sessions.reduce(function (best, session) {
+    return Number(session.durationSeconds || 0) > Number(best.durationSeconds || 0) ? session : best;
+  }, sessions[0]);
+  const average = Math.round(getSecondsFromSessions(sessions) / sessions.length);
+  const modes = countBy(sessions, function (session) { return session.mode || "Timer"; });
+  appendInsightRow(list, "Longest session", formatShortTime(longest.durationSeconds));
+  appendInsightRow(list, "Average", formatShortTime(average));
+  appendInsightRow(list, "Most used", getTopCountLabel(modes, "None"));
+  appendInsightRow(list, "Breaks logged", "Not tracked yet");
+  return list;
+}
+
+function renderSubjectDistribution(subjectTotals, totalSeconds) {
+  const list = createElement("div", "subject-distribution-list");
+  const rows = Object.keys(subjectTotals || {})
+    .map(function (name) { return { name, seconds: Number(subjectTotals[name] || 0) }; })
+    .filter(function (row) { return row.seconds > 0; })
+    .sort(function (first, second) { return second.seconds - first.seconds; });
+
+  if (rows.length === 0) {
+    appendCompactEmpty(list, "No subject time for this period yet.");
+    return list;
+  }
+
+  rows.forEach(function (row) {
+    const percent = totalSeconds ? Math.round((row.seconds / totalSeconds) * 100) : 0;
+    const item = createElement("div", "subject-distribution-row");
+    const copy = document.createElement("div");
+    const name = document.createElement("strong");
+    const meta = document.createElement("span");
+    const progress = createElement("div", "mini-progress");
+    const fill = document.createElement("span");
+    name.textContent = row.name;
+    meta.textContent = `${formatShortTime(row.seconds)} - ${percent}%`;
+    fill.style.width = `${percent}%`;
+    copy.appendChild(name);
+    copy.appendChild(meta);
+    progress.appendChild(fill);
+    item.appendChild(copy);
+    item.appendChild(progress);
+    list.appendChild(item);
+  });
+  return list;
+}
+
+function renderTaskGoalReview(planned, completed, studiedSeconds, goalSeconds) {
+  const list = createElement("div", "insight-compact-list");
+  const taskPercent = planned ? Math.round((completed / planned) * 100) : 0;
+  const goalPercent = Math.min(100, Math.round((studiedSeconds / goalSeconds) * 100));
+  appendProgressRow(list, "Tasks", `${completed} of ${planned} completed`, taskPercent);
+  appendProgressRow(list, "Goal", `${formatShortTime(studiedSeconds)} of ${formatShortTime(goalSeconds)}`, goalPercent);
+  return list;
+}
+
+function renderDistractionReview(distractions) {
+  const list = createElement("div", "insight-compact-list");
+  if (!distractions || distractions.length === 0) {
+    appendCompactEmpty(list, "No distractions logged today.");
+    return list;
+  }
+
+  const counts = countBy(distractions, function (entry) { return entry.category || "Other"; });
+  Object.keys(counts)
+    .sort(function (first, second) { return counts[second] - counts[first]; })
+    .slice(0, 5)
+    .forEach(function (category) {
+      appendInsightRow(list, category, String(counts[category]));
+    });
+  return list;
+}
+
+function renderWeeklyStudyChart(days, entries) {
+  const chart = createElement("div", "insight-bar-chart weekly-chart");
+  const maxSeconds = Math.max(...entries.map(function (entry) { return entry.studySeconds; }), 1);
+  const mostSeconds = Math.max(...entries.map(function (entry) { return entry.studySeconds; }), 0);
+  days.forEach(function (dateKey, index) {
+    const date = new Date(`${dateKey}T00:00:00`);
+    const entry = entries[index];
+    const column = createElement("div", "insight-bar-column");
+    const fill = createElement("span", "insight-bar-fill");
+    const label = document.createElement("small");
+    fill.style.height = `${Math.max((entry.studySeconds / maxSeconds) * 100, entry.studySeconds > 0 ? 8 : 2)}%`;
+    fill.title = `${date.toLocaleDateString(undefined, { weekday: "long" })}: ${formatShortTime(entry.studySeconds)}`;
+    if (dateKey === getTodayKey()) fill.classList.add("today");
+    if (entry.studySeconds > 0 && entry.studySeconds === mostSeconds) fill.classList.add("best");
+    label.textContent = date.toLocaleDateString(undefined, { weekday: "short" });
+    column.appendChild(fill);
+    column.appendChild(label);
+    chart.appendChild(column);
+  });
+  return chart;
+}
+
+function renderWeeklyPatterns(days, entries) {
+  const list = createElement("div", "insight-compact-list");
+  const bestIndex = getBestEntryIndex(entries);
+  const subjectTotals = mergeSubjectTotals(entries);
+  const distractions = entries.flatMap(function (entry) { return entry.distractions; });
+  const longestSession = getLongestSessionForDates(days);
+
+  if (sumEntries(entries, "studySeconds") === 0) {
+    appendCompactEmpty(list, "Study across a few days to unlock weekly patterns.");
+    return list;
+  }
+
+  appendInsightRow(list, "Most productive day", bestIndex >= 0 ? new Date(`${days[bestIndex]}T00:00:00`).toLocaleDateString(undefined, { weekday: "long" }) : "-");
+  appendInsightRow(list, "Most studied subject", getTopSubjectLabel(subjectTotals));
+  appendInsightRow(list, "Longest session", longestSession ? formatShortTime(longestSession.durationSeconds) : "-");
+  appendInsightRow(list, "Most common distraction", getTopCountLabel(countBy(distractions, function (entry) { return entry.category || "Other"; }), "None"));
+  return list;
+}
+
+function renderTaskPerformance(entries) {
+  const list = createElement("div", "insight-compact-list");
+  const planned = sumEntries(entries, "tasksPlanned");
+  const completed = sumEntries(entries, "tasksCompleted");
+  const rate = planned ? Math.round((completed / planned) * 100) : 0;
+  appendInsightRow(list, "Tasks completed", String(completed));
+  appendInsightRow(list, "Carried over", String(Math.max(0, planned - completed)));
+  appendProgressRow(list, "Completion rate", `${rate}%`, rate);
+  return list;
+}
+
+function renderGoalConsistency(days, entries) {
+  const row = createElement("div", "goal-consistency-row");
+  days.forEach(function (dateKey, index) {
+    const entry = entries[index];
+    const goalSeconds = Math.max(1, Number(entry.goalHours || appData.goalHours || 2) * 3600);
+    const percent = Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100));
+    const item = createElement("div", "goal-day");
+    const label = document.createElement("span");
+    const value = document.createElement("strong");
+    label.textContent = new Date(`${dateKey}T00:00:00`).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 3);
+    value.textContent = entry.studySeconds === 0 ? "-" : percent >= 100 ? "Done" : `${percent}%`;
+    item.classList.toggle("complete", percent >= 100);
+    item.appendChild(label);
+    item.appendChild(value);
+    row.appendChild(item);
+  });
+  return row;
+}
+
+function renderMonthlyHeatmap(days, entries) {
+  const wrap = createElement("div", "monthly-heatmap");
+  const maxSeconds = Math.max(...entries.map(function (entry) { return entry.studySeconds; }), 1);
+  days.forEach(function (dateKey, index) {
+    const date = new Date(`${dateKey}T00:00:00`);
+    const entry = entries[index];
+    const cell = createElement("span", "heatmap-cell");
+    const intensity = entry.studySeconds === 0 ? 0 : Math.max(1, Math.ceil((entry.studySeconds / maxSeconds) * 4));
+    cell.dataset.intensity = String(intensity);
+    cell.title = `${date.toLocaleDateString(undefined, { month: "long", day: "numeric" })}: ${formatShortTime(entry.studySeconds)}`;
+    cell.textContent = String(date.getDate());
+    wrap.appendChild(cell);
+  });
+
+  if (sumEntries(entries, "studySeconds") === 0) {
+    appendCompactEmpty(wrap, "Your monthly heatmap will fill as you study.");
+  }
+
+  return wrap;
+}
+
+function renderMonthlyWeekComparison(days, entries) {
+  const weeks = getMonthWeeks(days, entries);
+  const chart = createElement("div", "insight-bar-chart week-comparison-chart");
+  const maxSeconds = Math.max(...weeks.map(function (week) { return week.seconds; }), 1);
+  weeks.forEach(function (week) {
+    const column = createElement("div", "insight-bar-column");
+    const fill = createElement("span", "insight-bar-fill");
+    const label = document.createElement("small");
+    fill.style.height = `${Math.max((week.seconds / maxSeconds) * 100, week.seconds > 0 ? 8 : 2)}%`;
+    fill.title = `${week.label}: ${formatShortTime(week.seconds)}`;
+    label.textContent = week.label;
+    column.appendChild(fill);
+    column.appendChild(label);
+    chart.appendChild(column);
+  });
+  return chart;
+}
+
+function renderMonthlySubjectTrends(days, entries) {
+  const list = createElement("div", "insight-compact-list");
+  const weeks = getMonthWeeks(days, entries);
+  const monthSubjects = Object.keys(mergeSubjectTotals(entries))
+    .sort(function (first, second) {
+      return mergeSubjectTotals(entries)[second] - mergeSubjectTotals(entries)[first];
+    })
+    .slice(0, 4);
+
+  if (monthSubjects.length === 0) {
+    appendCompactEmpty(list, "Subject trends will appear after more study sessions.");
+    return list;
+  }
+
+  monthSubjects.forEach(function (subject) {
+    const trend = weeks.map(function (week) {
+      const seconds = week.entries.reduce(function (total, entry) {
+        return total + Number((entry.subjectTotals || {})[subject] || 0);
+      }, 0);
+      return `${week.label}: ${formatShortTime(seconds)}`;
+    }).join(" | ");
+    appendInsightRow(list, subject, trend);
+  });
+  return list;
+}
+
+function renderMonthlySummary(days, entries) {
+  const list = createElement("div", "insight-compact-list");
+  const weeks = getMonthWeeks(days, entries);
+  const bestWeek = weeks.slice().sort(function (first, second) { return second.seconds - first.seconds; })[0];
+  const subjectTotals = mergeSubjectTotals(entries);
+  const tasksCompleted = sumEntries(entries, "tasksCompleted");
+  appendInsightRow(list, "Best week", bestWeek && bestWeek.seconds > 0 ? bestWeek.label : "-");
+  appendInsightRow(list, "Most consistent subject", getTopSubjectLabel(subjectTotals));
+  appendInsightRow(list, "Tasks completed", String(tasksCompleted));
+  appendInsightRow(list, "Goal completion", `${getGoalCompletionRate(entries)}%`);
+  appendInsightRow(list, "Longest streak", `${getLongestEntryStreak(entries)} days`);
+  return list;
+}
+
+function renderInsightSentences(entries, range) {
+  const panel = createPanel("Observations", createElement("div", "insight-sentence-list"));
+  const list = panel.querySelector(".insight-sentence-list");
+  const totalSeconds = sumEntries(entries, "studySeconds");
+  const subjectTotals = mergeSubjectTotals(entries);
+  const distractions = entries.flatMap(function (entry) { return entry.distractions; });
+  const topSubject = getTopSubject(subjectTotals);
+  const topDistraction = getTopCountLabel(countBy(distractions, function (entry) { return entry.category || "Other"; }), "");
+
+  if (totalSeconds === 0) {
+    appendCompactEmpty(list, "Study a little longer and patterns will start appearing here.");
+    return panel;
+  }
+
+  if (topSubject) {
+    const percent = Math.round((topSubject.seconds / totalSeconds) * 100);
+    appendCompactEmpty(list, `${topSubject.name} received ${percent}% of your ${range} study time.`);
+  }
+
+  if (topDistraction) {
+    appendCompactEmpty(list, `${topDistraction} was your most logged distraction.`);
+  }
+
+  if (range !== "today") {
+    const activeDays = entries.filter(function (entry) { return entry.studySeconds > 0; }).length;
+    appendCompactEmpty(list, `You studied on ${activeDays} of ${entries.length} days in this ${range}.`);
+  }
+
+  return panel;
+}
+
+function createElement(tagName, className) {
+  const element = document.createElement(tagName);
+  if (className) element.className = className;
+  return element;
+}
+
+function appendCompactEmpty(parent, text) {
+  const item = document.createElement("p");
+  item.className = "compact-empty";
+  item.textContent = text;
+  parent.appendChild(item);
+}
+
+function appendInsightRow(parent, label, value) {
+  const row = createElement("div", "insight-detail-row");
+  const labelElement = document.createElement("span");
+  const valueElement = document.createElement("strong");
+  labelElement.textContent = label;
+  valueElement.textContent = value;
+  row.appendChild(labelElement);
+  row.appendChild(valueElement);
+  parent.appendChild(row);
+}
+
+function appendProgressRow(parent, label, value, percent) {
+  const row = createElement("div", "insight-progress-row");
+  const top = createElement("div", "insight-progress-copy");
+  const labelElement = document.createElement("span");
+  const valueElement = document.createElement("strong");
+  const bar = createElement("div", "mini-progress");
+  const fill = document.createElement("span");
+  labelElement.textContent = label;
+  valueElement.textContent = value;
+  fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  top.appendChild(labelElement);
+  top.appendChild(valueElement);
+  bar.appendChild(fill);
+  row.appendChild(top);
+  row.appendChild(bar);
+  parent.appendChild(row);
+}
+
+function getHistoryEntry(dateKey) {
+  if (dateKey === getTodayKey()) syncDailyHistory(dateKey);
+  return appData.dailyHistory[dateKey] || buildDailyHistoryEntry(dateKey);
+}
+
+function getRecentDateKeys(days) {
+  const keys = [];
   for (let index = days - 1; index >= 0; index -= 1) {
     const date = new Date();
     date.setDate(date.getDate() - index);
-    const dateKey = getDateKeyFromDate(date);
-    const dayTotal = appData.sessions
-      .filter(function (session) { return session.date === dateKey; })
-      .reduce(function (total, session) { return total + Number(session.durationSeconds || 0); }, 0);
-
-    labels.push(date.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
-    totals.push(dateKey === getTodayKey() ? Math.max(dayTotal, appData.studySeconds) : dayTotal);
+    keys.push(getDateKeyFromDate(date));
   }
+  return keys;
+}
 
-  const maxSeconds = Math.max(...totals, 1);
-  analyticsChartTitle.textContent = `${getRangeLabel(range)} Study Chart`;
+function getMonthDateKeys() {
+  const keys = [];
+  const today = new Date();
+  const date = new Date(today.getFullYear(), today.getMonth(), 1);
+  while (date.getMonth() === today.getMonth() && date <= today) {
+    keys.push(getDateKeyFromDate(date));
+    date.setDate(date.getDate() + 1);
+  }
+  return keys;
+}
 
-  totals.forEach(function (seconds, index) {
-    const column = document.createElement("div");
-    column.className = "bar-column";
+function sumEntries(entries, key) {
+  return entries.reduce(function (total, entry) {
+    return total + Number(entry[key] || 0);
+  }, 0);
+}
 
-    const fill = document.createElement("span");
-    fill.className = "bar-fill";
-    fill.style.height = `${Math.max((seconds / maxSeconds) * 100, seconds > 0 ? 8 : 2)}%`;
-    fill.title = `${labels[index]}: ${formatShortTime(seconds)}`;
+function mergeSubjectTotals(entries) {
+  return entries.reduce(function (totals, entry) {
+    Object.keys(entry.subjectTotals || {}).forEach(function (subjectName) {
+      totals[subjectName] = (totals[subjectName] || 0) + Number(entry.subjectTotals[subjectName] || 0);
+    });
+    return totals;
+  }, {});
+}
 
-    const label = document.createElement("small");
-    label.className = "bar-label";
-    label.textContent = range === "month" ? String(index + 1) : labels[index].split(" ")[1];
+function countBy(items, getKey) {
+  return items.reduce(function (counts, item) {
+    const key = getKey(item);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
 
-    column.appendChild(fill);
-    column.appendChild(label);
-    analyticsChart.appendChild(column);
+function getTopCountLabel(counts, emptyLabel) {
+  const keys = Object.keys(counts || {});
+  if (keys.length === 0) return emptyLabel;
+  return keys.sort(function (first, second) { return counts[second] - counts[first]; })[0];
+}
+
+function getTopSubject(subjectTotals) {
+  const subjects = Object.keys(subjectTotals || {});
+  if (subjects.length === 0) return null;
+  const name = subjects.sort(function (first, second) {
+    return subjectTotals[second] - subjectTotals[first];
+  })[0];
+  return { name, seconds: Number(subjectTotals[name] || 0) };
+}
+
+function getTopSubjectLabel(subjectTotals) {
+  const subject = getTopSubject(subjectTotals);
+  return subject ? subject.name : "-";
+}
+
+function getGoalCompletionRate(entries) {
+  if (entries.length === 0) return 0;
+  const totalPercent = entries.reduce(function (total, entry) {
+    const goalSeconds = Math.max(1, Number(entry.goalHours || appData.goalHours || 2) * 3600);
+    return total + Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100));
+  }, 0);
+  return Math.round(totalPercent / entries.length);
+}
+
+function getBestEntryIndex(entries) {
+  let bestIndex = -1;
+  let bestSeconds = 0;
+  entries.forEach(function (entry, index) {
+    if (entry.studySeconds > bestSeconds) {
+      bestSeconds = entry.studySeconds;
+      bestIndex = index;
+    }
   });
+  return bestIndex;
+}
+
+function getLongestSessionForDates(dateKeys) {
+  const dateSet = new Set(dateKeys);
+  return appData.sessions
+    .filter(function (session) { return dateSet.has(session.date || getDateKeyFromDate(new Date(session.startedAt))); })
+    .sort(function (first, second) { return Number(second.durationSeconds || 0) - Number(first.durationSeconds || 0); })[0] || null;
+}
+
+function getLongestEntryStreak(entries) {
+  let current = 0;
+  let longest = 0;
+  entries.forEach(function (entry) {
+    if (entry.studySeconds > 0) {
+      current += 1;
+      longest = Math.max(longest, current);
+    } else {
+      current = 0;
+    }
+  });
+  return longest;
+}
+
+function getMonthWeeks(days, entries) {
+  const weeks = [];
+  days.forEach(function (dateKey, index) {
+    const weekIndex = Math.floor((new Date(`${dateKey}T00:00:00`).getDate() - 1) / 7);
+    if (!weeks[weekIndex]) {
+      weeks[weekIndex] = { label: `Week ${weekIndex + 1}`, seconds: 0, entries: [] };
+    }
+    weeks[weekIndex].seconds += entries[index].studySeconds;
+    weeks[weekIndex].entries.push(entries[index]);
+  });
+  return weeks.filter(Boolean);
 }
 
 function renderRecentSessions() {
@@ -1418,23 +2124,44 @@ function renderRecentSessions() {
 
   sessions.slice(0, 8).forEach(function (session) {
     const item = document.createElement("article");
-    item.className = "session-history-item";
+    item.className = "session-history-row";
+    const topLine = document.createElement("div");
+    const bottomLine = document.createElement("div");
     const title = document.createElement("strong");
-    const detail = document.createElement("span");
+    const meta = document.createElement("span");
+    const time = document.createElement("span");
+    const duration = document.createElement("strong");
+    const result = document.createElement("small");
     title.textContent = session.subjectName || getSubjectName(session.subjectId);
-    detail.textContent = `${session.mode} - ${formatClockTime(session.startedAt)} to ${formatClockTime(session.endedAt)} - ${formatShortTime(session.durationSeconds)}`;
-    item.appendChild(title);
-    item.appendChild(detail);
+    meta.textContent = session.mode || "Timer";
+    time.textContent = `${formatClockTime(session.startedAt)} -> ${formatClockTime(session.endedAt)}`;
+    duration.textContent = formatShortTime(session.durationSeconds);
+    result.textContent = session.goalResult ? `Goal: ${formatGoalResult(session.goalResult)}` : "";
+    topLine.className = "session-row-top";
+    bottomLine.className = "session-row-bottom";
+    topLine.appendChild(title);
+    topLine.appendChild(meta);
+    topLine.appendChild(duration);
+    bottomLine.appendChild(time);
+    if (result.textContent) bottomLine.appendChild(result);
+    item.appendChild(topLine);
+    item.appendChild(bottomLine);
     recentSessionList.appendChild(item);
   });
 }
 
+function formatGoalResult(result) {
+  const labels = { yes: "completed", partly: "partly done", no: "not finished" };
+  return labels[result] || result;
+}
+
 function startSession() {
-  if (appData.activeSession) return;
+  if (appData.activeSession || appData.pendingSessionReview) return;
 
   appData.customFocusMinutes = Math.max(1, Number(customFocusInput.value) || appData.customFocusMinutes);
   appData.customBreakMinutes = Math.max(0, Number(customBreakInput.value) || 0);
   appData.selectedSubjectId = sessionSubjectSelect.value || appData.selectedSubjectId;
+  appData.currentSessionDraft.goal = sessionGoalInput.value.trim();
   const mode = getSelectedTimerMode();
   appData.activeSession = {
     id: createId(),
@@ -1442,11 +2169,14 @@ function startSession() {
     modeId: mode.id,
     phase: "focus",
     subjectId: appData.selectedSubjectId,
+    goal: appData.currentSessionDraft.goal,
+    roomId: appData.activeRoomId || null,
     startedAt: new Date().toISOString(),
     elapsedSeconds: 0,
     focusSeconds: getTimerFocusSeconds(),
     breakSeconds: getTimerBreakSeconds()
   };
+  appData.sessionState = "active";
 
   saveData();
   resumeSessionTimer();
@@ -1480,39 +2210,95 @@ function tickStudySession() {
 function pauseSession(shouldRecordSession = true) {
   if (!appData.activeSession) return;
 
-  const durationSeconds = getSessionElapsedSeconds();
-  const subject = getSubjectById(appData.activeSession.subjectId) || getSelectedSubject();
-
-  if (appData.activeSession.phase === "focus") {
-    appData.studySeconds += durationSeconds;
-    subject.seconds += durationSeconds;
+  if (shouldRecordSession) {
+    toggleSessionPause();
+    return;
   }
 
-  if (shouldRecordSession && durationSeconds > 0 && appData.activeSession.phase === "focus") {
-    appData.sessions.unshift({
-      id: appData.activeSession.id,
-      date: getTodayKey(),
-      subjectId: subject.id,
-      subjectName: subject.name,
-      mode: appData.activeSession.mode,
-      startedAt: appData.activeSession.startedAt,
-      endedAt: new Date().toISOString(),
-      durationSeconds
-    });
+  resetActiveSession();
+}
+
+function toggleSessionPause() {
+  if (!appData.activeSession) return;
+
+  if (appData.sessionState === "paused") {
+    appData.activeSession.startedAt = new Date().toISOString();
+    appData.sessionState = appData.activeSession.phase === "break" ? "break" : "active";
+    saveData();
+    resumeSessionTimer();
+    updateAllDisplays();
+    return;
   }
 
-  appData.activeSession = null;
+  appData.activeSession.elapsedSeconds = getSessionElapsedSeconds();
+  appData.sessionState = "paused";
   clearInterval(sessionTimerId);
   sessionTimerId = null;
   saveData();
   updateAllDisplays();
 }
 
+function resetActiveSession() {
+  if (!appData.activeSession) return;
+  appData.activeSession = null;
+  appData.sessionState = "pre-session";
+  clearInterval(sessionTimerId);
+  sessionTimerId = null;
+  saveData();
+  updateAllDisplays();
+}
+
+function finalizeFocusSession(shouldShowReview = true) {
+  if (!appData.activeSession) return null;
+
+  const durationSeconds = getSessionElapsedSeconds();
+  const subject = getSubjectById(appData.activeSession.subjectId) || getSelectedSubject();
+  const activeSession = appData.activeSession;
+
+  if (appData.activeSession.phase === "focus") {
+    appData.studySeconds += durationSeconds;
+    subject.seconds += durationSeconds;
+  }
+
+  let review = null;
+  if (durationSeconds > 0 && activeSession.phase === "focus") {
+    review = {
+      id: activeSession.id,
+      date: getTodayKey(),
+      subjectId: subject.id,
+      subjectName: subject.name,
+      mode: activeSession.mode,
+      modeId: activeSession.modeId,
+      goal: activeSession.goal || "",
+      roomId: activeSession.roomId || null,
+      startedAt: activeSession.startedAt,
+      endedAt: new Date().toISOString(),
+      durationSeconds,
+      goalResult: "",
+      reviewNote: ""
+    };
+    if (shouldShowReview) {
+      appData.pendingSessionReview = review;
+      renderCompletionReview(review);
+    } else {
+      appData.sessions.unshift(review);
+    }
+  }
+
+  appData.activeSession = null;
+  appData.sessionState = shouldShowReview && review ? "complete" : "pre-session";
+  clearInterval(sessionTimerId);
+  sessionTimerId = null;
+  saveData();
+  updateAllDisplays();
+  return review;
+}
+
 function completeFocusPhase() {
   const activeSession = appData.activeSession;
   if (!activeSession) return;
 
-  pauseSession(true);
+  finalizeFocusSession(!activeSession.breakSeconds);
 
   if (activeSession.breakSeconds > 0) {
     appData.activeSession = {
@@ -1521,11 +2307,14 @@ function completeFocusPhase() {
       modeId: activeSession.modeId,
       phase: "break",
       subjectId: activeSession.subjectId,
+      goal: activeSession.goal || "",
+      roomId: activeSession.roomId || null,
       startedAt: new Date().toISOString(),
       elapsedSeconds: 0,
       focusSeconds: activeSession.breakSeconds,
       breakSeconds: 0
     };
+    appData.sessionState = "break";
     saveData();
     resumeSessionTimer();
   }
@@ -1536,6 +2325,7 @@ function completeFocusPhase() {
 function completeBreakPhase() {
   if (!appData.activeSession) return;
   appData.activeSession = null;
+  appData.sessionState = "pre-session";
   clearInterval(sessionTimerId);
   sessionTimerId = null;
   saveData();
@@ -1550,6 +2340,61 @@ function skipSession() {
   } else {
     completeBreakPhase();
   }
+}
+
+function finishSession() {
+  if (!appData.activeSession) return;
+  if (appData.activeSession.phase === "break") {
+    completeBreakPhase();
+    return;
+  }
+  finalizeFocusSession(true);
+}
+
+function renderCompletionReview(review) {
+  if (!review) return;
+  completeSessionTitle.textContent = `${review.subjectName} complete`;
+  completeSessionSummary.innerHTML = "";
+  [
+    ["Subject", review.subjectName],
+    ["Mode", review.mode],
+    ["Duration", formatShortTime(review.durationSeconds)],
+    ["Goal", review.goal || "No goal set"]
+  ].forEach(function (item) {
+    const block = document.createElement("div");
+    const label = document.createElement("span");
+    const value = document.createElement("strong");
+    label.textContent = item[0];
+    value.textContent = item[1];
+    block.appendChild(label);
+    block.appendChild(value);
+    completeSessionSummary.appendChild(block);
+  });
+  setGoalResult(review.goalResult || "yes");
+  sessionReviewNote.value = review.reviewNote || "";
+}
+
+function setGoalResult(result) {
+  if (!appData.pendingSessionReview) return;
+  appData.pendingSessionReview.goalResult = result;
+  goalResultOptions.querySelectorAll("button").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.goalResult === result);
+  });
+}
+
+function saveSessionReview(startAnother = false) {
+  if (!appData.pendingSessionReview) return;
+  const review = {
+    ...appData.pendingSessionReview,
+    goalResult: appData.pendingSessionReview.goalResult || "yes",
+    reviewNote: sessionReviewNote.value.trim()
+  };
+  appData.sessions.unshift(review);
+  appData.pendingSessionReview = null;
+  appData.sessionState = "pre-session";
+  if (startAnother) appData.currentSessionDraft.goal = "";
+  saveData();
+  updateAllDisplays();
 }
 
 function changeTimerMode(direction) {
@@ -1568,10 +2413,7 @@ function saveCustomTimerSettings() {
 }
 
 function resetSession() {
-  pauseSession(false);
-  sessionDisplay.textContent = "0h 00m 00s";
-  sessionStatus.textContent = "Not started";
-  sessionProgressBar.style.width = "0%";
+  resetActiveSession();
 }
 
 function changeSessionSubject() {
@@ -1583,6 +2425,16 @@ function changeSessionSubject() {
 
   saveData();
   updateAllDisplays();
+}
+
+function openSubjectModal() {
+  subjectModal.hidden = false;
+  subjectInput.value = "";
+  subjectInput.focus();
+}
+
+function closeSubjectModal() {
+  subjectModal.hidden = true;
 }
 
 function addSubject(event) {
@@ -1604,6 +2456,34 @@ function addSubject(event) {
   }
 
   subjectInput.value = "";
+  closeSubjectModal();
+  saveData();
+  updateAllDisplays();
+}
+
+function openFocusDistractionModal() {
+  focusDistractionModal.hidden = false;
+  focusDistractionNote.value = "";
+  focusDistractionNote.focus();
+}
+
+function closeFocusDistractionModal() {
+  focusDistractionModal.hidden = true;
+}
+
+function addFocusDistraction(event) {
+  event.preventDefault();
+  const now = new Date();
+  appData.distractions.unshift({
+    id: createId(),
+    category: focusDistractionCategory.value,
+    reason: focusDistractionNote.value.trim(),
+    time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    date: getTodayKey(),
+    timestamp: now.toISOString(),
+    sessionId: appData.activeSession ? appData.activeSession.id : null
+  });
+  closeFocusDistractionModal();
   saveData();
   updateAllDisplays();
 }
@@ -2565,12 +3445,16 @@ function addDistraction(event) {
   event.preventDefault();
   const reason = distractionInput.value.trim();
   if (!reason) return;
+  const now = new Date();
 
   appData.distractions.unshift({
     id: createId(),
     category: distractionCategory.value,
     reason,
-    time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    date: getTodayKey(),
+    timestamp: now.toISOString(),
+    sessionId: appData.activeSession ? appData.activeSession.id : null
   });
 
   distractionInput.value = "";
@@ -2656,10 +3540,12 @@ function getCurrentTheme() {
 }
 
 function applyAppearance() {
-  const accent = appData.accentColor || getCurrentTheme().accent;
+  const theme = getCurrentTheme();
+  const accent = appData.accentColor || theme.accent;
   document.body.dataset.theme = appData.theme;
   document.documentElement.style.setProperty("--primary", accent);
   document.documentElement.style.setProperty("--primary-dark", accent);
+  document.documentElement.style.setProperty("--accent", theme.secondaryAccent);
   accentInput.value = accent;
 }
 
@@ -3759,6 +4645,12 @@ function createId() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+window.addEventListener("load", function () {
+  window.setTimeout(function () {
+    appLoader.classList.add("hidden");
+  }, 650);
+});
+
 navButtons.forEach(function (button) {
   button.addEventListener("click", function () {
     showSection(button.dataset.section);
@@ -3775,6 +4667,7 @@ homeSubjectSelect.addEventListener("change", function () {
 });
 sessionStartButton.addEventListener("click", startSession);
 sessionPauseButton.addEventListener("click", function () { pauseSession(true); });
+sessionFinishButton.addEventListener("click", finishSession);
 sessionResetButton.addEventListener("click", resetSession);
 sessionSkipButton.addEventListener("click", skipSession);
 timerModePrev.addEventListener("click", function () { changeTimerMode(-1); });
@@ -3782,7 +4675,27 @@ timerModeNext.addEventListener("click", function () { changeTimerMode(1); });
 customFocusInput.addEventListener("change", saveCustomTimerSettings);
 customBreakInput.addEventListener("change", saveCustomTimerSettings);
 sessionSubjectSelect.addEventListener("change", changeSessionSubject);
+sessionGoalInput.addEventListener("input", function () {
+  appData.currentSessionDraft.goal = sessionGoalInput.value.trim();
+  saveData();
+});
+openSubjectModalButton.addEventListener("click", openSubjectModal);
+closeSubjectModalButton.addEventListener("click", closeSubjectModal);
+subjectModal.addEventListener("click", function (event) {
+  if (event.target === subjectModal) closeSubjectModal();
+});
 subjectForm.addEventListener("submit", addSubject);
+openDistractionModalButton.addEventListener("click", openFocusDistractionModal);
+closeFocusDistractionButton.addEventListener("click", closeFocusDistractionModal);
+focusDistractionModal.addEventListener("click", function (event) {
+  if (event.target === focusDistractionModal) closeFocusDistractionModal();
+});
+focusDistractionForm.addEventListener("submit", addFocusDistraction);
+goalResultOptions.querySelectorAll("button").forEach(function (button) {
+  button.addEventListener("click", function () { setGoalResult(button.dataset.goalResult); });
+});
+saveSessionReviewButton.addEventListener("click", function () { saveSessionReview(false); });
+startAnotherSessionButton.addEventListener("click", function () { saveSessionReview(true); });
 intentionForm.addEventListener("submit", saveIntention);
 intentionInput.addEventListener("input", function () {
   intentionCount.textContent = `${intentionInput.value.length}/180`;
