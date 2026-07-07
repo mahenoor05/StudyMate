@@ -13,6 +13,7 @@ const themes = [
 ];
 
 const studyMateUser = window.STUDYMATE_USER || {};
+const ACCOUNT_STORAGE_KEY = `${STORAGE_KEY}:user:${studyMateUser.username || studyMateUser.email || "anonymous"}`;
 const legacyImportBanner = document.getElementById("legacy-import-banner");
 const importLocalDataButton = document.getElementById("import-local-data");
 let databaseLoaded = false;
@@ -411,6 +412,11 @@ function getLegacyBrowserData() {
   return loadOlderData();
 }
 
+function getAccountBrowserData() {
+  const savedData = localStorage.getItem(ACCOUNT_STORAGE_KEY);
+  return savedData ? parseSavedData(savedData) : createDefaultData();
+}
+
 function hasLegacyPersonalData(data) {
   if (!data) return false;
   return ["tasks", "subjects", "sessions", "plannerItems", "exams", "distractions"].some(function (key) {
@@ -423,8 +429,8 @@ function showLegacyImportIfNeeded(shouldShow) {
 }
 
 async function loadData() {
-  const browserData = getLegacyBrowserData();
-  appData = browserData;
+  const legacyData = getLegacyBrowserData();
+  appData = getAccountBrowserData();
   normalizeData();
 
   try {
@@ -440,7 +446,9 @@ async function loadData() {
       showLegacyImportIfNeeded(false);
       isHydratingFromServer = false;
     } else {
-      showLegacyImportIfNeeded(!response.hasData && hasLegacyPersonalData(browserData));
+      appData = createDefaultData();
+      normalizeData();
+      showLegacyImportIfNeeded(!response.hasData && hasLegacyPersonalData(legacyData));
     }
   } catch (error) {
     databaseLoaded = false;
@@ -448,7 +456,7 @@ async function loadData() {
   }
 
   if (appData.date !== getTodayKey()) resetDailyData();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
 
   if (appData.activeSession && appData.sessionState !== "paused") {
     resumeSessionTimer();
@@ -951,7 +959,7 @@ function resetDailyData() {
 
 function saveData() {
   syncDailyHistory(getTodayKey());
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
   queueDatabaseSync();
 }
 
@@ -974,10 +982,14 @@ async function importLegacyLocalData() {
   try {
     await studyMateApi("import-local", {
       method: "POST",
-      body: JSON.stringify(appData)
+      body: JSON.stringify(getLegacyBrowserData())
     });
     databaseLoaded = true;
+    appData = getLegacyBrowserData();
+    normalizeData();
+    localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
     showLegacyImportIfNeeded(false);
+    updateAllDisplays();
   } catch (error) {
     console.warn(error.message);
     importLocalDataButton.disabled = false;

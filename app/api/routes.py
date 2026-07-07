@@ -49,6 +49,25 @@ def clean_payload(value):
     return value if isinstance(value, dict) else {}
 
 
+def scoped_or_404(model, record_id):
+    return model.query.filter_by(id=record_id, user_id=current_user.id).first_or_404()
+
+
+def nested_exam_or_404(record, path):
+    exam = None
+    if path == "subject":
+        exam = record.exam
+    elif path == "chapter":
+        exam = record.exam_subject.exam
+    elif path == "topic":
+        exam = record.exam_chapter.exam_subject.exam
+    elif path == "milestone":
+        exam = record.exam
+    if not exam or exam.user_id != current_user.id:
+        return None
+    return record
+
+
 def has_personal_data(user_id):
     checks = [
         Subject.query.filter_by(user_id=user_id).first(),
@@ -315,4 +334,115 @@ def import_local_data():
     if not isinstance(app_data, dict):
         return jsonify({"error": "Invalid import data."}), 400
     persist_app_data(current_user.id, app_data)
+    return jsonify({"ok": True})
+
+
+@api_bp.get("/subjects/<int:record_id>")
+@login_required
+def get_subject(record_id):
+    subject = scoped_or_404(Subject, record_id)
+    return jsonify({"subject": subject.payload})
+
+
+@api_bp.patch("/subjects/<int:record_id>")
+@login_required
+def update_subject(record_id):
+    subject = scoped_or_404(Subject, record_id)
+    data = request.get_json(silent=True) or {}
+    subject.payload = {**subject.payload, **clean_payload(data)}
+    subject.name = subject.payload.get("name") or subject.name
+    db.session.commit()
+    return jsonify({"subject": subject.payload})
+
+
+@api_bp.delete("/subjects/<int:record_id>")
+@login_required
+def delete_subject(record_id):
+    subject = scoped_or_404(Subject, record_id)
+    db.session.delete(subject)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.get("/tasks/<int:record_id>")
+@login_required
+def get_task(record_id):
+    task = scoped_or_404(Task, record_id)
+    return jsonify({"task": task.payload})
+
+
+@api_bp.patch("/tasks/<int:record_id>")
+@login_required
+def update_task(record_id):
+    task = scoped_or_404(Task, record_id)
+    data = request.get_json(silent=True) or {}
+    task.payload = {**task.payload, **clean_payload(data)}
+    task.title = task.payload.get("text") or task.payload.get("title") or task.title
+    task.completed = bool(task.payload.get("completed"))
+    db.session.commit()
+    return jsonify({"task": task.payload})
+
+
+@api_bp.delete("/tasks/<int:record_id>")
+@login_required
+def delete_task(record_id):
+    task = scoped_or_404(Task, record_id)
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.get("/sessions/<int:record_id>")
+@login_required
+def get_session(record_id):
+    session = scoped_or_404(StudySession, record_id)
+    return jsonify({"session": session.payload})
+
+
+@api_bp.patch("/sessions/<int:record_id>")
+@login_required
+def update_session(record_id):
+    session = scoped_or_404(StudySession, record_id)
+    data = request.get_json(silent=True) or {}
+    session.payload = {**session.payload, **clean_payload(data)}
+    session.subject_name = session.payload.get("subjectName") or session.subject_name
+    session.timer_mode = session.payload.get("mode") or session.timer_mode
+    db.session.commit()
+    return jsonify({"session": session.payload})
+
+
+@api_bp.delete("/sessions/<int:record_id>")
+@login_required
+def delete_session(record_id):
+    session = scoped_or_404(StudySession, record_id)
+    db.session.delete(session)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.get("/exams/<int:record_id>")
+@login_required
+def get_exam(record_id):
+    exam = scoped_or_404(Exam, record_id)
+    return jsonify({"exam": exam.payload})
+
+
+@api_bp.patch("/exams/<int:record_id>")
+@login_required
+def update_exam(record_id):
+    exam = scoped_or_404(Exam, record_id)
+    data = request.get_json(silent=True) or {}
+    exam.payload = {**exam.payload, **clean_payload(data)}
+    exam.name = exam.payload.get("name") or exam.name
+    exam.exam_type = exam.payload.get("type") or exam.exam_type
+    db.session.commit()
+    return jsonify({"exam": exam.payload})
+
+
+@api_bp.delete("/exams/<int:record_id>")
+@login_required
+def delete_exam(record_id):
+    exam = scoped_or_404(Exam, record_id)
+    db.session.delete(exam)
+    db.session.commit()
     return jsonify({"ok": True})
