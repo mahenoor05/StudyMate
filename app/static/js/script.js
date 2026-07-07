@@ -31,6 +31,15 @@ const subjectPalette = [
   { key: "indigo", name: "Indigo", value: "#6366f1" }
 ];
 
+const avatarPresets = [
+  { style: "initials", color: "violet", label: "Initials" },
+  { style: "spark", color: "amber", label: "Spark" },
+  { style: "orbit", color: "blue", label: "Orbit" },
+  { style: "initials", color: "teal", label: "Teal" },
+  { style: "spark", color: "pink", label: "Rose" },
+  { style: "orbit", color: "green", label: "Leaf" }
+];
+
 const timerModes = [
   { id: "stopwatch", name: "Stopwatch", description: "Count up while you study.", focusMinutes: null, breakMinutes: 0 },
   { id: "pomodoro", name: "Pomodoro", description: "25 minutes focus, then a 5 minute break.", focusMinutes: 25, breakMinutes: 5 },
@@ -232,6 +241,11 @@ const profileNameInput = document.getElementById("profile-name-input");
 const profileBioInput = document.getElementById("profile-bio-input");
 const profileAvatarStyleInput = document.getElementById("profile-avatar-style-input");
 const profileAvatarColorInput = document.getElementById("profile-avatar-color-input");
+const profileAvatarPreview = document.getElementById("profile-avatar-preview");
+const profileAvatarUpload = document.getElementById("profile-avatar-upload");
+const profileAvatarRemove = document.getElementById("profile-avatar-remove");
+const profileAvatarHelp = document.getElementById("profile-avatar-help");
+const profileAvatarOptions = document.getElementById("profile-avatar-options");
 const onboardingModal = document.getElementById("onboarding-modal");
 const onboardingStartButton = document.getElementById("onboarding-start");
 const onboardingExamOptions = document.getElementById("onboarding-exam-options");
@@ -240,6 +254,12 @@ const onboardingSkipExams = document.getElementById("onboarding-skip-exams");
 const onboardingProfileForm = document.getElementById("onboarding-profile-form");
 const onboardingDisplayName = document.getElementById("onboarding-display-name");
 const onboardingAvatarStyle = document.getElementById("onboarding-avatar-style");
+const onboardingAvatarColor = document.getElementById("onboarding-avatar-color");
+const onboardingAvatarPreview = document.getElementById("onboarding-avatar-preview");
+const onboardingAvatarUpload = document.getElementById("onboarding-avatar-upload");
+const onboardingAvatarRemove = document.getElementById("onboarding-avatar-remove");
+const onboardingAvatarHelp = document.getElementById("onboarding-avatar-help");
+const onboardingAvatarOptions = document.getElementById("onboarding-avatar-options");
 const onboardingBio = document.getElementById("onboarding-bio");
 
 const createGroupButton = document.getElementById("create-group-button");
@@ -404,6 +424,39 @@ function getInitials(name) {
     .toUpperCase();
 }
 
+function getAvatarPreset(style, color) {
+  return avatarPresets.find(function (preset) {
+    return preset.style === style && preset.color === color;
+  }) || avatarPresets[0];
+}
+
+function renderGeneratedAvatar(element, displayName, style, color) {
+  if (!element) return;
+  const preset = getAvatarPreset(style, color);
+  element.innerHTML = "";
+  element.textContent = preset.style === "initials" ? getInitials(displayName) : "";
+  element.dataset.avatarStyle = preset.style;
+  element.style.background = `linear-gradient(135deg, ${getSubjectColorValue(preset.color)}, var(--accent))`;
+
+  if (preset.style === "spark") {
+    element.innerHTML = `<span class="avatar-symbol">✦</span>`;
+  }
+  if (preset.style === "orbit") {
+    element.innerHTML = `<span class="avatar-symbol orbit-symbol"></span>`;
+  }
+}
+
+function renderProfileAvatar(element) {
+  if (!element) return;
+  if (studyMateUser.avatarUrl) {
+    element.innerHTML = `<img src="${studyMateUser.avatarUrl}" alt="">`;
+    element.style.background = "var(--surface-soft)";
+    element.dataset.avatarStyle = "photo";
+    return;
+  }
+  renderGeneratedAvatar(element, studyMateUser.displayName, studyMateUser.avatarStyle || "initials", studyMateUser.avatarColor || "violet");
+}
+
 function createSubjectDot(subject) {
   const dot = document.createElement("span");
   dot.className = "subject-dot";
@@ -482,6 +535,11 @@ function getAccountBrowserData() {
   return savedData ? parseSavedData(savedData) : createDefaultData();
 }
 
+function hasStoredLegacyData() {
+  return Boolean(localStorage.getItem(STORAGE_KEY))
+    || OLD_STORAGE_KEYS.some(function (key) { return Boolean(localStorage.getItem(key)); });
+}
+
 function hasLegacyPersonalData(data) {
   if (!data) return false;
   return ["tasks", "subjects", "sessions", "plannerItems", "exams", "distractions"].some(function (key) {
@@ -489,12 +547,20 @@ function hasLegacyPersonalData(data) {
   });
 }
 
+function isLegacyImportRecoveryMode() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("legacyImport") === "1" || localStorage.getItem("studymate-show-legacy-import") === "true";
+}
+
 function showLegacyImportIfNeeded(shouldShow) {
-  if (legacyImportBanner) legacyImportBanner.hidden = !shouldShow;
+  if (!legacyImportBanner) return;
+  const canShowRecoveryBanner = isLegacyImportRecoveryMode()
+    && hasStoredLegacyData()
+    && hasLegacyPersonalData(getLegacyBrowserData());
+  legacyImportBanner.hidden = !(shouldShow && canShowRecoveryBanner);
 }
 
 async function loadData() {
-  const legacyData = getLegacyBrowserData();
   appData = getAccountBrowserData();
   normalizeData();
 
@@ -514,7 +580,7 @@ async function loadData() {
     } else {
       appData = createDefaultData();
       normalizeData();
-      showLegacyImportIfNeeded(!response.hasData && hasLegacyPersonalData(legacyData));
+      showLegacyImportIfNeeded(!response.hasData);
     }
   } catch (error) {
     databaseLoaded = false;
@@ -534,6 +600,7 @@ function updateProfileState(profile) {
   studyMateUser.username = profile.username || studyMateUser.username;
   studyMateUser.email = profile.email || studyMateUser.email;
   studyMateUser.bio = profile.bio || "";
+  studyMateUser.avatarUrl = profile.avatarUrl || "";
   studyMateUser.avatarStyle = profile.avatarStyle || "initials";
   studyMateUser.avatarColor = profile.avatarColor || "violet";
   studyMateUser.onboardingCompleted = Boolean(profile.onboardingCompleted);
@@ -541,9 +608,9 @@ function updateProfileState(profile) {
 
 function renderProfile() {
   if (!profileAvatar) return;
-  profileAvatar.textContent = getInitials(studyMateUser.displayName);
-  profileAvatar.dataset.avatarStyle = studyMateUser.avatarStyle || "initials";
-  profileAvatar.style.background = `linear-gradient(135deg, ${getSubjectColorValue(studyMateUser.avatarColor || "violet")}, var(--accent))`;
+  renderProfileAvatar(profileAvatar);
+  renderProfileAvatar(profileAvatarPreview);
+  renderProfileAvatar(onboardingAvatarPreview);
   profileDisplayName.textContent = studyMateUser.displayName || "StudyMate learner";
   profileUsername.textContent = `@${studyMateUser.username} - ${studyMateUser.email}`;
   profileBio.textContent = studyMateUser.bio || "No bio yet.";
@@ -1109,15 +1176,44 @@ function showOnboardingStep(stepNumber) {
 function renderOnboardingExamOptions() {
   if (!onboardingExamOptions) return;
   onboardingExamOptions.innerHTML = "";
-  examPresets.forEach(function (preset) {
+  const popularNames = ["JEE Main", "NEET UG", "Class 12 Boards", "Semester Exam"];
+  const popularPresets = examPresets.filter(function (preset) { return popularNames.includes(preset.name); });
+  const morePresets = examPresets.filter(function (preset) { return !popularNames.includes(preset.name); });
+
+  appendOnboardingExamGroup("Popular choices", popularPresets, false);
+
+  const moreButton = document.createElement("button");
+  moreButton.type = "button";
+  moreButton.className = "text-button onboarding-more-exams";
+  moreButton.textContent = "More exams";
+  onboardingExamOptions.appendChild(moreButton);
+
+  appendOnboardingExamGroup("More exams", morePresets, true);
+  moreButton.addEventListener("click", function () {
+    onboardingExamOptions.classList.add("show-more");
+    moreButton.hidden = true;
+  });
+}
+
+function appendOnboardingExamGroup(title, presets, isMoreGroup) {
+  const group = document.createElement("div");
+  const heading = document.createElement("h3");
+  const grid = document.createElement("div");
+  group.className = isMoreGroup ? "onboarding-exam-group onboarding-more-group" : "onboarding-exam-group";
+  heading.textContent = title;
+  grid.className = "onboarding-choice-grid";
+  presets.forEach(function (preset) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "onboarding-choice";
     button.dataset.examName = preset.name;
-    button.innerHTML = `<strong>${preset.name}</strong><span>${preset.category}</span>`;
+    button.innerHTML = `<strong>${preset.name}</strong>`;
     button.addEventListener("click", function () { button.classList.toggle("selected"); });
-    onboardingExamOptions.appendChild(button);
+    grid.appendChild(button);
   });
+  group.appendChild(heading);
+  group.appendChild(grid);
+  onboardingExamOptions.appendChild(group);
 }
 
 function createOnboardingExams() {
@@ -1146,7 +1242,10 @@ function maybeShowOnboarding() {
   renderOnboardingExamOptions();
   onboardingDisplayName.value = studyMateUser.displayName || "";
   onboardingAvatarStyle.value = studyMateUser.avatarStyle || "initials";
+  onboardingAvatarColor.value = studyMateUser.avatarColor || "violet";
   onboardingBio.value = studyMateUser.bio || "";
+  renderAvatarChoices();
+  renderProfile();
   onboardingModal.hidden = false;
   showOnboardingStep(1);
 }
@@ -1465,7 +1564,7 @@ function updateHome() {
   homeTaskCount.textContent = `${pendingTasks.length} left - ${completedTasks.length} done`;
   homeTaskPreview.innerHTML = "";
   if (pendingTasks.length === 0) {
-    appendSimpleItem(homeTaskPreview, "Nothing planned yet. Add today's first task ->");
+    appendSimpleItem(homeTaskPreview, "Nothing planned yet. Add today's first task.");
   } else {
     pendingTasks.slice(0, 3).forEach(function (task) {
       appendTaskPreview(homeTaskPreview, task);
@@ -1610,6 +1709,11 @@ function updateInsights() {
 
   insightsContent.innerHTML = "";
 
+  if (isFreshInsightsState()) {
+    renderInsightsEmptyState();
+    return;
+  }
+
   if (range === "week") {
     renderWeekInsights();
     return;
@@ -1621,6 +1725,30 @@ function updateInsights() {
   }
 
   renderTodayInsights();
+}
+
+function isFreshInsightsState() {
+  return appData.studySeconds === 0
+    && appData.sessions.length === 0
+    && getTodayTasks().length === 0
+    && appData.distractions.length === 0;
+}
+
+function renderInsightsEmptyState() {
+  const panel = createElement("article", "panel empty-state-panel");
+  const title = document.createElement("h3");
+  const copy = document.createElement("p");
+  const action = document.createElement("button");
+  title.textContent = "Insights will appear after your first session.";
+  copy.className = "muted-text";
+  copy.textContent = "Start a focus session and StudyMate will summarize your time, subjects, and progress.";
+  action.type = "button";
+  action.textContent = "Start Session";
+  action.addEventListener("click", function () { showSection("focus-hub"); });
+  panel.appendChild(title);
+  panel.appendChild(copy);
+  panel.appendChild(action);
+  insightsContent.appendChild(panel);
 }
 
 function renderSubjectOptions() {
@@ -1647,6 +1775,95 @@ function renderColorOptions(selectElement, selectedKey) {
     option.selected = color.key === selectedKey;
     selectElement.appendChild(option);
   });
+}
+
+function setAvatarChoice(style, color) {
+  studyMateUser.avatarStyle = style;
+  studyMateUser.avatarColor = color;
+  if (profileAvatarStyleInput) profileAvatarStyleInput.value = style;
+  if (profileAvatarColorInput) profileAvatarColorInput.value = color;
+  if (onboardingAvatarStyle) onboardingAvatarStyle.value = style;
+  if (onboardingAvatarColor) onboardingAvatarColor.value = color;
+  renderAvatarChoices();
+  renderProfile();
+}
+
+function renderAvatarChoices() {
+  renderAvatarChoiceGrid(profileAvatarOptions);
+  renderAvatarChoiceGrid(onboardingAvatarOptions);
+}
+
+function renderAvatarChoiceGrid(container) {
+  if (!container) return;
+  container.innerHTML = "";
+  avatarPresets.forEach(function (preset) {
+    const button = document.createElement("button");
+    const preview = document.createElement("span");
+    const label = document.createElement("span");
+    button.type = "button";
+    button.className = "avatar-choice";
+    button.classList.toggle("selected", preset.style === studyMateUser.avatarStyle && preset.color === studyMateUser.avatarColor && !studyMateUser.avatarUrl);
+    preview.className = "profile-avatar";
+    renderGeneratedAvatar(preview, studyMateUser.displayName, preset.style, preset.color);
+    label.textContent = preset.label;
+    button.appendChild(preview);
+    button.appendChild(label);
+    button.addEventListener("click", function () {
+      setAvatarChoice(preset.style, preset.color);
+    });
+    container.appendChild(button);
+  });
+}
+
+function setAvatarHelp(element, message, isError) {
+  if (!element) return;
+  element.textContent = message;
+  element.classList.toggle("error", Boolean(isError));
+}
+
+async function uploadAvatar(fileInput, helpElement) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    setAvatarHelp(helpElement, "Please choose an image file.", true);
+    fileInput.value = "";
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    setAvatarHelp(helpElement, "Profile photo must be 2 MB or smaller.", true);
+    fileInput.value = "";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("avatar", file);
+  try {
+    const response = await fetch("/api/profile/avatar", {
+      method: "POST",
+      body: formData
+    });
+    const data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.error || "Upload failed.");
+    updateProfileState(data.profile);
+    renderProfile();
+    renderAvatarChoices();
+    setAvatarHelp(helpElement, "Photo saved.", false);
+  } catch (error) {
+    setAvatarHelp(helpElement, error.message, true);
+  }
+  fileInput.value = "";
+}
+
+async function removeAvatar(helpElement) {
+  try {
+    const response = await studyMateApi("profile/avatar", { method: "DELETE" });
+    updateProfileState(response.profile);
+    renderProfile();
+    renderAvatarChoices();
+    setAvatarHelp(helpElement, "Photo removed. Generated avatar is active.", false);
+  } catch (error) {
+    setAvatarHelp(helpElement, error.message, true);
+  }
 }
 
 function renderTaskSubjectOptions() {
@@ -2850,7 +3067,7 @@ function renderTasks() {
 
 function renderTaskGroup(listElement, tasks) {
   if (tasks.length === 0) {
-    appendSimpleItem(listElement, "Nothing here yet.");
+    appendSimpleItem(listElement, listElement === pendingTaskList ? "Add your first task to plan today." : "Completed tasks will appear here.");
     return;
   }
 
@@ -2995,6 +3212,19 @@ function createCalendarDot(label) {
   return dot;
 }
 
+function formatPlannerType(type) {
+  const labels = {
+    task: "Task",
+    study: "Study Block",
+    reminder: "Reminder",
+    revisionreminder: "Revision Reminder",
+    "revision-reminder": "Revision Reminder"
+  };
+  return labels[type] || String(type || "Plan").replace(/[-_]/g, " ").replace(/\b\w/g, function (letter) {
+    return letter.toUpperCase();
+  });
+}
+
 function addPlannerItem(event) {
   event.preventDefault();
   const title = plannerTitleInput.value.trim();
@@ -3037,7 +3267,7 @@ function renderPlannerItems() {
     const deleteButton = document.createElement("button");
 
     title.textContent = item.title;
-    type.textContent = item.type;
+    type.textContent = formatPlannerType(item.type);
     deleteButton.type = "button";
     deleteButton.className = "delete-button";
     deleteButton.textContent = "Delete";
@@ -3811,7 +4041,9 @@ function openProfileModal() {
   profileNameInput.value = studyMateUser.displayName || "";
   profileBioInput.value = studyMateUser.bio || "";
   profileAvatarStyleInput.value = studyMateUser.avatarStyle || "initials";
-  renderColorOptions(profileAvatarColorInput, studyMateUser.avatarColor || "violet");
+  profileAvatarColorInput.value = studyMateUser.avatarColor || "violet";
+  renderAvatarChoices();
+  renderProfile();
   profileModal.hidden = false;
   profileNameInput.focus();
 }
@@ -5032,19 +5264,23 @@ profileModal.addEventListener("click", function (event) {
   if (event.target === profileModal) closeProfileModal();
 });
 profileForm.addEventListener("submit", saveProfile);
+profileAvatarUpload.addEventListener("change", function () { uploadAvatar(profileAvatarUpload, profileAvatarHelp); });
+profileAvatarRemove.addEventListener("click", function () { removeAvatar(profileAvatarHelp); });
 onboardingStartButton.addEventListener("click", function () { showOnboardingStep(2); });
 onboardingExamsNext.addEventListener("click", function () {
   createOnboardingExams();
   showOnboardingStep(3);
 });
 onboardingSkipExams.addEventListener("click", function () { showOnboardingStep(3); });
+onboardingAvatarUpload.addEventListener("change", function () { uploadAvatar(onboardingAvatarUpload, onboardingAvatarHelp); });
+onboardingAvatarRemove.addEventListener("click", function () { removeAvatar(onboardingAvatarHelp); });
 onboardingProfileForm.addEventListener("submit", async function (event) {
   event.preventDefault();
   await saveProfilePayload({
     displayName: onboardingDisplayName.value.trim(),
     bio: onboardingBio.value.trim(),
     avatarStyle: onboardingAvatarStyle.value,
-    avatarColor: studyMateUser.avatarColor || "violet",
+    avatarColor: onboardingAvatarColor.value || studyMateUser.avatarColor || "violet",
     onboardingCompleted: true
   });
   onboardingModal.hidden = true;

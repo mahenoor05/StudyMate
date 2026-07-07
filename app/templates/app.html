@@ -15,8 +15,8 @@
   </div>
 
   <div class="legacy-import-banner" id="legacy-import-banner" hidden>
-    <span>Existing local StudyMate data was found for this browser.</span>
-    <button type="button" id="import-local-data">Import existing local data</button>
+    <span>Older StudyMate data was found on this browser.</span>
+    <button type="button" id="import-local-data">Import local data</button>
   </div>
 
   <div class="modal-backdrop onboarding-backdrop" id="onboarding-modal" hidden>
@@ -43,12 +43,22 @@
         <form class="stacked-form" id="onboarding-profile-form">
           <label for="onboarding-display-name">Display name</label>
           <input id="onboarding-display-name" type="text" maxlength="120">
-          <label for="onboarding-avatar-style">Avatar style</label>
-          <select id="onboarding-avatar-style">
-            <option value="initials">Initials</option>
-            <option value="spark">Spark</option>
-            <option value="orbit">Orbit</option>
-          </select>
+          <input id="onboarding-avatar-style" type="hidden" value="initials">
+          <input id="onboarding-avatar-color" type="hidden" value="{{ current_user.avatar_color or 'violet' }}">
+          <div class="avatar-picker-block">
+            <span class="field-label">Profile photo</span>
+            <div class="avatar-upload-row">
+              <div class="profile-avatar large" id="onboarding-avatar-preview">SM</div>
+              <div>
+                <label class="secondary-button file-button" for="onboarding-avatar-upload">Upload photo</label>
+                <input id="onboarding-avatar-upload" class="sr-only" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+                <button type="button" class="text-button" id="onboarding-avatar-remove">Remove photo</button>
+                <p class="form-help" id="onboarding-avatar-help">PNG, JPG, GIF, or WebP. Max 2 MB.</p>
+              </div>
+            </div>
+            <span class="field-label">Or choose an avatar</span>
+            <div class="avatar-choice-grid" id="onboarding-avatar-options"></div>
+          </div>
           <label for="onboarding-bio">Bio</label>
           <textarea id="onboarding-bio" rows="3" maxlength="280" placeholder="What are you working toward?"></textarea>
           <button type="submit">Enter StudyMate</button>
@@ -981,14 +991,22 @@
           <input id="profile-name-input" type="text" maxlength="120">
           <label for="profile-bio-input">Bio</label>
           <textarea id="profile-bio-input" rows="3" maxlength="280"></textarea>
-          <label for="profile-avatar-style-input">Avatar style</label>
-          <select id="profile-avatar-style-input">
-            <option value="initials">Initials</option>
-            <option value="spark">Spark</option>
-            <option value="orbit">Orbit</option>
-          </select>
-          <label for="profile-avatar-color-input">Avatar color</label>
-          <select id="profile-avatar-color-input"></select>
+          <input id="profile-avatar-style-input" type="hidden" value="initials">
+          <input id="profile-avatar-color-input" type="hidden" value="violet">
+          <div class="avatar-picker-block">
+            <span class="field-label">Profile photo</span>
+            <div class="avatar-upload-row">
+              <div class="profile-avatar large" id="profile-avatar-preview">SM</div>
+              <div>
+                <label class="secondary-button file-button" for="profile-avatar-upload">Upload photo</label>
+                <input id="profile-avatar-upload" class="sr-only" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+                <button type="button" class="text-button" id="profile-avatar-remove">Remove photo</button>
+                <p class="form-help" id="profile-avatar-help">PNG, JPG, GIF, or WebP. Max 2 MB.</p>
+              </div>
+            </div>
+            <span class="field-label">Generated avatar</span>
+            <div class="avatar-choice-grid" id="profile-avatar-options"></div>
+          </div>
           <button type="submit">Save Profile</button>
         </form>
       </div>
@@ -1001,6 +1019,7 @@
       username: {{ current_user.username|tojson }},
       email: {{ current_user.email|tojson }},
       bio: {{ (current_user.bio or '')|tojson }},
+      avatarUrl: {{ current_user.avatar_url|tojson }},
       avatarStyle: {{ current_user.avatar_style|tojson }},
       avatarColor: {{ current_user.avatar_color|tojson }},
       onboardingCompleted: {{ current_user.onboarding_completed|tojson }}

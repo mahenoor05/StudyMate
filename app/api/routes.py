@@ -1,7 +1,10 @@
+import os
 from datetime import date, datetime, timezone
+from uuid import uuid4
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
+from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models import (
@@ -21,6 +24,9 @@ from app.models import (
 
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+ALLOWED_AVATAR_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
+MAX_AVATAR_BYTES = 2 * 1024 * 1024
 
 
 def parse_date(value):
@@ -49,12 +55,36 @@ def clean_payload(value):
     return value if isinstance(value, dict) else {}
 
 
+def get_avatar_upload_folder():
+    folder = os.path.join(current_app.static_folder, "uploads", "avatars")
+    os.makedirs(folder, exist_ok=True)
+    return folder
+
+
+def is_allowed_avatar(filename, mimetype):
+    extension = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return extension in ALLOWED_AVATAR_EXTENSIONS and str(mimetype or "").startswith("image/")
+
+
+def delete_current_avatar_file():
+    if not current_user.avatar_url or "/static/uploads/avatars/" not in current_user.avatar_url:
+        return
+    filename = secure_filename(current_user.avatar_url.rsplit("/", 1)[-1])
+    if not filename:
+        return
+    upload_folder = get_avatar_upload_folder()
+    file_path = os.path.abspath(os.path.join(upload_folder, filename))
+    if file_path.startswith(os.path.abspath(upload_folder)) and os.path.exists(file_path):
+        os.remove(file_path)
+
+
 def serialize_profile(user):
     return {
         "displayName": user.display_name,
         "username": user.username,
         "email": user.email,
         "bio": user.bio or "",
+        "avatarUrl": user.avatar_url,
         "avatarStyle": user.avatar_style or "initials",
         "avatarColor": user.avatar_color or "violet",
         "onboardingCompleted": bool(user.onboarding_completed),
@@ -349,6 +379,48 @@ def update_profile():
     current_user.avatar_color = str(data.get("avatarColor") or "violet")[:40]
     if "onboardingCompleted" in data:
         current_user.onboarding_completed = bool(data.get("onboardingCompleted"))
+    db.session.commit()
+    return jsonify({"profile": serialize_profile(current_user)})
+
+
+@api_bp.post("/profile/avatar")
+@login_required
+def upload_profile_avatar():
+    if request.content_length and request.content_length > MAX_AVATAR_BYTES:
+        return jsonify({"error": "Profile photo must be 2 MB or smaller."}), 400
+
+    upload = request.files.get("avatar")
+    if not upload or not upload.filename:
+        return jsonify({"error": "Choose an image to upload."}), 400
+
+    filename = secure_filename(upload.filename)
+    if not is_allowed_avatar(filename, upload.mimetype):
+        return jsonify({"error": "Use a JPG, PNG, GIF, or WebP image."}), 400
+    upload.stream.seek(0, os.SEEK_END)
+    file_size = upload.stream.tell()
+    upload.stream.seek(0)
+    if file_size > MAX_AVATAR_BYTES:
+        return jsonify({"error": "Profile photo must be 2 MB or smaller."}), 400
+
+    extension = filename.rsplit(".", 1)[-1].lower()
+    unique_filename = f"user-{current_user.id}-{uuid4().hex}.{extension}"
+    upload_folder = get_avatar_upload_folder()
+    file_path = os.path.abspath(os.path.join(upload_folder, unique_filename))
+    if not file_path.startswith(os.path.abspath(upload_folder)):
+        return jsonify({"error": "Invalid upload path."}), 400
+
+    delete_current_avatar_file()
+    upload.save(file_path)
+    current_user.avatar_url = url_for("static", filename=f"uploads/avatars/{unique_filename}")
+    db.session.commit()
+    return jsonify({"profile": serialize_profile(current_user)})
+
+
+@api_bp.delete("/profile/avatar")
+@login_required
+def remove_profile_avatar():
+    delete_current_avatar_file()
+    current_user.avatar_url = None
     db.session.commit()
     return jsonify({"profile": serialize_profile(current_user)})
 

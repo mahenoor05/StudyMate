@@ -8,5 +8,6 @@ Thumbs.db
 .env.*
 instance/*.sqlite
 instance/*.db
+app/static/uploads/avatars/
 __pycache__/
 *.pyc
