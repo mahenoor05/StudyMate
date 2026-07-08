@@ -738,6 +738,7 @@ body.sidebar-collapsed .app-main {
 }
 
 .profile-banner {
+  appearance: none;
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--primary) 34%, transparent), transparent),
     var(--surface-soft);
@@ -746,8 +747,17 @@ body.sidebar-collapsed .app-main {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--radius);
   min-height: 8rem;
+  padding: 0;
   position: relative;
   width: 100%;
+}
+
+button.profile-banner {
+  cursor: pointer;
+}
+
+button.profile-banner:hover {
+  border-color: color-mix(in srgb, var(--primary) 46%, var(--border));
 }
 
 .profile-banner:not(.has-image)::after {
@@ -765,11 +775,29 @@ body.sidebar-collapsed .app-main {
   min-height: 5rem;
 }
 
+.profile-meta-row {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.profile-meta-row strong {
+  color: var(--text);
+}
+
 .profile-stats-grid,
 .settings-grid {
   display: grid;
   gap: var(--space-4);
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-panel {
+  display: grid;
+  gap: var(--space-4);
 }
 
 .settings-tabs {

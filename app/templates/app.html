@@ -1000,13 +1000,13 @@
       <div class="settings-tabs" id="settings-tabs">
         <button type="button" class="active" data-settings-tab="profile">Profile</button>
         <button type="button" data-settings-tab="appearance">Appearance</button>
-        <button type="button" data-settings-tab="study">Study Preferences</button>
         <button type="button" data-settings-tab="privacy">Privacy</button>
         <button type="button" data-settings-tab="account">Account</button>
       </div>
 
-      <article class="panel profile-card" data-settings-section="profile">
-        <div class="profile-banner" id="profile-banner"></div>
+      <div class="settings-panel active" data-settings-section="profile">
+        <article class="panel profile-card">
+        <button type="button" class="profile-banner" id="profile-banner" aria-label="Add profile banner"></button>
         <div class="profile-avatar" id="profile-avatar">SM</div>
         <div>
           <p class="eyebrow">Account</p>
@@ -1014,34 +1014,19 @@
           <p class="muted-text" id="profile-username">@{{ current_user.username }} · {{ current_user.email }}</p>
           <p id="profile-bio" class="muted-text">No bio yet.</p>
           <p class="muted-text" id="profile-join-date"></p>
+          <div class="profile-meta-row">
+            <span>Country: <strong id="profile-country">Not set</strong></span>
+            <span>Timezone: <strong id="profile-timezone">UTC</strong></span>
+          </div>
         </div>
         <button type="button" class="secondary-button" id="edit-profile-button">Edit Profile</button>
       </article>
 
-      <div class="profile-stats-grid" data-settings-section="profile">
-        <article class="panel">
-          <h3>Study Profile</h3>
-          <div class="settings-list">
-            <div><span>Exams</span><strong id="profile-exams">None selected</strong></div>
-            <div><span>Favourite subject</span><strong id="profile-favourite-subject">-</strong></div>
-            <div><span>Groups joined</span><strong id="profile-groups-joined">0</strong></div>
-            <div><span>Achievements</span><strong id="profile-achievement-count">0</strong></div>
-          </div>
-        </article>
-        <article class="panel">
-          <h3>Study Stats</h3>
-          <div class="settings-list">
-            <div><span>Total study hours</span><strong id="profile-total-hours">0h</strong></div>
-            <div><span>Completed sessions</span><strong id="profile-total-sessions">0</strong></div>
-            <div><span>Current streak</span><strong id="profile-current-streak">0 days</strong></div>
-            <div><span>Longest streak</span><strong id="profile-longest-streak">0 days</strong></div>
-          </div>
-        </article>
       </div>
 
-      <div class="settings-grid">
-        <article class="panel" data-settings-section="account">
-          <h3>Account</h3>
+      <div class="settings-panel" data-settings-section="account" hidden>
+        <article class="panel">
+          <h3>Account Information</h3>
           <div class="settings-list">
             <div><span>Email</span><strong id="account-email">{{ current_user.email }}</strong></div>
             <div><span>Username</span><strong id="account-username">@{{ current_user.username }}</strong></div>
@@ -1049,18 +1034,10 @@
             <div><span>Last login</span><strong id="account-last-login">-</strong></div>
           </div>
         </article>
-        <article class="panel" data-settings-section="profile">
-          <h3>Profile</h3>
-          <div class="settings-list">
-            <div><span>Country</span><strong id="profile-country">Not set</strong></div>
-            <div><span>Timezone</span><strong id="profile-timezone">UTC</strong></div>
-          </div>
-        </article>
-        <article class="panel" data-settings-section="study">
-          <h3>Study Preferences</h3>
-          <p class="muted-text">No separate study preferences are needed right now. Focus sessions, subjects, exams, and daily goals are managed in their own sections.</p>
-        </article>
-        <article class="panel" data-settings-section="privacy">
+      </div>
+
+      <div class="settings-panel" data-settings-section="privacy" hidden>
+        <article class="panel">
           <h3>Privacy</h3>
           <div class="settings-list">
             <div><span>Profile</span><strong id="privacy-profile">Private</strong></div>
@@ -1074,26 +1051,23 @@
             </div>
           </div>
         </article>
-        <article class="panel danger-zone-panel" data-settings-section="account">
-          <h3>Danger Zone</h3>
-          <p class="muted-text">Account deletion is deferred until the Account & Authorization phase, where it can require password confirmation and safely remove all owned data.</p>
-          <button type="button" class="delete-button" disabled>Delete Account</button>
-        </article>
       </div>
 
-      <article class="panel" data-settings-section="appearance">
-        <h3>Appearance</h3>
-        <div class="theme-grid" id="theme-grid"></div>
-      </article>
+      <div class="settings-panel" data-settings-section="appearance" hidden>
+        <article class="panel">
+          <h3>Appearance</h3>
+          <div class="theme-grid" id="theme-grid"></div>
+        </article>
 
-      <article class="panel" data-settings-section="appearance">
-        <h3>Accent Color</h3>
-        <div class="accent-row">
-          <input id="accent-input" type="color" value="#7c5cff">
-          <button type="button" id="save-accent">Save Accent</button>
-          <button type="button" class="secondary-button" id="reset-accent">Reset Accent</button>
-        </div>
-      </article>
+        <article class="panel">
+          <h3>Accent Color</h3>
+          <div class="accent-row">
+            <input id="accent-input" type="color" value="#7c5cff">
+            <button type="button" id="save-accent">Save Accent</button>
+            <button type="button" class="secondary-button" id="reset-accent">Reset Accent</button>
+          </div>
+        </article>
+      </div>
     </section>
 
     <div class="modal-backdrop" id="profile-modal" hidden>

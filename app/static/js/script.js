@@ -264,14 +264,6 @@ const profileDisplayName = document.getElementById("profile-display-name");
 const profileUsername = document.getElementById("profile-username");
 const profileBio = document.getElementById("profile-bio");
 const profileJoinDate = document.getElementById("profile-join-date");
-const profileExams = document.getElementById("profile-exams");
-const profileFavouriteSubject = document.getElementById("profile-favourite-subject");
-const profileGroupsJoined = document.getElementById("profile-groups-joined");
-const profileAchievementCount = document.getElementById("profile-achievement-count");
-const profileTotalHours = document.getElementById("profile-total-hours");
-const profileTotalSessions = document.getElementById("profile-total-sessions");
-const profileCurrentStreak = document.getElementById("profile-current-streak");
-const profileLongestStreak = document.getElementById("profile-longest-streak");
 const accountEmail = document.getElementById("account-email");
 const accountUsername = document.getElementById("account-username");
 const accountCreated = document.getElementById("account-created");
@@ -280,7 +272,6 @@ const profileCountry = document.getElementById("profile-country");
 const profileTimezone = document.getElementById("profile-timezone");
 const privacyProfile = document.getElementById("privacy-profile");
 const privacyGroups = document.getElementById("privacy-groups");
-const privacyLeaderboard = document.getElementById("privacy-leaderboard");
 const editProfileButton = document.getElementById("edit-profile-button");
 const profileModal = document.getElementById("profile-modal");
 const closeProfileModalButton = document.getElementById("close-profile-modal");
@@ -784,18 +775,9 @@ function renderProfile() {
   accountLastLogin.textContent = studyMateUser.lastLoginAt ? formatReadableDate(studyMateUser.lastLoginAt) : "Not recorded";
   profileCountry.textContent = studyMateUser.country || "Not set";
   profileTimezone.textContent = studyMateUser.timezone || "UTC";
-  privacyProfile.textContent = formatVisibility(studyMateUser.profileVisibility);
-  privacyGroups.textContent = formatVisibility(studyMateUser.groupVisibility);
-  privacyLeaderboard.textContent = formatVisibility(studyMateUser.leaderboardVisibility);
+  if (privacyProfile) privacyProfile.textContent = formatVisibility(studyMateUser.profileVisibility);
+  if (privacyGroups) privacyGroups.textContent = formatVisibility(studyMateUser.groupVisibility);
   if (leaderboardVisibilityInput) leaderboardVisibilityInput.value = studyMateUser.leaderboardVisibility === "private" ? "private" : "public";
-  profileExams.textContent = formatListPreview(getProfileExamNames(), "None selected");
-  profileFavouriteSubject.textContent = getFavouriteSubjectName();
-  profileGroupsJoined.textContent = String(appData.studyCircles.length);
-  profileAchievementCount.textContent = "0";
-  profileTotalHours.textContent = formatShortTime(getTotalStudySeconds());
-  profileTotalSessions.textContent = String(appData.sessions.length);
-  profileCurrentStreak.textContent = `${getCurrentStudyStreak()} days`;
-  profileLongestStreak.textContent = `${getProfileLongestStreak()} days`;
 }
 
 async function saveProfilePayload(payload) {
@@ -4520,6 +4502,11 @@ function resetAccentColor() {
   saveData();
 }
 
+function openBannerPicker() {
+  openProfileModal();
+  if (profileBannerUpload) profileBannerUpload.click();
+}
+
 function toggleSidebar() {
   appData.sidebarCollapsed = !appData.sidebarCollapsed;
   applySidebarState();
@@ -4535,7 +4522,6 @@ function showSettingsSection(sectionName) {
   const headings = {
     profile: ["Profile", "Your StudyMate identity"],
     appearance: ["Appearance", "Make the workspace yours"],
-    study: ["Study Preferences", "Shape how you study"],
     privacy: ["Privacy", "Control what others can see"],
     account: ["Account", "Manage your StudyMate account"]
   };
@@ -4546,7 +4532,9 @@ function showSettingsSection(sectionName) {
     button.classList.toggle("active", button.dataset.settingsTab === sectionName);
   });
   settingsSections.forEach(function (section) {
-    section.hidden = section.dataset.settingsSection !== sectionName;
+    const isActive = section.dataset.settingsSection === sectionName;
+    section.hidden = !isActive;
+    section.classList.toggle("active", isActive);
   });
 }
 
@@ -5760,6 +5748,7 @@ distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
 resetAccentButton.addEventListener("click", resetAccentColor);
 editProfileButton.addEventListener("click", openProfileModal);
+if (profileBanner) profileBanner.addEventListener("click", openBannerPicker);
 closeProfileModalButton.addEventListener("click", closeProfileModal);
 profileModal.addEventListener("click", function (event) {
   if (event.target === profileModal) closeProfileModal();
