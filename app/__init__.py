@@ -1,10 +1,11 @@
 import os
 
+import click
 from flask import Flask
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .extensions import db, login_manager, migrate
-from .models import User
+from .models import User, UserAppState
 
 
 def get_database_uri():
@@ -67,5 +68,65 @@ def create_app():
         """Create local development database tables."""
         db.create_all()
         print("Initialized the StudyMate database.")
+
+    @app.cli.command("cleanup-demo-data")
+    @click.option("--apply", "should_apply", is_flag=True, help="Apply the cleanup. Without this, only prints a dry run.")
+    def cleanup_demo_data_command(should_apply):
+        """Remove exact old frontend demo payloads from account app state."""
+        changed_states = 0
+        removed_groups = 0
+        cleared_goals = 0
+
+        for state in UserAppState.query.all():
+            payload = dict(state.payload or {})
+            groups = payload.get("studyCircles")
+
+            if isinstance(groups, list):
+                kept_groups = []
+                for group in groups:
+                    members = group.get("members") if isinstance(group, dict) else []
+                    member_names = {member.get("name") for member in members if isinstance(member, dict)}
+                    is_seed_group = (
+                        isinstance(group, dict)
+                        and group.get("name") == "StudyMate Circle"
+                        and {"Maya", "Arif"}.issubset(member_names)
+                    )
+                    if is_seed_group:
+                        removed_groups += 1
+                    else:
+                        kept_groups.append(group)
+                if len(kept_groups) != len(groups):
+                    payload["studyCircles"] = kept_groups
+                    payload["selectedCircleId"] = None
+                    payload["groupsView"] = "list"
+
+            has_real_activity = any(
+                isinstance(payload.get(key), list) and payload.get(key)
+                for key in ["tasks", "sessions", "plannerItems", "exams", "distractions"]
+            )
+            if payload.get("goalHours") == 2 and not has_real_activity:
+                subjects = payload.get("subjects") if isinstance(payload.get("subjects"), list) else []
+                only_default_subject = len(subjects) <= 1 and all(
+                    subject.get("name") == "General Study" for subject in subjects if isinstance(subject, dict)
+                )
+                if only_default_subject:
+                    payload["goalHours"] = None
+                    cleared_goals += 1
+
+            if payload != (state.payload or {}):
+                changed_states += 1
+                if should_apply:
+                    state.payload = payload
+
+        if should_apply:
+            db.session.commit()
+        else:
+            db.session.rollback()
+
+        mode = "Applied" if should_apply else "Dry run"
+        click.echo(
+            f"{mode}: {changed_states} app states checked for cleanup, "
+            f"{removed_groups} seeded groups removed, {cleared_goals} untouched default goals cleared."
+        )
 
     return app

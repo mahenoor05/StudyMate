@@ -1,6 +1,8 @@
 import os
 import json
-from datetime import date, datetime, timezone
+import random
+import string
+from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse
@@ -19,10 +21,14 @@ from app.models import (
     ExamMilestone,
     ExamSubject,
     ExamTopic,
+    GroupMembership,
+    GroupMessage,
     PlannerEvent,
     StudySession,
+    StudyGroup,
     Subject,
     Task,
+    User,
     UserAppState,
 )
 
@@ -202,6 +208,94 @@ def nested_exam_or_404(record, path):
     return record
 
 
+def get_membership_or_404(group_id):
+    return GroupMembership.query.filter_by(group_id=group_id, user_id=current_user.id).first_or_404()
+
+
+def get_owner_membership_or_404(group_id):
+    membership = get_membership_or_404(group_id)
+    if membership.role != "owner":
+        return None
+    return membership
+
+
+def get_range_start(range_name):
+    today = datetime.now(timezone.utc).date()
+    if range_name == "month":
+        return date(today.year, today.month, 1)
+    if range_name == "week":
+        return today - timedelta(days=today.weekday())
+    return today
+
+
+def get_session_totals_by_user(user_ids, range_name):
+    start_date = get_range_start(range_name)
+    query = StudySession.query.filter(StudySession.user_id.in_(user_ids))
+    totals = {user_id: 0 for user_id in user_ids}
+    for session in query.all():
+        session_date = session.started_at.date()
+        if session_date >= start_date:
+            totals[session.user_id] = totals.get(session.user_id, 0) + int(session.study_seconds or 0)
+    return totals
+
+
+def generate_group_invite_code():
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = "SM-" + "".join(random.choice(alphabet) for _ in range(6))
+        if not StudyGroup.query.filter_by(invite_code=code).first():
+            return code
+
+
+def serialize_group_member(membership, totals=None):
+    totals = totals or {}
+    user = membership.user
+    return {
+        "id": membership.user_id,
+        "name": user.display_name,
+        "username": user.username,
+        "avatarUrl": user.avatar_url,
+        "avatarStyle": user.avatar_style,
+        "avatarColor": user.avatar_color,
+        "role": membership.role,
+        "joinedAt": iso_datetime(membership.joined_at),
+        "totalSeconds": totals.get(membership.user_id, 0),
+    }
+
+
+def serialize_group(group, include_messages=False):
+    memberships = sorted(group.memberships, key=lambda item: item.joined_at)
+    totals = get_session_totals_by_user([item.user_id for item in memberships], "today")
+    data = {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description or "",
+        "icon": group.logo_style or "",
+        "inviteCode": group.invite_code,
+        "ownerId": group.owner_id,
+        "role": next((item.role for item in memberships if item.user_id == current_user.id), "member"),
+        "createdAt": iso_datetime(group.created_at),
+        "members": [serialize_group_member(item, totals) for item in memberships],
+        "rooms": [],
+        "challenges": [],
+        "activity": [],
+    }
+    if include_messages:
+        data["messages"] = [serialize_group_message(message) for message in group.messages[-50:]]
+    return data
+
+
+def serialize_group_message(message):
+    return {
+        "id": message.id,
+        "groupId": message.group_id,
+        "userId": message.user_id,
+        "message": message.message,
+        "createdAt": iso_datetime(message.created_at),
+        "user": serialize_profile(message.user),
+    }
+
+
 def has_personal_data(user_id):
     checks = [
         Subject.query.filter_by(user_id=user_id).first(),
@@ -320,6 +414,8 @@ def save_tasks(user_id, tasks, subject_map):
 
 def save_daily_goals(user_id, app_data):
     replace_user_rows(DailyGoal, user_id)
+    if app_data.get("goalHours") in (None, ""):
+        return
     history = app_data.get("dailyHistory") if isinstance(app_data.get("dailyHistory"), dict) else {}
     today_key = app_data.get("date")
     if today_key and today_key not in history:
@@ -328,7 +424,7 @@ def save_daily_goals(user_id, app_data):
         goal_date = parse_date(key)
         if not goal_date:
             continue
-        target_hours = float(entry.get("goalHours") or app_data.get("goalHours") or 2)
+        target_hours = float(entry.get("goalHours") or app_data.get("goalHours"))
         db.session.add(DailyGoal(
             user_id=user_id,
             date=goal_date,
@@ -538,6 +634,140 @@ def import_local_data():
         return jsonify({"error": "Invalid import data."}), 400
     persist_app_data(current_user.id, app_data)
     return jsonify({"ok": True})
+
+
+@api_bp.get("/groups")
+@login_required
+def list_groups():
+    memberships = GroupMembership.query.filter_by(user_id=current_user.id).all()
+    return jsonify({"groups": [serialize_group(membership.group) for membership in memberships]})
+
+
+@api_bp.post("/groups")
+@login_required
+def create_group():
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Group name is required."}), 400
+    group = StudyGroup(
+        name=name[:120],
+        description=str(data.get("description") or "").strip()[:255],
+        logo_style=str(data.get("icon") or "")[:40],
+        invite_code=generate_group_invite_code(),
+        owner_id=current_user.id,
+    )
+    db.session.add(group)
+    db.session.flush()
+    db.session.add(GroupMembership(group_id=group.id, user_id=current_user.id, role="owner"))
+    db.session.commit()
+    return jsonify({"group": serialize_group(group, include_messages=True)}), 201
+
+
+@api_bp.post("/groups/join")
+@login_required
+def join_group():
+    data = request.get_json(silent=True) or {}
+    invite_code = str(data.get("inviteCode") or "").strip().upper()
+    group = StudyGroup.query.filter_by(invite_code=invite_code).first()
+    if not group:
+        return jsonify({"error": "No group found for that invite code."}), 404
+    membership = GroupMembership.query.filter_by(group_id=group.id, user_id=current_user.id).first()
+    if not membership:
+        db.session.add(GroupMembership(group_id=group.id, user_id=current_user.id, role="member"))
+        db.session.commit()
+    return jsonify({"group": serialize_group(group, include_messages=True)})
+
+
+@api_bp.get("/groups/<int:group_id>")
+@login_required
+def get_group(group_id):
+    membership = get_membership_or_404(group_id)
+    return jsonify({"group": serialize_group(membership.group, include_messages=True)})
+
+
+@api_bp.patch("/groups/<int:group_id>")
+@login_required
+def update_group(group_id):
+    membership = get_owner_membership_or_404(group_id)
+    if not membership:
+        return jsonify({"error": "Only the group owner can edit this group."}), 403
+    data = request.get_json(silent=True) or {}
+    group = membership.group
+    if "name" in data:
+        name = str(data.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "Group name is required."}), 400
+        group.name = name[:120]
+    if "description" in data:
+        group.description = str(data.get("description") or "").strip()[:255]
+    if "icon" in data:
+        group.logo_style = str(data.get("icon") or "").strip()[:40]
+    db.session.commit()
+    return jsonify({"group": serialize_group(group, include_messages=True)})
+
+
+@api_bp.delete("/groups/<int:group_id>")
+@login_required
+def delete_group(group_id):
+    membership = get_owner_membership_or_404(group_id)
+    if not membership:
+        return jsonify({"error": "Only the group owner can delete this group."}), 403
+    db.session.delete(membership.group)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.get("/groups/<int:group_id>/messages")
+@login_required
+def list_group_messages(group_id):
+    membership = get_membership_or_404(group_id)
+    messages = GroupMessage.query.filter_by(group_id=membership.group_id).order_by(GroupMessage.created_at.asc()).limit(100).all()
+    return jsonify({"messages": [serialize_group_message(message) for message in messages]})
+
+
+@api_bp.post("/groups/<int:group_id>/messages")
+@login_required
+def create_group_message(group_id):
+    get_membership_or_404(group_id)
+    data = request.get_json(silent=True) or {}
+    message_text = str(data.get("message") or "").strip()
+    if not message_text:
+        return jsonify({"error": "Message is required."}), 400
+    message = GroupMessage(group_id=group_id, user_id=current_user.id, message=message_text[:1000])
+    db.session.add(message)
+    db.session.commit()
+    return jsonify({"message": serialize_group_message(message)}), 201
+
+
+@api_bp.get("/leaderboard")
+@login_required
+def get_leaderboard():
+    range_name = request.args.get("range", "today")
+    group_id = request.args.get("groupId", type=int)
+    if group_id:
+        membership = get_membership_or_404(group_id)
+        memberships = membership.group.memberships
+        users = [item.user for item in memberships]
+    else:
+        user_ids = [row[0] for row in db.session.query(StudySession.user_id).distinct().all()]
+        users = User.query.filter(User.id.in_(user_ids)).all() if user_ids else []
+    totals = get_session_totals_by_user([user.id for user in users], range_name)
+    rows = [
+        {
+            "userId": user.id,
+            "name": user.display_name,
+            "username": user.username,
+            "avatarUrl": user.avatar_url,
+            "avatarStyle": user.avatar_style,
+            "avatarColor": user.avatar_color,
+            "totalSeconds": totals.get(user.id, 0),
+        }
+        for user in users
+        if totals.get(user.id, 0) > 0
+    ]
+    rows.sort(key=lambda item: item["totalSeconds"], reverse=True)
+    return jsonify({"rows": rows})
 
 
 @api_bp.get("/subjects/<int:record_id>")

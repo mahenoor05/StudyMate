@@ -647,7 +647,7 @@
           <span class="group-avatar large" id="group-workspace-icon">SM</span>
           <div>
             <p class="eyebrow">Group Workspace</p>
-            <h2 id="group-workspace-name">StudyMate Circle</h2>
+            <h2 id="group-workspace-name">Group</h2>
             <p class="muted-text" id="group-workspace-description">A calm shared space for daily focus sessions.</p>
             <div class="group-meta-row" id="group-workspace-meta"></div>
           </div>
@@ -736,7 +736,7 @@
         <div class="group-tab-panel" id="group-tab-members">
           <div class="section-mini-header">
             <h3>Members</h3>
-            <span class="muted-text">Local prototype members</span>
+            <span class="muted-text">Group members</span>
           </div>
           <div class="member-table" id="group-member-list"></div>
         </div>
@@ -757,10 +757,13 @@
         <div class="group-tab-panel" id="group-tab-chat">
           <article class="panel chat-placeholder-card">
             <h3>Chat</h3>
-            <div class="mock-message-list">
-              <div class="mock-bubble muted">Messages will appear here when shared accounts and realtime features are added.</div>
-            </div>
-            <p class="muted-text">This local prototype does not sync messages across devices yet.</p>
+            <div class="mock-message-list" id="group-chat-messages"></div>
+            <form class="inline-form" id="group-chat-form">
+              <label class="sr-only" for="group-chat-input">Message</label>
+              <input id="group-chat-input" type="text" maxlength="1000" placeholder="Write a message">
+              <button type="submit">Send</button>
+            </form>
+            <p class="muted-text">Messages refresh when this workspace updates.</p>
           </article>
         </div>
       </div>
@@ -780,7 +783,7 @@
             <input id="group-icon-input" type="text" maxlength="3" placeholder="AA">
             <label for="group-privacy-input">Privacy</label>
             <select id="group-privacy-input">
-              <option value="private">Private local group</option>
+              <option value="private">Private group</option>
               <option value="public" disabled>Public later</option>
             </select>
             <button type="submit" id="save-group-button">Create Group</button>
@@ -796,7 +799,7 @@
             <button type="button" class="icon-button" id="close-join-group-modal" aria-label="Close join group form">x</button>
           </div>
           <form class="stacked-form" id="join-group-form">
-            <p class="muted-text">Invite codes are ready for the future shared backend. In this local prototype, joining only checks groups saved in this browser.</p>
+            <p class="muted-text">Enter an invite code from another StudyMate group.</p>
             <label for="join-code-input">Invite Code</label>
             <input id="join-code-input" type="text" placeholder="SM-ABC123">
             <button type="submit">Join</button>
@@ -816,7 +819,7 @@
             <strong id="invite-code-display">SM-000000</strong>
           </div>
           <button type="button" id="copy-invite-button">Copy Code</button>
-          <p class="muted-text" id="invite-copy-message">Sharing across devices requires accounts and a backend later.</p>
+          <p class="muted-text" id="invite-copy-message">Share this code with another StudyMate account.</p>
         </div>
       </div>
 
@@ -922,7 +925,7 @@
       </div>
 
       <article class="panel">
-        <p class="muted-text">Your row uses local data. Demo rows are clearly labelled until backend accounts exist.</p>
+        <p class="muted-text">Rankings are based on completed study sessions.</p>
         <div class="leaderboard-table" id="leaderboard-table"></div>
       </article>
     </section>

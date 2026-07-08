@@ -159,3 +159,34 @@ class UserAppState(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False
     )
+
+
+class StudyGroup(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    description = db.Column(db.String(255), nullable=True)
+    logo_style = db.Column(db.String(40), nullable=True)
+    invite_code = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    memberships = db.relationship("GroupMembership", backref="group", cascade="all, delete-orphan")
+    messages = db.relationship("GroupMessage", backref="group", cascade="all, delete-orphan")
+
+
+class GroupMembership(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("study_group.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    role = db.Column(db.String(20), default="member", nullable=False)
+    joined_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    user = db.relationship("User")
+    __table_args__ = (db.UniqueConstraint("group_id", "user_id", name="uq_group_membership_user"),)
+
+
+class GroupMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("study_group.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    message = db.Column(db.String(1000), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    user = db.relationship("User")

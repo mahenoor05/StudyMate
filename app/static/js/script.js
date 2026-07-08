@@ -297,6 +297,9 @@ const groupChallengeList = document.getElementById("group-challenge-list");
 const groupMemberList = document.getElementById("group-member-list");
 const groupRankingFilters = document.getElementById("group-ranking-filters");
 const groupRankingList = document.getElementById("group-ranking-list");
+const groupChatMessages = document.getElementById("group-chat-messages");
+const groupChatForm = document.getElementById("group-chat-form");
+const groupChatInput = document.getElementById("group-chat-input");
 const groupModal = document.getElementById("group-modal");
 const groupModalTitle = document.getElementById("group-modal-title");
 const closeGroupModalButton = document.getElementById("close-group-modal");
@@ -367,7 +370,7 @@ function createDefaultData() {
     accentColor: null,
     sidebarCollapsed: false,
     studySeconds: 0,
-    goalHours: 2,
+    goalHours: null,
     streak: 0,
     focusIntention: "",
     selectedSubjectId: generalSubject.id,
@@ -393,7 +396,7 @@ function createDefaultData() {
     plannerItems: [],
     exams: [],
     distractions: [],
-    studyCircles: [createDefaultStudyCircle()],
+    studyCircles: [],
     selectedCircleId: null,
     groupsView: "list",
     selectedCircleTab: "overview",
@@ -472,24 +475,6 @@ function createSubject(name, colorKey) {
     name,
     colorKey: colorKey || getNextSubjectColorKey(),
     seconds: 0
-  };
-}
-
-function createDefaultStudyCircle() {
-  return {
-    id: createId(),
-    name: "StudyMate Circle",
-    icon: "SM",
-    description: "A calm shared space for daily focus sessions and accountability.",
-    inviteCode: generateInviteCode(),
-    members: [
-      { id: "you", name: "You", status: "Studying", subject: "General Study", totalSeconds: 0, streak: 0 },
-      { id: "maya", name: "Maya", status: "Short Break", subject: "Physics", totalSeconds: 4200, streak: 3 },
-      { id: "arif", name: "Arif", status: "Paused", subject: "DBMS", totalSeconds: 3000, streak: 2 }
-    ],
-    rooms: [],
-    challenges: [],
-    activity: []
   };
 }
 
@@ -599,6 +584,36 @@ async function loadData() {
   }
 }
 
+async function loadGroups() {
+  if (!databaseLoaded) {
+    appData.studyCircles = [];
+    return;
+  }
+
+  try {
+    const response = await studyMateApi("groups");
+    appData.studyCircles = (response.groups || []).map(normalizeCircle);
+  } catch (error) {
+    console.warn(error.message);
+    appData.studyCircles = [];
+  }
+}
+
+function upsertStudyCircle(group) {
+  const normalized = normalizeCircle(group);
+  const index = appData.studyCircles.findIndex(function (circle) {
+    return String(circle.id) === String(normalized.id);
+  });
+
+  if (index >= 0) {
+    appData.studyCircles[index] = normalized;
+  } else {
+    appData.studyCircles.push(normalized);
+  }
+
+  return normalized;
+}
+
 function updateProfileState(profile) {
   studyMateUser.displayName = profile.displayName || studyMateUser.displayName;
   studyMateUser.username = profile.username || studyMateUser.username;
@@ -682,15 +697,7 @@ function migrateOldData(oldData) {
       migrated.selectedSubjectId = migrated.subjects[0].id;
     }
 
-    if (Array.isArray(parsed.studyCircles) && parsed.studyCircles.length > 0) {
-      migrated.studyCircles = parsed.studyCircles;
-      migrated.selectedCircleId = parsed.selectedCircleId || parsed.studyCircles[0].id;
-      migrated.selectedCircleTab = parsed.selectedCircleTab || "overview";
-      migrated.selectedRankingRange = parsed.selectedRankingRange || "today";
-      migrated.selectedChallengeStatus = parsed.selectedChallengeStatus || "active";
-      migrated.selectedChallengeId = parsed.selectedChallengeId || null;
-      migrated.activeRoomId = parsed.activeRoomId || null;
-    }
+    migrated.studyCircles = [];
 
     return migrated;
   } catch (error) {
@@ -706,10 +713,12 @@ function normalizeData() {
   if (!Array.isArray(appData.plannerItems)) appData.plannerItems = [];
   if (!Array.isArray(appData.exams)) appData.exams = [];
   if (!Array.isArray(appData.distractions)) appData.distractions = [];
-  if (!Array.isArray(appData.studyCircles) || appData.studyCircles.length === 0) appData.studyCircles = [createDefaultStudyCircle()];
+  if (!Array.isArray(appData.studyCircles)) appData.studyCircles = [];
 
   appData.studySeconds = Number(appData.studySeconds) || 0;
-  appData.goalHours = Number(appData.goalHours) || 2;
+  appData.goalHours = appData.goalHours === null || appData.goalHours === "" || typeof appData.goalHours === "undefined"
+    ? null
+    : Number(appData.goalHours) || null;
   appData.streak = Number(appData.streak) || 0;
   appData.focusIntention = appData.focusIntention || "";
   appData.sessionState = ["pre-session", "active", "paused", "break", "complete"].includes(appData.sessionState) ? appData.sessionState : "pre-session";
@@ -790,7 +799,7 @@ function normalizeDailyHistory(history) {
       subjectTotals: entry.subjectTotals && typeof entry.subjectTotals === "object" ? entry.subjectTotals : {},
       tasksCompleted: Number(entry.tasksCompleted || 0),
       tasksPlanned: Number(entry.tasksPlanned || 0),
-      goalHours: Number(entry.goalHours || appData.goalHours || 2),
+      goalHours: entry.goalHours === null || typeof entry.goalHours === "undefined" ? null : Number(entry.goalHours) || null,
       distractions: Array.isArray(entry.distractions) ? entry.distractions : []
     };
   });
@@ -894,16 +903,15 @@ function normalizeCircle(circle) {
     rooms: normalizeRooms(circle.rooms),
     challenges: normalizeChallenges(circle.challenges, members),
     activity: normalizeGroupActivity(circle.activity),
+    messages: Array.isArray(circle.messages) ? circle.messages.map(normalizeGroupMessage) : [],
+    role: circle.role || "member",
+    ownerId: circle.ownerId || null,
     createdAt: circle.createdAt || new Date().toISOString()
   };
 }
 
 function normalizeMembers(members) {
   const normalized = Array.isArray(members) && members.length > 0 ? members : [];
-
-  if (!normalized.some(function (member) { return member.id === "you"; })) {
-    normalized.unshift({ id: "you", name: "You", status: "Paused", totalSeconds: appData.studySeconds || 0 });
-  }
 
   return normalized.map(function (member) {
     return {
@@ -913,9 +921,21 @@ function normalizeMembers(members) {
       subject: member.subject || member.currentSubject || "General Study",
       totalSeconds: Number(member.totalSeconds || member.studySeconds || 0),
       streak: Number(member.streak || 0),
-      tasksCompleted: Number(member.tasksCompleted || 0)
+      tasksCompleted: Number(member.tasksCompleted || 0),
+      role: member.role || "member"
     };
   });
+}
+
+function normalizeGroupMessage(message) {
+  return {
+    id: message.id || createId(),
+    groupId: message.groupId || null,
+    userId: message.userId || null,
+    message: message.message || "",
+    createdAt: message.createdAt || new Date().toISOString(),
+    user: message.user || {}
+  };
 }
 
 function normalizeRooms(rooms) {
@@ -986,7 +1006,7 @@ function normalizeChallenges(challenges, members) {
 }
 
 function buildChallengeEntries(challenge, members) {
-  const activeMembers = members.length > 0 ? members : [{ id: "you", name: "You", totalSeconds: appData.studySeconds || 0, tasksCompleted: getCompletedTaskCount(), streak: appData.streak || 0 }];
+  const activeMembers = members.length > 0 ? members : [];
 
   if (challenge.format === "group-goal") {
     return [{
@@ -1079,7 +1099,7 @@ function buildDailyHistoryEntry(dateKey) {
     subjectTotals,
     tasksCompleted: completedTasks.length,
     tasksPlanned: tasks.length,
-    goalHours: Number(appData.goalHours || 2),
+    goalHours: appData.goalHours || null,
     distractions
   };
 }
@@ -1138,13 +1158,22 @@ function saveData() {
   queueDatabaseSync();
 }
 
+function getPersonalAppDataPayload() {
+  return {
+    ...appData,
+    studyCircles: [],
+    selectedCircleId: null,
+    groupsView: "list"
+  };
+}
+
 function queueDatabaseSync() {
   if (!databaseLoaded || isHydratingFromServer) return;
   window.clearTimeout(syncTimerId);
   syncTimerId = window.setTimeout(function () {
     studyMateApi("app-data", {
       method: "PUT",
-      body: JSON.stringify(appData)
+      body: JSON.stringify(getPersonalAppDataPayload())
     }).catch(function (error) {
       console.warn(error.message);
     });
@@ -1474,13 +1503,14 @@ function getCompletedTaskCount() {
 }
 
 function getGoalPercent() {
-  const goalSeconds = appData.goalHours * 3600;
+  const goalSeconds = Number(appData.goalHours || 0) * 3600;
   if (goalSeconds <= 0) return 0;
   return Math.min(Math.round((appData.studySeconds / goalSeconds) * 100), 100);
 }
 
 function getGoalPercentForSeconds(studySeconds) {
-  const goalSeconds = Math.max(1, Number(appData.goalHours || 0) * 3600);
+  const goalSeconds = Number(appData.goalHours || 0) * 3600;
+  if (goalSeconds <= 0) return 0;
   return Math.min(Math.round((studySeconds / goalSeconds) * 100), 100);
 }
 
@@ -1584,9 +1614,11 @@ function updateHome() {
   homeTotalTime.textContent = formatShortTime(todayStudySeconds);
   homeStreak.textContent = `${currentStreak}-day streak`;
   homeGoalPercent.textContent = `${goalPercent}%`;
-  homeGoalHours.textContent = `of ${formatGoalHours(appData.goalHours)} goal`;
+  homeGoalHours.textContent = appData.goalHours ? `of ${formatGoalHours(appData.goalHours)} goal` : "Set today's goal";
   homeGoalBar.style.width = `${goalPercent}%`;
-  homeGoalCopy.textContent = `${formatShortTime(todayStudySeconds)} / ${formatGoalHours(appData.goalHours)}`;
+  homeGoalCopy.textContent = appData.goalHours
+    ? `${formatShortTime(todayStudySeconds)} / ${formatGoalHours(appData.goalHours)}`
+    : "No daily goal set yet.";
 
   if (appData.activeSession) {
     const activeSubject = getSubjectById(appData.activeSession.subjectId) || selectedSubject;
@@ -1738,12 +1770,14 @@ function getNextPhaseCopy() {
 
 function updateGoal() {
   const goalPercent = getGoalPercent();
-  goalInput.value = appData.goalHours;
-  goalDisplay.textContent = formatGoalHours(appData.goalHours);
+  goalInput.value = appData.goalHours || "";
+  goalDisplay.textContent = appData.goalHours ? formatGoalHours(appData.goalHours) : "Set today's goal";
   planGoalProgress.textContent = `${goalPercent}%`;
-  planGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
+  planGoalCopy.textContent = appData.goalHours
+    ? `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`
+    : "No daily goal set yet.";
   planGoalBar.style.width = `${goalPercent}%`;
-  planSummaryGoal.textContent = formatGoalHours(appData.goalHours);
+  planSummaryGoal.textContent = appData.goalHours ? formatGoalHours(appData.goalHours) : "Not set";
 }
 
 function updateInsights() {
@@ -2101,8 +2135,8 @@ function renderTodayInsights() {
   const sessions = getSessionsForDate(today);
   const tasks = getTasksForDate(today);
   const completedTasks = tasks.filter(function (task) { return isTaskCompletedOnDate(task, today); });
-  const goalSeconds = Math.max(1, Number(entry.goalHours || appData.goalHours || 2) * 3600);
-  const goalPercent = Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100));
+  const goalSeconds = Number(entry.goalHours || appData.goalHours || 0) * 3600;
+  const goalPercent = goalSeconds > 0 ? Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100)) : 0;
 
   insightsContent.appendChild(createInsightSummaryStrip([
     { label: "Studied", value: formatShortTime(entry.studySeconds) },
@@ -2376,8 +2410,8 @@ function renderGoalConsistency(days, entries) {
   const row = createElement("div", "goal-consistency-row");
   days.forEach(function (dateKey, index) {
     const entry = entries[index];
-    const goalSeconds = Math.max(1, Number(entry.goalHours || appData.goalHours || 2) * 3600);
-    const percent = Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100));
+    const goalSeconds = Number(entry.goalHours || appData.goalHours || 0) * 3600;
+    const percent = goalSeconds > 0 ? Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100)) : 0;
     const item = createElement("div", "goal-day");
     const label = document.createElement("span");
     const value = document.createElement("strong");
@@ -2615,7 +2649,8 @@ function getTopSubjectLabel(subjectTotals) {
 function getGoalCompletionRate(entries) {
   if (entries.length === 0) return 0;
   const totalPercent = entries.reduce(function (total, entry) {
-    const goalSeconds = Math.max(1, Number(entry.goalHours || appData.goalHours || 2) * 3600);
+    const goalSeconds = Number(entry.goalHours || appData.goalHours || 0) * 3600;
+    if (goalSeconds <= 0) return total;
     return total + Math.min(100, Math.round((entry.studySeconds / goalSeconds) * 100));
   }, 0);
   return Math.round(totalPercent / entries.length);
@@ -3202,7 +3237,8 @@ function saveGoal(event) {
 }
 
 function changeGoalBy(amount) {
-  appData.goalHours = Math.max(0.25, Number((appData.goalHours + amount).toFixed(2)));
+  const currentGoal = Number(appData.goalHours || 0);
+  appData.goalHours = Math.max(0.25, Number((currentGoal + amount).toFixed(2)));
   saveData();
   updateAllDisplays();
 }
@@ -4068,9 +4104,6 @@ function renderDistractions() {
 function renderLeaderboard() {
   leaderboardTable.innerHTML = "";
   const range = appData.selectedLeaderboardRange;
-  const sessions = getSessionsForRange(range);
-  const rangeSeconds = range === "today" ? appData.studySeconds : getSecondsFromSessions(sessions);
-  const rangeTasks = getTasksForRange(range).filter(function (task) { return task.completed; }).length;
 
   leaderboardTabs.forEach(function (tab) {
     const isActive = tab.dataset.leaderboardRange === range;
@@ -4078,22 +4111,27 @@ function renderLeaderboard() {
     tab.classList.toggle("secondary-button", !isActive);
   });
 
-  const users = [
-    { rank: 1, name: "You", time: formatShortTime(rangeSeconds), streak: `${appData.streak} days`, tasks: rangeTasks, source: "Your local data" },
-    { rank: 2, name: "Demo Maya", time: "3h 20m", streak: "5 days", tasks: 6, source: "Demo data" },
-    { rank: 3, name: "Demo Arif", time: "2h 45m", streak: "3 days", tasks: 4, source: "Demo data" }
-  ];
+  studyMateApi(`leaderboard?range=${range}`)
+    .then(function (response) {
+      if (!response.rows || response.rows.length === 0) {
+        appendSimpleItem(leaderboardTable, "No leaderboard activity yet.");
+        return;
+      }
 
-  users.forEach(function (user) {
-    const row = document.createElement("div");
-    row.className = "leaderboard-row";
-    ["#" + user.rank, user.name, user.time, user.streak, `${user.tasks} tasks (${user.source})`].forEach(function (value, index) {
-      const cell = document.createElement(index === 0 ? "strong" : "span");
-      cell.textContent = value;
-      row.appendChild(cell);
+      response.rows.forEach(function (user, index) {
+        const row = document.createElement("div");
+        row.className = "leaderboard-row";
+        [`#${index + 1}`, user.name, formatShortTime(user.totalSeconds), "-", "Real study data"].forEach(function (value, cellIndex) {
+          const cell = document.createElement(cellIndex === 0 ? "strong" : "span");
+          cell.textContent = value;
+          row.appendChild(cell);
+        });
+        leaderboardTable.appendChild(row);
+      });
+    })
+    .catch(function (error) {
+      appendSimpleItem(leaderboardTable, error.message);
     });
-    leaderboardTable.appendChild(row);
-  });
 }
 
 function renderThemes() {
@@ -4327,13 +4365,19 @@ function renderGroupWorkspace(circle) {
   renderGroupChallenges(circle);
   renderGroupMembers(circle);
   renderGroupRanking(circle);
+  renderGroupChat(circle);
 }
 
-function openGroupWorkspace(circleId) {
+async function openGroupWorkspace(circleId) {
   appData.selectedCircleId = circleId;
   appData.groupsView = "workspace";
   appData.selectedCircleTab = appData.selectedCircleTab || "overview";
-  saveData();
+  try {
+    const response = await studyMateApi(`groups/${circleId}`);
+    upsertStudyCircle(response.group);
+  } catch (error) {
+    console.warn(error.message);
+  }
   renderStudyCircles();
 }
 
@@ -4352,7 +4396,7 @@ function renderGroupOverview(circle) {
   });
 
   if (activeMembers.length === 0) {
-    appendSimpleItem(groupStudyingNow, "No one is studying in this local prototype right now.");
+    appendSimpleItem(groupStudyingNow, "No one is studying right now.");
   } else {
     activeMembers.forEach(function (member) {
       groupStudyingNow.appendChild(createCompactRow(member.name, `${member.status} - ${member.subject}`, formatShortTime(member.totalSeconds)));
@@ -4483,7 +4527,7 @@ function renderGroupMembers(circle) {
     row.className = "member-table-row";
     row.innerHTML = `
       <span class="group-avatar">${getInitials(member.name)}</span>
-      <span><strong>${member.name}</strong><small>${member.status} - ${member.subject}</small></span>
+      <span><strong>${member.name}</strong><small>${member.role}</small></span>
       <span>${formatShortTime(member.totalSeconds)} today</span>
       <span>${member.streak}-day streak</span>
     `;
@@ -4502,15 +4546,61 @@ function renderGroupRanking(circle) {
   header.innerHTML = "<span>Rank</span><span>Name</span><span>Study time</span><span>Streak</span><span>Tasks</span>";
   groupRankingList.appendChild(header);
 
-  circle.members
-    .slice()
-    .sort(function (first, second) { return second.totalSeconds - first.totalSeconds; })
-    .forEach(function (member, index) {
+  studyMateApi(`leaderboard?range=${appData.selectedRankingRange}&groupId=${circle.id}`)
+    .then(function (response) {
+      if (!response.rows || response.rows.length === 0) {
+        appendSimpleItem(groupRankingList, "No study time yet for this range.");
+        return;
+      }
+
+      response.rows.forEach(function (member, index) {
       const row = document.createElement("div");
       row.className = "ranking-row";
-      row.innerHTML = `<span>#${index + 1}</span><span>${member.name}</span><span>${formatShortTime(member.totalSeconds)}</span><span>${member.streak}</span><span>${member.tasksCompleted}</span>`;
+      row.innerHTML = `<span>#${index + 1}</span><span>${member.name}</span><span>${formatShortTime(member.totalSeconds)}</span><span>-</span><span>-</span>`;
       groupRankingList.appendChild(row);
     });
+    })
+    .catch(function (error) {
+      appendSimpleItem(groupRankingList, error.message);
+    });
+}
+
+function renderGroupChat(circle) {
+  if (!groupChatMessages) return;
+  groupChatMessages.innerHTML = "";
+
+  if (!circle.messages || circle.messages.length === 0) {
+    appendSimpleItem(groupChatMessages, "No messages yet.");
+    return;
+  }
+
+  circle.messages.forEach(function (message) {
+    const row = document.createElement("div");
+    row.className = "mock-bubble";
+    const name = (message.user && message.user.displayName) || "Student";
+    row.innerHTML = `<strong>${name}</strong><span>${message.message}</span><small>${formatActivityTime(message.createdAt)}</small>`;
+    groupChatMessages.appendChild(row);
+  });
+}
+
+async function sendGroupMessage(event) {
+  event.preventDefault();
+  const circle = getSelectedCircle();
+  const message = groupChatInput.value.trim();
+  if (!circle || !message) return;
+
+  try {
+    await studyMateApi(`groups/${circle.id}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ message })
+    });
+    groupChatInput.value = "";
+    const response = await studyMateApi(`groups/${circle.id}`);
+    upsertStudyCircle(response.group);
+    renderStudyCircles();
+  } catch (error) {
+    console.warn(error.message);
+  }
 }
 
 function openGroupModal(mode) {
@@ -4533,7 +4623,7 @@ function closeGroupModal() {
   groupForm.dataset.mode = "create";
 }
 
-function saveGroup(event) {
+async function saveGroup(event) {
   event.preventDefault();
   const selectedCircle = getSelectedCircle();
   const circleName = groupNameInput.value.trim();
@@ -4541,50 +4631,42 @@ function saveGroup(event) {
   const circleDescription = groupDescriptionInput.value.trim() || "A shared StudyMate group.";
   if (!circleName) return;
 
-  if (selectedCircle && groupForm.dataset.mode === "edit") {
-    selectedCircle.name = circleName;
-    selectedCircle.icon = circleIcon;
-    selectedCircle.description = circleDescription;
-    selectedCircle.privacy = groupPrivacyInput.value;
-    addGroupActivity(selectedCircle, "Group settings were updated.");
-  } else {
-    const newCircle = {
-      id: createId(),
+  try {
+    const payload = {
       name: circleName,
       icon: circleIcon,
-      description: circleDescription,
-      privacy: groupPrivacyInput.value,
-      inviteCode: generateInviteCode(),
-      members: [{ id: "you", name: "You", status: "Paused", subject: getSelectedSubject().name, totalSeconds: appData.studySeconds, streak: appData.streak, tasksCompleted: getCompletedTaskCount() }],
-      rooms: [],
-      challenges: [],
-      activity: [],
-      createdAt: new Date().toISOString()
+      description: circleDescription
     };
-    addGroupActivity(newCircle, "You created the group.");
-    appData.studyCircles.push(newCircle);
-    appData.selectedCircleId = newCircle.id;
+    const response = selectedCircle && groupForm.dataset.mode === "edit"
+      ? await studyMateApi(`groups/${selectedCircle.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+      : await studyMateApi("groups", { method: "POST", body: JSON.stringify(payload) });
+    const savedCircle = upsertStudyCircle(response.group);
+    appData.selectedCircleId = savedCircle.id;
     appData.groupsView = "workspace";
     appData.selectedCircleTab = "overview";
+    closeGroupModal();
+    renderStudyCircles();
+  } catch (error) {
+    console.warn(error.message);
   }
-
-  closeGroupModal();
-  saveData();
-  renderStudyCircles();
 }
 
-function deleteSelectedGroup() {
+async function deleteSelectedGroup() {
   const circle = getSelectedCircle();
   if (!circle) return;
   if (!confirm(`Delete ${circle.name}?`)) return;
 
-  appData.studyCircles = appData.studyCircles.filter(function (candidate) { return candidate.id !== circle.id; });
-  appData.selectedCircleId = null;
-  appData.groupsView = "list";
-  if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) appData.activeRoomId = null;
-  closeGroupModal();
-  saveData();
-  renderStudyCircles();
+  try {
+    await studyMateApi(`groups/${circle.id}`, { method: "DELETE" });
+    appData.studyCircles = appData.studyCircles.filter(function (candidate) { return String(candidate.id) !== String(circle.id); });
+    appData.selectedCircleId = null;
+    appData.groupsView = "list";
+    if (appData.activeRoomId && !getRoomById(appData.activeRoomId)) appData.activeRoomId = null;
+    closeGroupModal();
+    renderStudyCircles();
+  } catch (error) {
+    console.warn(error.message);
+  }
 }
 
 function openJoinGroupModal() {
@@ -4600,24 +4682,24 @@ function closeJoinGroupModal() {
   joinGroupMessage.textContent = "";
 }
 
-function joinGroupByCode(event) {
+async function joinGroupByCode(event) {
   event.preventDefault();
   const code = joinCodeInput.value.trim().toUpperCase();
-  const circle = appData.studyCircles.find(function (candidate) {
-    return candidate.inviteCode.toUpperCase() === code;
-  });
 
-  if (!circle) {
-    joinGroupMessage.textContent = "This code is not saved in this browser yet. Shared joining needs accounts and a backend later.";
-    return;
+  try {
+    const response = await studyMateApi("groups/join", {
+      method: "POST",
+      body: JSON.stringify({ inviteCode: code })
+    });
+    const circle = upsertStudyCircle(response.group);
+    appData.selectedCircleId = circle.id;
+    appData.groupsView = "workspace";
+    appData.selectedCircleTab = "overview";
+    closeJoinGroupModal();
+    renderStudyCircles();
+  } catch (error) {
+    joinGroupMessage.textContent = error.message;
   }
-
-  appData.selectedCircleId = circle.id;
-  appData.groupsView = "workspace";
-  appData.selectedCircleTab = "overview";
-  closeJoinGroupModal();
-  saveData();
-  renderStudyCircles();
 }
 
 function openInviteModal() {
@@ -4625,7 +4707,7 @@ function openInviteModal() {
   if (!circle) return;
   inviteModal.hidden = false;
   inviteCodeDisplay.textContent = circle.inviteCode;
-  inviteCopyMessage.textContent = "Sharing across devices requires accounts and a backend later.";
+  inviteCopyMessage.textContent = "Share this code with another StudyMate account.";
 }
 
 function closeInviteModal() {
@@ -4637,7 +4719,7 @@ function copyInviteCode() {
   if (!circle) return;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(circle.inviteCode);
-    inviteCopyMessage.textContent = "Code copied for this local prototype.";
+    inviteCopyMessage.textContent = "Code copied.";
   } else {
     inviteCopyMessage.textContent = circle.inviteCode;
   }
@@ -4665,7 +4747,7 @@ function createFocusRoom(event) {
     id: createId(),
     name: roomNameInput.value.trim(),
     icon: getInitials(roomNameInput.value.trim()),
-    description: "A local prototype focus room.",
+    description: "A focus room.",
     subject: roomSubjectInput.value.trim(),
     maxMembers: Math.max(2, Number(roomMaxInput.value) || 8),
     privacy: roomPrivacyInput.value,
@@ -4705,7 +4787,7 @@ function renderActiveRoom() {
   if (!room) {
     groupRoomLive.hidden = true;
     activeRoomName.textContent = "No room joined";
-    activeRoomDescription.textContent = "Join a room to see the local prototype session.";
+    activeRoomDescription.textContent = "Join a room to see the session.";
     activeRoomSubject.textContent = "-";
     activeRoomTimer.textContent = "0h 00m";
     activeRoomStatus.textContent = "Paused";
@@ -4841,8 +4923,8 @@ function updateDurationOptionState() {
 function updateParticipantHelp() {
   const help = {
     solo: "Solo challenges can include everyone or selected members.",
-    duo: "Duo challenges combine two members per pair. Random pairs work in this local prototype.",
-    teams: "Team challenges combine larger groups. Random teams work in this local prototype.",
+    duo: "Duo challenges combine two members per pair.",
+    teams: "Team challenges combine larger groups.",
     "group-goal": "Group goals include everyone working toward one shared target."
   };
   challengeParticipantHelp.textContent = help[challengeDraft.format];
@@ -5380,6 +5462,7 @@ joinGroupModal.addEventListener("click", function (event) {
   if (event.target === joinGroupModal) closeJoinGroupModal();
 });
 joinGroupForm.addEventListener("submit", joinGroupByCode);
+if (groupChatForm) groupChatForm.addEventListener("submit", sendGroupMessage);
 closeInviteModalButton.addEventListener("click", closeInviteModal);
 inviteModal.addEventListener("click", function (event) {
   if (event.target === inviteModal) closeInviteModal();
@@ -5489,6 +5572,7 @@ if (importLocalDataButton) {
 
 async function initializeApp() {
   await loadData();
+  await loadGroups();
   applyAppearance();
   applySidebarState();
   renderThemes();

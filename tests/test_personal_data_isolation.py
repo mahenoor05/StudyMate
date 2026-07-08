@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timezone
 
 
 class PersonalDataIsolationTest(unittest.TestCase):
@@ -25,7 +26,9 @@ class PersonalDataIsolationTest(unittest.TestCase):
             user_a.set_password("password123")
             user_b = User(display_name="Account B", username="account_b", email="b@example.com")
             user_b.set_password("password123")
-            db.session.add_all([user_a, user_b])
+            user_c = User(display_name="Account C", username="account_c", email="c@example.com")
+            user_c.set_password("password123")
+            db.session.add_all([user_a, user_b, user_c])
             db.session.commit()
 
         self.client = self.app.test_client()
@@ -121,6 +124,94 @@ class PersonalDataIsolationTest(unittest.TestCase):
         self.assertIn("Private Physics A", str(final_response.json))
         self.assertIn("Private task A", str(final_response.json))
         self.assertIn("Private Exam A", str(final_response.json))
+
+    def test_fresh_account_has_no_demo_group_or_leaderboard_data(self):
+        self.login("account_a")
+
+        app_data_response = self.client.get("/api/app-data")
+        groups_response = self.client.get("/api/groups")
+        leaderboard_response = self.client.get("/api/leaderboard?range=today")
+
+        self.assertEqual(app_data_response.status_code, 200)
+        self.assertIsNone(app_data_response.json["appData"])
+        self.assertEqual(groups_response.status_code, 200)
+        self.assertEqual(groups_response.json["groups"], [])
+        self.assertEqual(leaderboard_response.status_code, 200)
+        self.assertEqual(leaderboard_response.json["rows"], [])
+        self.assertNotIn("StudyMate Circle", str(groups_response.json))
+        self.assertNotIn("Demo", str(leaderboard_response.json))
+
+    def test_group_collaboration_and_leaderboard_use_real_database_rows(self):
+        from app.models import StudySession, User
+
+        self.login("account_a")
+        create_response = self.client.post("/api/groups", json={
+            "name": "Physics Partners",
+            "description": "Real shared study group",
+            "icon": "PP",
+        })
+        self.assertEqual(create_response.status_code, 201)
+        group = create_response.json["group"]
+        group_id = group["id"]
+        invite_code = group["inviteCode"]
+        self.assertEqual(group["members"][0]["name"], "Account A")
+        self.assertNotIn("Maya", str(group))
+
+        message_response = self.client.post(f"/api/groups/{group_id}/messages", json={"message": "Welcome!"})
+        self.assertEqual(message_response.status_code, 201)
+
+        self.logout()
+        self.login("account_b")
+        self.assertEqual(self.client.get(f"/api/groups/{group_id}").status_code, 404)
+        self.assertEqual(self.client.get("/api/groups").json["groups"], [])
+
+        join_response = self.client.post("/api/groups/join", json={"inviteCode": invite_code})
+        self.assertEqual(join_response.status_code, 200)
+        self.assertEqual(len(join_response.json["group"]["members"]), 2)
+        self.assertIn("Welcome!", str(join_response.json))
+
+        reply_response = self.client.post(f"/api/groups/{group_id}/messages", json={"message": "Joined."})
+        self.assertEqual(reply_response.status_code, 201)
+
+        self.logout()
+        self.login("account_c")
+        self.assertEqual(self.client.get(f"/api/groups/{group_id}/messages").status_code, 404)
+
+        with self.app.app_context():
+            user_a = User.query.filter_by(username="account_a").one()
+            user_b = User.query.filter_by(username="account_b").one()
+            db_now = datetime.now(timezone.utc)
+            self.db.session.add_all([
+                StudySession(
+                    client_id="session-a",
+                    user_id=user_a.id,
+                    subject_name="Physics",
+                    timer_mode="Stopwatch",
+                    started_at=db_now,
+                    study_seconds=2400,
+                    break_seconds=0,
+                    payload={},
+                ),
+                StudySession(
+                    client_id="session-b",
+                    user_id=user_b.id,
+                    subject_name="Chemistry",
+                    timer_mode="Stopwatch",
+                    started_at=db_now,
+                    study_seconds=1200,
+                    break_seconds=0,
+                    payload={},
+                ),
+            ])
+            self.db.session.commit()
+
+        self.logout()
+        self.login("account_a")
+        leaderboard_response = self.client.get(f"/api/leaderboard?range=today&groupId={group_id}")
+        self.assertEqual(leaderboard_response.status_code, 200)
+        rows = leaderboard_response.json["rows"]
+        self.assertEqual([row["name"] for row in rows], ["Account A", "Account B"])
+        self.assertEqual([row["totalSeconds"] for row in rows], [2400, 1200])
 
 
 if __name__ == "__main__":
