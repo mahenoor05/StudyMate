@@ -84,6 +84,7 @@ const homeGoalCopy = document.getElementById("home-goal-copy");
 const homeTotalTime = document.getElementById("home-total-time");
 const homeStreak = document.getElementById("home-streak");
 const homeSubjectList = document.getElementById("home-subject-list");
+const homeDistractionList = document.getElementById("home-distraction-list");
 const homeTaskPreview = document.getElementById("home-task-preview");
 const homeDaySummary = document.getElementById("home-day-summary");
 const homeActiveCopy = document.getElementById("home-active-copy");
@@ -91,6 +92,7 @@ const homeSessionMode = document.getElementById("home-session-mode");
 const homeSubjectSelect = document.getElementById("home-subject-select");
 const homeTaskCount = document.getElementById("home-task-count");
 const homeOpenPlan = document.getElementById("home-open-plan");
+const homeAddSubject = document.getElementById("home-add-subject");
 const homeNextExam = document.getElementById("home-next-exam");
 const homeWeekPreview = document.getElementById("home-week-preview");
 
@@ -588,6 +590,8 @@ async function loadData() {
   }
 
   if (appData.date !== getTodayKey()) resetDailyData();
+  appData.streak = getCurrentStudyStreak();
+  syncDailyHistory(getTodayKey());
   localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
 
   if (appData.activeSession && appData.sessionState !== "paused") {
@@ -1128,6 +1132,7 @@ function resetDailyData() {
 }
 
 function saveData() {
+  appData.streak = getCurrentStudyStreak();
   syncDailyHistory(getTodayKey());
   localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
   queueDatabaseSync();
@@ -1474,6 +1479,46 @@ function getGoalPercent() {
   return Math.min(Math.round((appData.studySeconds / goalSeconds) * 100), 100);
 }
 
+function getGoalPercentForSeconds(studySeconds) {
+  const goalSeconds = Math.max(1, Number(appData.goalHours || 0) * 3600);
+  return Math.min(Math.round((studySeconds / goalSeconds) * 100), 100);
+}
+
+function getCompletedStudySessionsForDate(dateKey) {
+  const sessions = getSessionsForDate(dateKey).slice();
+  if (appData.pendingSessionReview && appData.pendingSessionReview.date === dateKey) {
+    const alreadySaved = sessions.some(function (session) {
+      return session.id === appData.pendingSessionReview.id;
+    });
+    if (!alreadySaved) sessions.unshift(appData.pendingSessionReview);
+  }
+  return sessions.filter(function (session) {
+    return Number(session.durationSeconds || 0) > 0;
+  });
+}
+
+function getStudySecondsForDate(dateKey) {
+  const sessionSeconds = getSecondsFromSessions(getCompletedStudySessionsForDate(dateKey));
+  if (dateKey === getTodayKey()) return sessionSeconds;
+  const historySeconds = Number((appData.dailyHistory[dateKey] || {}).studySeconds || 0);
+  return Math.max(sessionSeconds, historySeconds);
+}
+
+function getCurrentStudyStreak() {
+  let streak = 0;
+  const minimumSeconds = 10 * 60;
+  const cursor = new Date(`${getTodayKey()}T00:00:00`);
+
+  while (true) {
+    const dateKey = getDateKeyFromDate(cursor);
+    if (getStudySecondsForDate(dateKey) < minimumSeconds) break;
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+
+  return streak;
+}
+
 function getSecondsFromSessions(sessions) {
   return sessions.reduce(function (total, session) {
     return total + Number(session.durationSeconds || 0);
@@ -1519,12 +1564,14 @@ function updateHome() {
   const pendingTasks = getPendingTodayTasks();
   const completedTasks = getCompletedTodayTasks();
   const selectedSubject = getSelectedSubject();
-  const goalPercent = getGoalPercent();
+  const todayStudySeconds = getStudySecondsForDate(getTodayKey());
+  const goalPercent = getGoalPercentForSeconds(todayStudySeconds);
+  const currentStreak = getCurrentStudyStreak();
   const greeting = getGreeting();
   const nearestExam = getNearestExam();
   const summaryParts = [
     `${pendingTasks.length} ${pendingTasks.length === 1 ? "task" : "tasks"} left today`,
-    `${formatShortTime(appData.studySeconds)} studied`
+    `${formatShortTime(todayStudySeconds)} studied`
   ];
 
   if (nearestExam) {
@@ -1534,17 +1581,18 @@ function updateHome() {
   dashboardGreeting.textContent = `${greeting}, ${studyMateUser.displayName || "StudyMate learner"}`;
   todayDate.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
   homeDaySummary.textContent = summaryParts.join(" - ");
-  homeTotalTime.textContent = formatShortTime(appData.studySeconds);
-  homeStreak.textContent = `${appData.streak}-day streak`;
+  homeTotalTime.textContent = formatShortTime(todayStudySeconds);
+  homeStreak.textContent = `${currentStreak}-day streak`;
   homeGoalPercent.textContent = `${goalPercent}%`;
   homeGoalHours.textContent = `of ${formatGoalHours(appData.goalHours)} goal`;
   homeGoalBar.style.width = `${goalPercent}%`;
-  homeGoalCopy.textContent = `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`;
+  homeGoalCopy.textContent = `${formatShortTime(todayStudySeconds)} / ${formatGoalHours(appData.goalHours)}`;
 
   if (appData.activeSession) {
-    homeActiveSubject.textContent = "Continue where you left off";
-    homeActiveCopy.textContent = selectedSubject.name;
-    homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Running";
+    const activeSubject = getSubjectById(appData.activeSession.subjectId) || selectedSubject;
+    homeActiveSubject.textContent = appData.activeSession.phase === "break" ? "Break" : "● Studying";
+    homeActiveCopy.textContent = activeSubject.name;
+    homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Studying";
     homeSessionStart.textContent = appData.activeSession.mode;
     homeSessionMode.textContent = "";
     homeSessionElapsed.textContent = formatLongTime(getSessionElapsedSeconds());
@@ -1579,6 +1627,7 @@ function updateHome() {
   renderHomeNextExam(nearestExam);
   renderHomeWeekPreview();
   renderSubjectBreakdown(homeSubjectList);
+  renderHomeDistractions();
 }
 
 function getGreeting() {
@@ -1989,8 +2038,14 @@ function renderHomeWeekPreview() {
 
 function renderSubjectBreakdown(container) {
   container.innerHTML = "";
-  const subjectsWithTime = appData.subjects.filter(function (subject) {
-    return subject.seconds > 0;
+  const subjectTotals = getSubjectTotalsFromSessions(getCompletedStudySessionsForDate(getTodayKey()));
+  const subjectsWithTime = Object.keys(subjectTotals).map(function (subjectName) {
+    const subject = appData.subjects.find(function (item) { return item.name === subjectName; });
+    return {
+      name: subjectName,
+      seconds: subjectTotals[subjectName],
+      colorKey: subject ? subject.colorKey : "blue"
+    };
   });
 
   if (subjectsWithTime.length === 0) {
@@ -2016,6 +2071,28 @@ function renderSubjectBreakdown(container) {
       row.appendChild(time);
       container.appendChild(row);
     });
+}
+
+function renderHomeDistractions() {
+  if (!homeDistractionList) return;
+  const distractions = getDistractionsForDate(getTodayKey());
+  homeDistractionList.innerHTML = "";
+
+  if (distractions.length === 0) {
+    appendSimpleItem(homeDistractionList, "No distractions logged today.");
+    return;
+  }
+
+  distractions.slice(0, 4).forEach(function (entry) {
+    const item = document.createElement("li");
+    const time = document.createElement("strong");
+    const reason = document.createElement("span");
+    time.textContent = entry.time || formatClockTime(entry.timestamp);
+    reason.textContent = entry.reason || entry.category || "Distraction";
+    item.appendChild(time);
+    item.appendChild(reason);
+    homeDistractionList.appendChild(item);
+  });
 }
 
 function renderTodayInsights() {
@@ -3964,6 +4041,7 @@ function addDistraction(event) {
   distractionInput.value = "";
   saveData();
   renderDistractions();
+  updateHome();
 }
 
 function renderDistractions() {
@@ -5190,6 +5268,7 @@ navButtons.forEach(function (button) {
 homeContinueSession.addEventListener("click", startOrContinueFromHome);
 homeOpenSession.addEventListener("click", function () { showSection("focus-hub"); });
 homeOpenPlan.addEventListener("click", function () { showSection("task-board"); });
+homeAddSubject.addEventListener("click", openSubjectModal);
 homeSubjectSelect.addEventListener("change", function () {
   appData.selectedSubjectId = homeSubjectSelect.value;
   saveData();

@@ -209,9 +209,17 @@
         <article class="inline-section subjects-card">
           <div class="section-mini-header">
             <h3>Subjects Today</h3>
-            <button class="text-button" type="button" id="home-open-session">Focus</button>
+            <div>
+              <button class="text-button" type="button" id="home-add-subject" aria-label="Add subject">+</button>
+              <button class="text-button" type="button" id="home-open-session">Focus</button>
+            </div>
           </div>
           <div class="shared-list subject-breakdown" id="home-subject-list"></div>
+        </article>
+
+        <article class="inline-section home-distractions-card">
+          <h3>Today's Distractions</h3>
+          <ul class="shared-list preview-list" id="home-distraction-list"></ul>
         </article>
       </div>
     </section>
