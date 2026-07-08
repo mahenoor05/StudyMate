@@ -992,8 +992,8 @@
     <section class="app-section" id="appearance">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Appearance</p>
-          <h2>Make the workspace yours</h2>
+          <p class="eyebrow" id="settings-heading-label">Profile</p>
+          <h2 id="settings-heading-title">Your StudyMate identity</h2>
         </div>
       </div>
 
@@ -1047,8 +1047,6 @@
             <div><span>Username</span><strong id="account-username">@{{ current_user.username }}</strong></div>
             <div><span>Created</span><strong id="account-created">-</strong></div>
             <div><span>Last login</span><strong id="account-last-login">-</strong></div>
-            <div><span>Storage usage</span><strong>Coming soon</strong></div>
-            <div><span>Connected devices</span><strong>Coming soon</strong></div>
           </div>
         </article>
         <article class="panel" data-settings-section="profile">
@@ -1059,28 +1057,27 @@
           </div>
         </article>
         <article class="panel" data-settings-section="study">
-          <h3>Study</h3>
-          <p class="muted-text">Weekly reports, badges, friends, followers, and public profile links are prepared for future phases.</p>
-        </article>
-        <article class="panel" data-settings-section="study">
-          <h3>Notifications</h3>
-          <p class="muted-text">Study reminders and group notifications are coming soon.</p>
+          <h3>Study Preferences</h3>
+          <p class="muted-text">No separate study preferences are needed right now. Focus sessions, subjects, exams, and daily goals are managed in their own sections.</p>
         </article>
         <article class="panel" data-settings-section="privacy">
           <h3>Privacy</h3>
           <div class="settings-list">
             <div><span>Profile</span><strong id="privacy-profile">Private</strong></div>
-            <div><span>Groups</span><strong id="privacy-groups">Members</strong></div>
-            <div><span>Leaderboard</span><strong id="privacy-leaderboard">Public</strong></div>
+            <div><span>Groups</span><strong id="privacy-groups">Members only</strong></div>
+            <div>
+              <label for="leaderboard-visibility-input">Leaderboard</label>
+              <select id="leaderboard-visibility-input">
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+              </select>
+            </div>
           </div>
         </article>
         <article class="panel danger-zone-panel" data-settings-section="account">
           <h3>Danger Zone</h3>
-          <div class="button-row">
-            <button type="button" class="secondary-button" disabled>Export Data</button>
-            <button type="button" class="secondary-button" disabled>Download Study History</button>
-            <button type="button" class="delete-button" disabled>Delete Account</button>
-          </div>
+          <p class="muted-text">Account deletion is deferred until the Account & Authorization phase, where it can require password confirmation and safely remove all owned data.</p>
+          <button type="button" class="delete-button" disabled>Delete Account</button>
         </article>
       </div>
 
@@ -1116,36 +1113,6 @@
           <input id="profile-country-input" type="text" maxlength="80">
           <label for="profile-timezone-input">Timezone</label>
           <input id="profile-timezone-input" type="text" maxlength="80">
-          <label for="profile-theme-input">Preferred theme</label>
-          <select id="profile-theme-input">
-            <option value="system">Use current app theme</option>
-            <option value="midnight">Midnight</option>
-            <option value="amoled">AMOLED</option>
-            <option value="ocean">Ocean</option>
-            <option value="nebula">Nebula</option>
-            <option value="forest">Forest</option>
-            <option value="sakura">Sakura</option>
-            <option value="coffee">Coffee</option>
-            <option value="light">Light</option>
-          </select>
-          <label for="profile-visibility-input">Profile visibility</label>
-          <select id="profile-visibility-input">
-            <option value="public">Public profile</option>
-            <option value="friends">Friends only</option>
-            <option value="private">Private profile</option>
-          </select>
-          <label for="group-visibility-setting-input">Group visibility</label>
-          <select id="group-visibility-setting-input">
-            <option value="public">Visible in groups</option>
-            <option value="members">Members only</option>
-            <option value="private">Private</option>
-          </select>
-          <label for="leaderboard-visibility-input">Leaderboard visibility</label>
-          <select id="leaderboard-visibility-input">
-            <option value="public">Public leaderboard</option>
-            <option value="groups">Groups only</option>
-            <option value="private">Private</option>
-          </select>
           <input id="profile-avatar-style-input" type="hidden" value="initials">
           <input id="profile-avatar-color-input" type="hidden" value="violet">
           <div class="avatar-picker-block">

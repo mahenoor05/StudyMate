@@ -746,7 +746,19 @@ body.sidebar-collapsed .app-main {
   border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--radius);
   min-height: 8rem;
+  position: relative;
   width: 100%;
+}
+
+.profile-banner:not(.has-image)::after {
+  align-items: center;
+  color: var(--muted);
+  content: "Add profile banner";
+  display: flex;
+  font-size: 0.88rem;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
 }
 
 .profile-banner.preview {
@@ -2936,6 +2948,38 @@ body.sidebar-collapsed .app-main {
   max-width: 420px;
   padding: var(--space-4);
   width: min(100%, 420px);
+}
+
+body.modal-open {
+  overflow: hidden;
+}
+
+#profile-modal {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+#profile-modal .modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: min(92vh, 760px);
+  overflow: hidden;
+}
+
+#profile-modal .section-mini-header {
+  flex: 0 0 auto;
+}
+
+#profile-form {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+#profile-form > button[type="submit"] {
+  bottom: 0;
+  position: sticky;
+  z-index: 1;
 }
 
 .exams-main-header {

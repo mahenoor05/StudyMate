@@ -256,6 +256,8 @@ const saveAccentButton = document.getElementById("save-accent");
 const resetAccentButton = document.getElementById("reset-accent");
 const settingsTabs = document.getElementById("settings-tabs");
 const settingsSections = document.querySelectorAll("[data-settings-section]");
+const settingsHeadingLabel = document.getElementById("settings-heading-label");
+const settingsHeadingTitle = document.getElementById("settings-heading-title");
 const profileAvatar = document.getElementById("profile-avatar");
 const profileBanner = document.getElementById("profile-banner");
 const profileDisplayName = document.getElementById("profile-display-name");
@@ -288,9 +290,6 @@ const profileUsernameInput = document.getElementById("profile-username-input");
 const profileBioInput = document.getElementById("profile-bio-input");
 const profileCountryInput = document.getElementById("profile-country-input");
 const profileTimezoneInput = document.getElementById("profile-timezone-input");
-const profileThemeInput = document.getElementById("profile-theme-input");
-const profileVisibilityInput = document.getElementById("profile-visibility-input");
-const groupVisibilitySettingInput = document.getElementById("group-visibility-setting-input");
 const leaderboardVisibilityInput = document.getElementById("leaderboard-visibility-input");
 const profileAvatarStyleInput = document.getElementById("profile-avatar-style-input");
 const profileAvatarColorInput = document.getElementById("profile-avatar-color-input");
@@ -788,6 +787,7 @@ function renderProfile() {
   privacyProfile.textContent = formatVisibility(studyMateUser.profileVisibility);
   privacyGroups.textContent = formatVisibility(studyMateUser.groupVisibility);
   privacyLeaderboard.textContent = formatVisibility(studyMateUser.leaderboardVisibility);
+  if (leaderboardVisibilityInput) leaderboardVisibilityInput.value = studyMateUser.leaderboardVisibility === "private" ? "private" : "public";
   profileExams.textContent = formatListPreview(getProfileExamNames(), "None selected");
   profileFavouriteSubject.textContent = getFavouriteSubjectName();
   profileGroupsJoined.textContent = String(appData.studyCircles.length);
@@ -4463,20 +4463,18 @@ function openProfileModal() {
   profileBioInput.value = studyMateUser.bio || "";
   profileCountryInput.value = studyMateUser.country || "";
   profileTimezoneInput.value = studyMateUser.timezone || "UTC";
-  profileThemeInput.value = studyMateUser.preferredTheme || "system";
-  profileVisibilityInput.value = studyMateUser.profileVisibility || "private";
-  groupVisibilitySettingInput.value = studyMateUser.groupVisibility || "members";
-  leaderboardVisibilityInput.value = studyMateUser.leaderboardVisibility || "public";
   profileAvatarStyleInput.value = studyMateUser.avatarStyle || "initials";
   profileAvatarColorInput.value = studyMateUser.avatarColor || "violet";
   renderAvatarChoices();
   renderProfile();
   profileModal.hidden = false;
+  document.body.classList.add("modal-open");
   profileNameInput.focus();
 }
 
 function closeProfileModal() {
   profileModal.hidden = true;
+  document.body.classList.remove("modal-open");
 }
 
 async function saveProfile(event) {
@@ -4487,10 +4485,6 @@ async function saveProfile(event) {
     bio: profileBioInput.value.trim(),
     country: profileCountryInput.value.trim(),
     timezone: profileTimezoneInput.value.trim(),
-    preferredTheme: profileThemeInput.value,
-    profileVisibility: profileVisibilityInput.value,
-    groupVisibility: groupVisibilitySettingInput.value,
-    leaderboardVisibility: leaderboardVisibilityInput.value,
     avatarStyle: profileAvatarStyleInput.value,
     avatarColor: profileAvatarColorInput.value
   });
@@ -4538,12 +4532,30 @@ function applySidebarState() {
 
 function showSettingsSection(sectionName) {
   if (!settingsTabs) return;
+  const headings = {
+    profile: ["Profile", "Your StudyMate identity"],
+    appearance: ["Appearance", "Make the workspace yours"],
+    study: ["Study Preferences", "Shape how you study"],
+    privacy: ["Privacy", "Control what others can see"],
+    account: ["Account", "Manage your StudyMate account"]
+  };
+  const heading = headings[sectionName] || headings.profile;
+  if (settingsHeadingLabel) settingsHeadingLabel.textContent = heading[0];
+  if (settingsHeadingTitle) settingsHeadingTitle.textContent = heading[1];
   settingsTabs.querySelectorAll("button").forEach(function (button) {
     button.classList.toggle("active", button.dataset.settingsTab === sectionName);
   });
   settingsSections.forEach(function (section) {
     section.hidden = section.dataset.settingsSection !== sectionName;
   });
+}
+
+async function savePrivacySettings() {
+  if (!leaderboardVisibilityInput) return;
+  await saveProfilePayload({
+    leaderboardVisibility: leaderboardVisibilityInput.value
+  });
+  renderLeaderboard();
 }
 
 function leaveFocusRoom(shouldRender = true) {
@@ -5757,6 +5769,7 @@ profileAvatarUpload.addEventListener("change", function () { uploadAvatar(profil
 profileAvatarRemove.addEventListener("click", function () { removeAvatar(profileAvatarHelp); });
 profileBannerUpload.addEventListener("change", function () { uploadBanner(profileBannerUpload, profileBannerHelp); });
 profileBannerRemove.addEventListener("click", function () { removeBanner(profileBannerHelp); });
+if (leaderboardVisibilityInput) leaderboardVisibilityInput.addEventListener("change", savePrivacySettings);
 onboardingStartButton.addEventListener("click", function () { showOnboardingStep(2); });
 onboardingBasicsNext.addEventListener("click", async function () {
   await saveOnboardingBasics();
