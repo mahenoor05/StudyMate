@@ -254,6 +254,8 @@ const themeGrid = document.getElementById("theme-grid");
 const accentInput = document.getElementById("accent-input");
 const saveAccentButton = document.getElementById("save-accent");
 const resetAccentButton = document.getElementById("reset-accent");
+const settingsTabs = document.getElementById("settings-tabs");
+const settingsSections = document.querySelectorAll("[data-settings-section]");
 const profileAvatar = document.getElementById("profile-avatar");
 const profileBanner = document.getElementById("profile-banner");
 const profileDisplayName = document.getElementById("profile-display-name");
@@ -274,7 +276,6 @@ const accountCreated = document.getElementById("account-created");
 const accountLastLogin = document.getElementById("account-last-login");
 const profileCountry = document.getElementById("profile-country");
 const profileTimezone = document.getElementById("profile-timezone");
-const profileStudyGoal = document.getElementById("profile-study-goal");
 const privacyProfile = document.getElementById("privacy-profile");
 const privacyGroups = document.getElementById("privacy-groups");
 const privacyLeaderboard = document.getElementById("privacy-leaderboard");
@@ -287,10 +288,7 @@ const profileUsernameInput = document.getElementById("profile-username-input");
 const profileBioInput = document.getElementById("profile-bio-input");
 const profileCountryInput = document.getElementById("profile-country-input");
 const profileTimezoneInput = document.getElementById("profile-timezone-input");
-const profileStudyGoalInput = document.getElementById("profile-study-goal-input");
 const profileThemeInput = document.getElementById("profile-theme-input");
-const profileExamsInput = document.getElementById("profile-exams-input");
-const profileSubjectsInput = document.getElementById("profile-subjects-input");
 const profileVisibilityInput = document.getElementById("profile-visibility-input");
 const groupVisibilitySettingInput = document.getElementById("group-visibility-setting-input");
 const leaderboardVisibilityInput = document.getElementById("leaderboard-visibility-input");
@@ -429,8 +427,6 @@ let challengeDraft = createChallengeDraft();
 
 function createDefaultData() {
   const subjects = [];
-  const generalSubject = createSubject("General Study", getNextSubjectColorKey(subjects));
-  subjects.push(generalSubject);
 
   return {
     date: getTodayKey(),
@@ -441,7 +437,7 @@ function createDefaultData() {
     goalHours: null,
     streak: 0,
     focusIntention: "",
-    selectedSubjectId: generalSubject.id,
+    selectedSubjectId: null,
     sessionState: "pre-session",
     currentSessionDraft: { goal: "" },
     pendingSessionReview: null,
@@ -569,9 +565,8 @@ function parseCommaList(value) {
 }
 
 function getProfileExamNames() {
-  const fromProfile = Array.isArray(studyMateUser.selectedExams) ? studyMateUser.selectedExams : [];
   const fromWorkspace = appData.exams.map(function (exam) { return exam.name; });
-  return Array.from(new Set(fromProfile.concat(fromWorkspace)));
+  return Array.from(new Set(fromWorkspace));
 }
 
 function getTotalStudySeconds() {
@@ -584,8 +579,7 @@ function getFavouriteSubjectName() {
   const totals = getSubjectTotalsFromSessions(appData.sessions);
   const top = getTopSubject(totals);
   if (top) return top.name;
-  const preferred = Array.isArray(studyMateUser.preferredSubjects) ? studyMateUser.preferredSubjects[0] : "";
-  return preferred || "-";
+  return appData.subjects[0] ? appData.subjects[0].name : "-";
 }
 
 function getProfileLongestStreak() {
@@ -708,12 +702,19 @@ async function loadData() {
   }
 
   if (appData.date !== getTodayKey()) resetDailyData();
+  applyAccountPreferencesToAppData();
   appData.streak = getCurrentStudyStreak();
   syncDailyHistory(getTodayKey());
   localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
 
   if (appData.activeSession && appData.sessionState !== "paused") {
     resumeSessionTimer();
+  }
+}
+
+function applyAccountPreferencesToAppData() {
+  if (studyMateUser.preferredTheme && studyMateUser.preferredTheme !== "system") {
+    appData.theme = studyMateUser.preferredTheme;
   }
 }
 
@@ -759,13 +760,10 @@ function updateProfileState(profile) {
   studyMateUser.onboardingCompleted = Boolean(profile.onboardingCompleted);
   studyMateUser.country = profile.country || "";
   studyMateUser.timezone = profile.timezone || "UTC";
-  studyMateUser.preferredStudyGoal = profile.preferredStudyGoal || null;
   studyMateUser.preferredTheme = profile.preferredTheme || "system";
   studyMateUser.profileVisibility = profile.profileVisibility || "private";
   studyMateUser.groupVisibility = profile.groupVisibility || "members";
   studyMateUser.leaderboardVisibility = profile.leaderboardVisibility || "public";
-  studyMateUser.selectedExams = Array.isArray(profile.selectedExams) ? profile.selectedExams : [];
-  studyMateUser.preferredSubjects = Array.isArray(profile.preferredSubjects) ? profile.preferredSubjects : [];
   studyMateUser.createdAt = profile.createdAt || studyMateUser.createdAt || "";
   studyMateUser.lastLoginAt = profile.lastLoginAt || studyMateUser.lastLoginAt || "";
 }
@@ -787,7 +785,6 @@ function renderProfile() {
   accountLastLogin.textContent = studyMateUser.lastLoginAt ? formatReadableDate(studyMateUser.lastLoginAt) : "Not recorded";
   profileCountry.textContent = studyMateUser.country || "Not set";
   profileTimezone.textContent = studyMateUser.timezone || "UTC";
-  profileStudyGoal.textContent = studyMateUser.preferredStudyGoal ? formatGoalHours(studyMateUser.preferredStudyGoal) : "Not set";
   privacyProfile.textContent = formatVisibility(studyMateUser.profileVisibility);
   privacyGroups.textContent = formatVisibility(studyMateUser.groupVisibility);
   privacyLeaderboard.textContent = formatVisibility(studyMateUser.leaderboardVisibility);
@@ -807,7 +804,6 @@ async function saveProfilePayload(payload) {
     body: JSON.stringify(payload)
   });
   updateProfileState(response.profile);
-  if (response.profile.preferredStudyGoal) appData.goalHours = response.profile.preferredStudyGoal;
   if (response.profile.preferredTheme && response.profile.preferredTheme !== "system") appData.theme = response.profile.preferredTheme;
   applyAppearance();
   saveData();
@@ -878,7 +874,7 @@ function migrateOldData(oldData) {
 
 function normalizeData() {
   if (!Array.isArray(appData.tasks)) appData.tasks = [];
-  if (!Array.isArray(appData.subjects) || appData.subjects.length === 0) appData.subjects = [createSubject("General Study")];
+  if (!Array.isArray(appData.subjects)) appData.subjects = [];
   if (!Array.isArray(appData.sessions)) appData.sessions = [];
   if (!appData.dailyHistory || typeof appData.dailyHistory !== "object") appData.dailyHistory = {};
   if (!Array.isArray(appData.plannerItems)) appData.plannerItems = [];
@@ -1008,7 +1004,7 @@ function normalizeExam(exam) {
     id: exam.id || createId(),
     name: exam.name || "Untitled Exam",
     type: exam.type || "Custom Exam",
-    date: exam.date || getTodayKey(),
+    date: exam.date || "",
     time: exam.time || "",
     notes: exam.notes || "",
     createdAt: exam.createdAt || new Date().toISOString(),
@@ -1330,12 +1326,15 @@ function saveData() {
 }
 
 function getPersonalAppDataPayload() {
-  return {
+  // UserAppState still carries legacy app data during the transition; shared collaboration data stays out of it.
+  const payload = {
     ...appData,
     studyCircles: [],
     selectedCircleId: null,
     groupsView: "list"
   };
+  delete payload.theme;
+  return payload;
 }
 
 function queueDatabaseSync() {
@@ -1413,7 +1412,7 @@ function appendOnboardingExamGroup(title, presets, isMoreGroup) {
     button.className = "onboarding-choice";
     button.dataset.examName = preset.name;
     button.innerHTML = `<strong>${preset.name}</strong>`;
-    button.classList.toggle("selected", (studyMateUser.selectedExams || []).includes(preset.name));
+    button.classList.toggle("selected", appData.exams.some(function (exam) { return exam.name === preset.name; }));
     button.addEventListener("click", function () { button.classList.toggle("selected"); });
     grid.appendChild(button);
   });
@@ -1431,7 +1430,7 @@ function renderOnboardingSubjectOptions() {
     button.className = "onboarding-choice";
     button.dataset.subjectName = subjectName;
     button.innerHTML = `<strong>${subjectName}</strong>`;
-    button.classList.toggle("selected", (studyMateUser.preferredSubjects || []).includes(subjectName));
+    button.classList.toggle("selected", appData.subjects.some(function (subject) { return subject.name === subjectName; }));
     button.addEventListener("click", function () { button.classList.toggle("selected"); });
     onboardingSubjectOptions.appendChild(button);
   });
@@ -1456,15 +1455,33 @@ async function saveOnboardingBasics() {
     username: onboardingUsername.value.trim() || studyMateUser.username,
     country: onboardingCountry.value.trim(),
     timezone: onboardingTimezone.value.trim() || "UTC",
-    preferredStudyGoal: onboardingStudyGoal.value || studyMateUser.preferredStudyGoal,
     preferredTheme: studyMateUser.preferredTheme || "system"
   });
+  if (onboardingStudyGoal.value) {
+    appData.goalHours = Number(onboardingStudyGoal.value) || appData.goalHours;
+    saveData();
+  }
 }
 
 async function saveOnboardingExams() {
-  await saveProfilePayload({
-    selectedExams: getSelectedOnboardingExams()
+  getSelectedOnboardingExams().forEach(function (examName) {
+    if (appData.exams.some(function (exam) { return exam.name === examName; })) return;
+    const preset = examPresets.find(function (item) { return item.name === examName; }) || { name: examName, subjects: [] };
+    appData.exams.push({
+      id: createId(),
+      type: preset.name,
+      name: preset.name,
+      date: "",
+      time: "",
+      subjects: (preset.subjects || []).map(function (subjectName) {
+        return { id: createId(), name: subjectName, chapters: [] };
+      }),
+      notes: "",
+      milestones: [],
+      createdAt: new Date().toISOString()
+    });
   });
+  saveData();
 }
 
 async function saveOnboardingSubjects() {
@@ -1475,7 +1492,6 @@ async function saveOnboardingSubjects() {
     });
     if (!exists) appData.subjects.push(createSubject(subjectName));
   });
-  await saveProfilePayload({ preferredSubjects: subjects });
   saveData();
 }
 
@@ -1487,7 +1503,7 @@ function maybeShowOnboarding() {
   onboardingUsername.value = studyMateUser.username || "";
   onboardingCountry.value = studyMateUser.country || "";
   onboardingTimezone.value = studyMateUser.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  onboardingStudyGoal.value = studyMateUser.preferredStudyGoal || appData.goalHours || "";
+  onboardingStudyGoal.value = appData.goalHours || "";
   onboardingAvatarStyle.value = studyMateUser.avatarStyle || "initials";
   onboardingAvatarColor.value = studyMateUser.avatarColor || "violet";
   onboardingBio.value = studyMateUser.bio || "";
@@ -1630,7 +1646,7 @@ function getCompletedTodayTasks() {
 function getNearestExam() {
   const today = getTodayKey();
   return appData.exams
-    .filter(function (exam) { return exam.date >= today; })
+    .filter(function (exam) { return exam.date && exam.date >= today; })
     .sort(function (first, second) { return new Date(first.date) - new Date(second.date); })[0];
 }
 
@@ -1645,6 +1661,7 @@ function getSelectedExam() {
 }
 
 function getExamDaysLeft(dateKey) {
+  if (!dateKey) return null;
   const today = new Date(`${getTodayKey()}T00:00:00`);
   const examDate = new Date(`${dateKey}T00:00:00`);
   return Math.round((examDate - today) / 86400000);
@@ -1686,6 +1703,7 @@ function getExamSubjectSummary(exam) {
 }
 
 function getCountdownMessage(daysLeft) {
+  if (daysLeft === null) return "Add an exam date when you know it.";
   if (daysLeft < 0) return "Exam completed";
   if (daysLeft <= 2) return "Keep it simple. Revise what matters most.";
   if (daysLeft <= 7) return "Prioritize high-value revision.";
@@ -1696,6 +1714,7 @@ function getCountdownMessage(daysLeft) {
 }
 
 function getExamStatusLabel(daysLeft) {
+  if (daysLeft === null) return "Date not set";
   if (daysLeft < 0) return "Completed";
   if (daysLeft <= 7) return "Very close";
   if (daysLeft <= 14) return "Soon";
@@ -1780,7 +1799,7 @@ function getSubjectById(subjectId) {
 }
 
 function getSelectedSubject() {
-  return getSubjectById(appData.selectedSubjectId) || appData.subjects[0];
+  return getSubjectById(appData.selectedSubjectId) || appData.subjects[0] || { id: "", name: "General Study", seconds: 0 };
 }
 
 function getSessionElapsedSeconds() {
@@ -2051,6 +2070,15 @@ function renderSubjectOptions() {
   const currentValue = sessionSubjectSelect.value || appData.selectedSubjectId;
   sessionSubjectSelect.innerHTML = "";
 
+  if (appData.subjects.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No subject yet";
+    sessionSubjectSelect.appendChild(option);
+    sessionSubjectSelect.value = "";
+    return;
+  }
+
   appData.subjects.forEach(function (subject) {
     const option = document.createElement("option");
     option.value = subject.id;
@@ -2229,6 +2257,15 @@ function renderTaskSubjectOptions() {
 function renderHomeSubjectOptions() {
   const currentValue = homeSubjectSelect.value || appData.selectedSubjectId;
   homeSubjectSelect.innerHTML = "";
+
+  if (appData.subjects.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Add a subject";
+    homeSubjectSelect.appendChild(option);
+    homeSubjectSelect.value = "";
+    return;
+  }
 
   appData.subjects.forEach(function (subject) {
     const option = document.createElement("option");
@@ -3821,6 +3858,7 @@ function renderExams() {
 }
 
 function getExamCountdown(dateKey) {
+  if (!dateKey) return "Date not set";
   const today = new Date(`${getTodayKey()}T00:00:00`);
   const examDate = new Date(`${dateKey}T00:00:00`);
   const daysLeft = Math.round((examDate - today) / 86400000);
@@ -4377,11 +4415,12 @@ function renderLeaderboard() {
       response.rows.forEach(function (user, index) {
         const row = document.createElement("div");
         row.className = "leaderboard-row";
-        [`#${index + 1}`, user.name, formatShortTime(user.totalSeconds), "-", "Real study data"].forEach(function (value, cellIndex) {
-          const cell = document.createElement(cellIndex === 0 ? "strong" : "span");
-          cell.textContent = value;
-          row.appendChild(cell);
-        });
+        row.innerHTML = `
+          <strong>#${index + 1}</strong>
+          <span class="group-avatar">${getInitials(user.name)}</span>
+          <span>${user.name}</span>
+          <span>${formatShortTime(user.totalSeconds)}</span>
+        `;
         leaderboardTable.appendChild(row);
       });
     })
@@ -4400,9 +4439,18 @@ function renderThemes() {
     button.classList.toggle("active", appData.theme === theme.id);
     button.addEventListener("click", function () {
       appData.theme = theme.id;
+      studyMateUser.preferredTheme = theme.id;
       appData.accentColor = theme.accent;
       applyAppearance();
       saveData();
+      studyMateApi("profile", {
+        method: "PATCH",
+        body: JSON.stringify({ preferredTheme: theme.id })
+      }).then(function (response) {
+        updateProfileState(response.profile);
+      }).catch(function (error) {
+        console.warn(error.message);
+      });
       renderThemes();
     });
     themeGrid.appendChild(button);
@@ -4415,10 +4463,7 @@ function openProfileModal() {
   profileBioInput.value = studyMateUser.bio || "";
   profileCountryInput.value = studyMateUser.country || "";
   profileTimezoneInput.value = studyMateUser.timezone || "UTC";
-  profileStudyGoalInput.value = studyMateUser.preferredStudyGoal || "";
   profileThemeInput.value = studyMateUser.preferredTheme || "system";
-  profileExamsInput.value = (studyMateUser.selectedExams || []).join(", ");
-  profileSubjectsInput.value = (studyMateUser.preferredSubjects || []).join(", ");
   profileVisibilityInput.value = studyMateUser.profileVisibility || "private";
   groupVisibilitySettingInput.value = studyMateUser.groupVisibility || "members";
   leaderboardVisibilityInput.value = studyMateUser.leaderboardVisibility || "public";
@@ -4442,10 +4487,7 @@ async function saveProfile(event) {
     bio: profileBioInput.value.trim(),
     country: profileCountryInput.value.trim(),
     timezone: profileTimezoneInput.value.trim(),
-    preferredStudyGoal: profileStudyGoalInput.value,
     preferredTheme: profileThemeInput.value,
-    selectedExams: parseCommaList(profileExamsInput.value),
-    preferredSubjects: parseCommaList(profileSubjectsInput.value),
     profileVisibility: profileVisibilityInput.value,
     groupVisibility: groupVisibilitySettingInput.value,
     leaderboardVisibility: leaderboardVisibilityInput.value,
@@ -4492,6 +4534,16 @@ function toggleSidebar() {
 
 function applySidebarState() {
   document.body.classList.toggle("sidebar-collapsed", appData.sidebarCollapsed);
+}
+
+function showSettingsSection(sectionName) {
+  if (!settingsTabs) return;
+  settingsTabs.querySelectorAll("button").forEach(function (button) {
+    button.classList.toggle("active", button.dataset.settingsTab === sectionName);
+  });
+  settingsSections.forEach(function (section) {
+    section.hidden = section.dataset.settingsSection !== sectionName;
+  });
 }
 
 function leaveFocusRoom(shouldRender = true) {
@@ -4819,7 +4871,7 @@ function renderGroupRanking(circle) {
 
   const header = document.createElement("div");
   header.className = "ranking-row ranking-head";
-  header.innerHTML = "<span>Rank</span><span>Name</span><span>Study time</span><span>Streak</span><span>Tasks</span>";
+  header.innerHTML = "<span>Rank</span><span>Name</span><span>Study time</span>";
   groupRankingList.appendChild(header);
 
   studyMateApi(`leaderboard?range=${appData.selectedRankingRange}&groupId=${circle.id}`)
@@ -4830,11 +4882,11 @@ function renderGroupRanking(circle) {
       }
 
       response.rows.forEach(function (member, index) {
-      const row = document.createElement("div");
-      row.className = "ranking-row";
-      row.innerHTML = `<span>#${index + 1}</span><span>${member.name}</span><span>${formatShortTime(member.totalSeconds)}</span><span>-</span><span>-</span>`;
-      groupRankingList.appendChild(row);
-    });
+        const row = document.createElement("div");
+        row.className = "ranking-row";
+        row.innerHTML = `<span>#${index + 1}</span><span>${member.name}</span><span>${formatShortTime(member.totalSeconds)}</span>`;
+        groupRankingList.appendChild(row);
+      });
     })
     .catch(function (error) {
       appendSimpleItem(groupRankingList, error.message);
@@ -5730,9 +5782,6 @@ onboardingProfileForm.addEventListener("submit", async function (event) {
     username: onboardingUsername.value.trim() || studyMateUser.username,
     country: onboardingCountry.value.trim(),
     timezone: onboardingTimezone.value.trim() || "UTC",
-    preferredStudyGoal: onboardingStudyGoal.value,
-    selectedExams: getSelectedOnboardingExams(),
-    preferredSubjects: getSelectedOnboardingSubjects(),
     bio: onboardingBio.value.trim(),
     avatarStyle: onboardingAvatarStyle.value,
     avatarColor: onboardingAvatarColor.value || studyMateUser.avatarColor || "violet",
@@ -5868,6 +5917,14 @@ if (importLocalDataButton) {
   importLocalDataButton.addEventListener("click", importLegacyLocalData);
 }
 
+if (settingsTabs) {
+  settingsTabs.querySelectorAll("button").forEach(function (button) {
+    button.addEventListener("click", function () {
+      showSettingsSection(button.dataset.settingsTab);
+    });
+  });
+}
+
 async function initializeApp() {
   await loadData();
   await loadGroups();
@@ -5878,6 +5935,7 @@ async function initializeApp() {
   renderDistractions();
   renderStudyCircles();
   updateAllDisplays();
+  showSettingsSection("profile");
   maybeShowOnboarding();
 }
 

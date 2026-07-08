@@ -201,13 +201,10 @@ def serialize_profile(user):
         "onboardingCompleted": bool(user.onboarding_completed),
         "country": user.country or "",
         "timezone": user.timezone or "UTC",
-        "preferredStudyGoal": user.preferred_study_goal,
         "preferredTheme": user.preferred_theme or "system",
         "profileVisibility": user.profile_visibility or "private",
         "groupVisibility": user.group_visibility or "members",
         "leaderboardVisibility": user.leaderboard_visibility or "public",
-        "selectedExams": user.selected_exams or [],
-        "preferredSubjects": user.preferred_subjects or [],
         "createdAt": iso_datetime(user.created_at),
         "lastLoginAt": iso_datetime(user.last_login_at),
     }
@@ -495,8 +492,6 @@ def save_exams(user_id, exams):
     for item in exams:
         payload = clean_payload(item)
         exam_date = parse_date(payload.get("date"))
-        if not exam_date:
-            continue
         exam = Exam(
             client_id=str(payload.get("id") or ""),
             user_id=user_id,
@@ -559,13 +554,32 @@ def persist_app_data(user_id, app_data):
     db.session.commit()
 
 
+def apply_today_goal_to_app_payload(user_id, payload):
+    if not isinstance(payload, dict):
+        return payload
+    today = date.today()
+    goal = DailyGoal.query.filter_by(user_id=user_id, date=today).first()
+    payload = dict(payload)
+    if goal:
+        payload["goalHours"] = round(goal.target_minutes / 60, 2)
+        history = payload.get("dailyHistory") if isinstance(payload.get("dailyHistory"), dict) else {}
+        today_key = today.isoformat()
+        entry = dict(history.get(today_key) or {})
+        entry["goalHours"] = payload["goalHours"]
+        history[today_key] = entry
+        payload["dailyHistory"] = history
+    else:
+        payload["goalHours"] = None
+    return payload
+
+
 @api_bp.get("/app-data")
 @login_required
 def get_app_data():
     state = UserAppState.query.filter_by(user_id=current_user.id).first()
     has_data = has_personal_data(current_user.id)
     return jsonify({
-        "appData": state.payload if state else None,
+        "appData": apply_today_goal_to_app_payload(current_user.id, state.payload) if state else None,
         "hasData": has_data,
         "profile": serialize_profile(current_user),
     })
@@ -593,22 +607,22 @@ def update_profile():
 
     current_user.display_name = display_name[:120]
     current_user.username = username
-    current_user.bio = str(data.get("bio") or "").strip()[:280]
-    current_user.avatar_style = str(data.get("avatarStyle") or "initials")[:40]
-    current_user.avatar_color = str(data.get("avatarColor") or "violet")[:40]
-    current_user.country = str(data.get("country") or "").strip()[:80]
-    current_user.timezone = str(data.get("timezone") or "UTC").strip()[:80] or "UTC"
-    current_user.preferred_theme = str(data.get("preferredTheme") or "system").strip()[:40] or "system"
+    if "bio" in data:
+        current_user.bio = str(data.get("bio") or "").strip()[:280]
+    if "avatarStyle" in data:
+        current_user.avatar_style = str(data.get("avatarStyle") or "initials")[:40]
+    if "avatarColor" in data:
+        current_user.avatar_color = str(data.get("avatarColor") or "violet")[:40]
+    if "country" in data:
+        current_user.country = str(data.get("country") or "").strip()[:80]
+    if "timezone" in data:
+        current_user.timezone = str(data.get("timezone") or "UTC").strip()[:80] or "UTC"
+    if "preferredTheme" in data:
+        current_user.preferred_theme = str(data.get("preferredTheme") or "system").strip()[:40] or "system"
 
-    preferred_goal = data.get("preferredStudyGoal")
-    try:
-        current_user.preferred_study_goal = float(preferred_goal) if preferred_goal not in (None, "") else None
-    except (TypeError, ValueError):
-        return jsonify({"error": "Preferred study goal must be a number."}), 400
-
-    profile_visibility = str(data.get("profileVisibility") or "private")
-    group_visibility = str(data.get("groupVisibility") or "members")
-    leaderboard_visibility = str(data.get("leaderboardVisibility") or "public")
+    profile_visibility = str(data.get("profileVisibility") or current_user.profile_visibility or "private")
+    group_visibility = str(data.get("groupVisibility") or current_user.group_visibility or "members")
+    leaderboard_visibility = str(data.get("leaderboardVisibility") or current_user.leaderboard_visibility or "public")
     if profile_visibility not in PROFILE_VISIBILITY_OPTIONS:
         return jsonify({"error": "Invalid profile visibility."}), 400
     if group_visibility not in GROUP_VISIBILITY_OPTIONS:
@@ -619,10 +633,6 @@ def update_profile():
     current_user.group_visibility = group_visibility
     current_user.leaderboard_visibility = leaderboard_visibility
 
-    if "selectedExams" in data:
-        current_user.selected_exams = [str(item).strip()[:80] for item in data.get("selectedExams") or [] if str(item).strip()]
-    if "preferredSubjects" in data:
-        current_user.preferred_subjects = [str(item).strip()[:80] for item in data.get("preferredSubjects") or [] if str(item).strip()]
     if "onboardingCompleted" in data:
         current_user.onboarding_completed = bool(data.get("onboardingCompleted"))
     db.session.commit()
@@ -851,10 +861,10 @@ def get_leaderboard():
     if group_id:
         membership = get_membership_or_404(group_id)
         memberships = membership.group.memberships
-        users = [item.user for item in memberships]
+        users = [item.user for item in memberships if item.user.leaderboard_visibility != "private"]
     else:
         user_ids = [row[0] for row in db.session.query(StudySession.user_id).distinct().all()]
-        users = User.query.filter(User.id.in_(user_ids)).all() if user_ids else []
+        users = User.query.filter(User.id.in_(user_ids), User.leaderboard_visibility == "public").all() if user_ids else []
     totals = get_session_totals_by_user([user.id for user in users], range_name)
     rows = [
         {

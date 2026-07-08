@@ -760,6 +760,29 @@ body.sidebar-collapsed .app-main {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.settings-tabs button {
+  background: var(--surface-soft);
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+.settings-tabs button.active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  color: var(--text);
+}
+
+[data-settings-section][hidden] {
+  display: none !important;
+}
+
 .settings-list {
   display: grid;
   gap: var(--space-3);
@@ -1604,7 +1627,7 @@ body.sidebar-collapsed .app-main {
   border-radius: var(--radius);
   display: grid;
   gap: 1rem;
-  grid-template-columns: 60px 1fr 120px 100px 110px;
+  grid-template-columns: 60px auto minmax(0, 1fr) 120px;
   padding: 0.9rem;
 }
 
@@ -2027,7 +2050,7 @@ body.sidebar-collapsed .app-main {
 }
 
 .ranking-row {
-  grid-template-columns: 70px minmax(0, 1fr) 120px 90px 90px;
+  grid-template-columns: 70px minmax(0, 1fr) 120px;
 }
 
 .ranking-head {

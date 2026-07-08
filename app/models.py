@@ -20,6 +20,7 @@ class User(UserMixin, db.Model):
     onboarding_completed = db.Column(db.Boolean, default=False, nullable=False)
     country = db.Column(db.String(80), nullable=True)
     timezone = db.Column(db.String(80), default="UTC", nullable=False)
+    # Deprecated compatibility fields. DailyGoal, Exam, and Subject are the normal sources of truth.
     preferred_study_goal = db.Column(db.Float, nullable=True)
     preferred_theme = db.Column(db.String(40), default="system", nullable=False)
     profile_visibility = db.Column(db.String(30), default="private", nullable=False)
@@ -115,7 +116,7 @@ class Exam(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     exam_type = db.Column(db.String(120), nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    exam_date = db.Column(db.Date, nullable=False)
+    exam_date = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     payload = db.Column(db.JSON, default=dict, nullable=False)
     subjects = db.relationship("ExamSubject", backref="exam", cascade="all, delete-orphan")

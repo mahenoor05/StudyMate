@@ -150,21 +150,20 @@ class PersonalDataIsolationTest(unittest.TestCase):
             "bio": "Preparing for JEE.",
             "country": "India",
             "timezone": "Asia/Kolkata",
-            "preferredStudyGoal": 3.5,
             "preferredTheme": "midnight",
             "profileVisibility": "friends",
             "groupVisibility": "members",
             "leaderboardVisibility": "groups",
-            "selectedExams": ["JEE Main", "NEET UG"],
-            "preferredSubjects": ["Physics", "Chemistry"],
         })
         self.assertEqual(response.status_code, 200)
         profile = response.json["profile"]
         self.assertEqual(profile["username"], "account_a_new")
         self.assertEqual(profile["timezone"], "Asia/Kolkata")
-        self.assertEqual(profile["preferredStudyGoal"], 3.5)
-        self.assertEqual(profile["selectedExams"], ["JEE Main", "NEET UG"])
-        self.assertEqual(profile["preferredSubjects"], ["Physics", "Chemistry"])
+        self.assertEqual(profile["preferredTheme"], "midnight")
+        self.assertEqual(profile["leaderboardVisibility"], "groups")
+        self.assertNotIn("preferredStudyGoal", profile)
+        self.assertNotIn("selectedExams", profile)
+        self.assertNotIn("preferredSubjects", profile)
 
         conflict = self.client.patch("/api/profile", json={
             "displayName": "Account A Updated",
@@ -243,6 +242,20 @@ class PersonalDataIsolationTest(unittest.TestCase):
         rows = leaderboard_response.json["rows"]
         self.assertEqual([row["name"] for row in rows], ["Account A", "Account B"])
         self.assertEqual([row["totalSeconds"] for row in rows], [2400, 1200])
+
+        self.logout()
+        self.login("account_b")
+        privacy_response = self.client.patch("/api/profile", json={
+            "displayName": "Account B",
+            "username": "account_b",
+            "leaderboardVisibility": "private",
+        })
+        self.assertEqual(privacy_response.status_code, 200)
+
+        self.logout()
+        self.login("account_a")
+        private_filtered = self.client.get(f"/api/leaderboard?range=today&groupId={group_id}")
+        self.assertEqual([row["name"] for row in private_filtered.json["rows"]], ["Account A"])
 
 
 if __name__ == "__main__":

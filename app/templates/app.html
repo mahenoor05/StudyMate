@@ -997,7 +997,15 @@
         </div>
       </div>
 
-      <article class="panel profile-card">
+      <div class="settings-tabs" id="settings-tabs">
+        <button type="button" class="active" data-settings-tab="profile">Profile</button>
+        <button type="button" data-settings-tab="appearance">Appearance</button>
+        <button type="button" data-settings-tab="study">Study Preferences</button>
+        <button type="button" data-settings-tab="privacy">Privacy</button>
+        <button type="button" data-settings-tab="account">Account</button>
+      </div>
+
+      <article class="panel profile-card" data-settings-section="profile">
         <div class="profile-banner" id="profile-banner"></div>
         <div class="profile-avatar" id="profile-avatar">SM</div>
         <div>
@@ -1010,7 +1018,7 @@
         <button type="button" class="secondary-button" id="edit-profile-button">Edit Profile</button>
       </article>
 
-      <div class="profile-stats-grid">
+      <div class="profile-stats-grid" data-settings-section="profile">
         <article class="panel">
           <h3>Study Profile</h3>
           <div class="settings-list">
@@ -1032,7 +1040,7 @@
       </div>
 
       <div class="settings-grid">
-        <article class="panel">
+        <article class="panel" data-settings-section="account">
           <h3>Account</h3>
           <div class="settings-list">
             <div><span>Email</span><strong id="account-email">{{ current_user.email }}</strong></div>
@@ -1043,23 +1051,22 @@
             <div><span>Connected devices</span><strong>Coming soon</strong></div>
           </div>
         </article>
-        <article class="panel">
+        <article class="panel" data-settings-section="profile">
           <h3>Profile</h3>
           <div class="settings-list">
             <div><span>Country</span><strong id="profile-country">Not set</strong></div>
             <div><span>Timezone</span><strong id="profile-timezone">UTC</strong></div>
-            <div><span>Preferred study goal</span><strong id="profile-study-goal">Not set</strong></div>
           </div>
         </article>
-        <article class="panel">
+        <article class="panel" data-settings-section="study">
           <h3>Study</h3>
           <p class="muted-text">Weekly reports, badges, friends, followers, and public profile links are prepared for future phases.</p>
         </article>
-        <article class="panel">
+        <article class="panel" data-settings-section="study">
           <h3>Notifications</h3>
           <p class="muted-text">Study reminders and group notifications are coming soon.</p>
         </article>
-        <article class="panel">
+        <article class="panel" data-settings-section="privacy">
           <h3>Privacy</h3>
           <div class="settings-list">
             <div><span>Profile</span><strong id="privacy-profile">Private</strong></div>
@@ -1067,7 +1074,7 @@
             <div><span>Leaderboard</span><strong id="privacy-leaderboard">Public</strong></div>
           </div>
         </article>
-        <article class="panel danger-zone-panel">
+        <article class="panel danger-zone-panel" data-settings-section="account">
           <h3>Danger Zone</h3>
           <div class="button-row">
             <button type="button" class="secondary-button" disabled>Export Data</button>
@@ -1077,12 +1084,12 @@
         </article>
       </div>
 
-      <article class="panel">
+      <article class="panel" data-settings-section="appearance">
         <h3>Appearance</h3>
         <div class="theme-grid" id="theme-grid"></div>
       </article>
 
-      <article class="panel">
+      <article class="panel" data-settings-section="appearance">
         <h3>Accent Color</h3>
         <div class="accent-row">
           <input id="accent-input" type="color" value="#7c5cff">
@@ -1109,8 +1116,6 @@
           <input id="profile-country-input" type="text" maxlength="80">
           <label for="profile-timezone-input">Timezone</label>
           <input id="profile-timezone-input" type="text" maxlength="80">
-          <label for="profile-study-goal-input">Preferred study goal (hours)</label>
-          <input id="profile-study-goal-input" type="number" min="0.25" step="0.25">
           <label for="profile-theme-input">Preferred theme</label>
           <select id="profile-theme-input">
             <option value="system">Use current app theme</option>
@@ -1123,10 +1128,6 @@
             <option value="coffee">Coffee</option>
             <option value="light">Light</option>
           </select>
-          <label for="profile-exams-input">Exams preparing for</label>
-          <input id="profile-exams-input" type="text" placeholder="JEE Main, NEET">
-          <label for="profile-subjects-input">Preferred subjects</label>
-          <input id="profile-subjects-input" type="text" placeholder="Physics, Chemistry">
           <label for="profile-visibility-input">Profile visibility</label>
           <select id="profile-visibility-input">
             <option value="public">Public profile</option>
@@ -1192,13 +1193,10 @@
       onboardingCompleted: {{ current_user.onboarding_completed|tojson }},
       country: {{ (current_user.country or '')|tojson }},
       timezone: {{ (current_user.timezone or 'UTC')|tojson }},
-      preferredStudyGoal: {{ current_user.preferred_study_goal|tojson }},
       preferredTheme: {{ (current_user.preferred_theme or 'system')|tojson }},
       profileVisibility: {{ (current_user.profile_visibility or 'private')|tojson }},
       groupVisibility: {{ (current_user.group_visibility or 'members')|tojson }},
       leaderboardVisibility: {{ (current_user.leaderboard_visibility or 'public')|tojson }},
-      selectedExams: {{ (current_user.selected_exams or [])|tojson }},
-      preferredSubjects: {{ (current_user.preferred_subjects or [])|tojson }},
       createdAt: {{ current_user.created_at.isoformat()|tojson }},
       lastLoginAt: {{ (current_user.last_login_at.isoformat() if current_user.last_login_at else None)|tojson }}
     };
