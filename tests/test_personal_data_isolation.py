@@ -141,6 +141,37 @@ class PersonalDataIsolationTest(unittest.TestCase):
         self.assertNotIn("StudyMate Circle", str(groups_response.json))
         self.assertNotIn("Demo", str(leaderboard_response.json))
 
+    def test_profile_settings_update_and_username_uniqueness(self):
+        self.login("account_a")
+
+        response = self.client.patch("/api/profile", json={
+            "displayName": "Account A Updated",
+            "username": "account_a_new",
+            "bio": "Preparing for JEE.",
+            "country": "India",
+            "timezone": "Asia/Kolkata",
+            "preferredStudyGoal": 3.5,
+            "preferredTheme": "midnight",
+            "profileVisibility": "friends",
+            "groupVisibility": "members",
+            "leaderboardVisibility": "groups",
+            "selectedExams": ["JEE Main", "NEET UG"],
+            "preferredSubjects": ["Physics", "Chemistry"],
+        })
+        self.assertEqual(response.status_code, 200)
+        profile = response.json["profile"]
+        self.assertEqual(profile["username"], "account_a_new")
+        self.assertEqual(profile["timezone"], "Asia/Kolkata")
+        self.assertEqual(profile["preferredStudyGoal"], 3.5)
+        self.assertEqual(profile["selectedExams"], ["JEE Main", "NEET UG"])
+        self.assertEqual(profile["preferredSubjects"], ["Physics", "Chemistry"])
+
+        conflict = self.client.patch("/api/profile", json={
+            "displayName": "Account A Updated",
+            "username": "account_b",
+        })
+        self.assertEqual(conflict.status_code, 409)
+
     def test_group_collaboration_and_leaderboard_use_real_database_rows(self):
         from app.models import StudySession, User
 

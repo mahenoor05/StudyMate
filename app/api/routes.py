@@ -1,6 +1,7 @@
 import os
 import json
 import random
+import re
 import string
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
@@ -37,6 +38,10 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 ALLOWED_AVATAR_EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp"}
 MAX_AVATAR_BYTES = 2 * 1024 * 1024
+USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{3,30}$")
+PROFILE_VISIBILITY_OPTIONS = {"public", "friends", "private"}
+GROUP_VISIBILITY_OPTIONS = {"public", "members", "private"}
+LEADERBOARD_VISIBILITY_OPTIONS = {"public", "groups", "private"}
 
 
 def parse_date(value):
@@ -101,15 +106,23 @@ def get_supabase_object_path(avatar_url):
 
 
 def delete_current_avatar_file():
-    if not current_user.avatar_url:
+    delete_user_upload(current_user.avatar_url)
+
+
+def delete_current_banner_file():
+    delete_user_upload(current_user.banner_url)
+
+
+def delete_user_upload(file_url):
+    if not file_url:
         return
-    supabase_path = get_supabase_object_path(current_user.avatar_url)
+    supabase_path = get_supabase_object_path(file_url)
     if supabase_path:
         delete_avatar_from_supabase(supabase_path)
         return
-    if "/static/uploads/avatars/" not in current_user.avatar_url:
+    if "/static/uploads/avatars/" not in file_url:
         return
-    filename = secure_filename(current_user.avatar_url.rsplit("/", 1)[-1])
+    filename = secure_filename(file_url.rsplit("/", 1)[-1])
     if not filename:
         return
     upload_folder = get_avatar_upload_folder()
@@ -182,10 +195,21 @@ def serialize_profile(user):
         "email": user.email,
         "bio": user.bio or "",
         "avatarUrl": user.avatar_url,
+        "bannerUrl": user.banner_url,
         "avatarStyle": user.avatar_style or "initials",
         "avatarColor": user.avatar_color or "violet",
         "onboardingCompleted": bool(user.onboarding_completed),
+        "country": user.country or "",
+        "timezone": user.timezone or "UTC",
+        "preferredStudyGoal": user.preferred_study_goal,
+        "preferredTheme": user.preferred_theme or "system",
+        "profileVisibility": user.profile_visibility or "private",
+        "groupVisibility": user.group_visibility or "members",
+        "leaderboardVisibility": user.leaderboard_visibility or "public",
+        "selectedExams": user.selected_exams or [],
+        "preferredSubjects": user.preferred_subjects or [],
         "createdAt": iso_datetime(user.created_at),
+        "lastLoginAt": iso_datetime(user.last_login_at),
     }
 
 
@@ -560,10 +584,45 @@ def update_profile():
     display_name = str(data.get("displayName") or current_user.display_name).strip()
     if not display_name:
         return jsonify({"error": "Display name is required."}), 400
+    username = str(data.get("username") or current_user.username).strip()
+    if not USERNAME_PATTERN.match(username):
+        return jsonify({"error": "Username must be 3-30 characters and use only letters, numbers, or underscores."}), 400
+    existing_user = User.query.filter(User.username == username, User.id != current_user.id).first()
+    if existing_user:
+        return jsonify({"error": "That username is already taken."}), 409
+
     current_user.display_name = display_name[:120]
+    current_user.username = username
     current_user.bio = str(data.get("bio") or "").strip()[:280]
     current_user.avatar_style = str(data.get("avatarStyle") or "initials")[:40]
     current_user.avatar_color = str(data.get("avatarColor") or "violet")[:40]
+    current_user.country = str(data.get("country") or "").strip()[:80]
+    current_user.timezone = str(data.get("timezone") or "UTC").strip()[:80] or "UTC"
+    current_user.preferred_theme = str(data.get("preferredTheme") or "system").strip()[:40] or "system"
+
+    preferred_goal = data.get("preferredStudyGoal")
+    try:
+        current_user.preferred_study_goal = float(preferred_goal) if preferred_goal not in (None, "") else None
+    except (TypeError, ValueError):
+        return jsonify({"error": "Preferred study goal must be a number."}), 400
+
+    profile_visibility = str(data.get("profileVisibility") or "private")
+    group_visibility = str(data.get("groupVisibility") or "members")
+    leaderboard_visibility = str(data.get("leaderboardVisibility") or "public")
+    if profile_visibility not in PROFILE_VISIBILITY_OPTIONS:
+        return jsonify({"error": "Invalid profile visibility."}), 400
+    if group_visibility not in GROUP_VISIBILITY_OPTIONS:
+        return jsonify({"error": "Invalid group visibility."}), 400
+    if leaderboard_visibility not in LEADERBOARD_VISIBILITY_OPTIONS:
+        return jsonify({"error": "Invalid leaderboard visibility."}), 400
+    current_user.profile_visibility = profile_visibility
+    current_user.group_visibility = group_visibility
+    current_user.leaderboard_visibility = leaderboard_visibility
+
+    if "selectedExams" in data:
+        current_user.selected_exams = [str(item).strip()[:80] for item in data.get("selectedExams") or [] if str(item).strip()]
+    if "preferredSubjects" in data:
+        current_user.preferred_subjects = [str(item).strip()[:80] for item in data.get("preferredSubjects") or [] if str(item).strip()]
     if "onboardingCompleted" in data:
         current_user.onboarding_completed = bool(data.get("onboardingCompleted"))
     db.session.commit()
@@ -610,6 +669,50 @@ def upload_profile_avatar():
 def remove_profile_avatar():
     delete_current_avatar_file()
     current_user.avatar_url = None
+    db.session.commit()
+    return jsonify({"profile": serialize_profile(current_user)})
+
+
+@api_bp.post("/profile/banner")
+@login_required
+def upload_profile_banner():
+    if request.content_length and request.content_length > MAX_AVATAR_BYTES:
+        return jsonify({"error": "Banner image must be 2 MB or smaller."}), 400
+
+    upload = request.files.get("banner")
+    if not upload or not upload.filename:
+        return jsonify({"error": "Choose an image to upload."}), 400
+
+    filename = secure_filename(upload.filename)
+    if not is_allowed_avatar(filename, upload.mimetype):
+        return jsonify({"error": "Use a JPG, PNG, GIF, or WebP image."}), 400
+    upload.stream.seek(0, os.SEEK_END)
+    file_size = upload.stream.tell()
+    upload.stream.seek(0)
+    if file_size > MAX_AVATAR_BYTES:
+        return jsonify({"error": "Banner image must be 2 MB or smaller."}), 400
+
+    extension = filename.rsplit(".", 1)[-1].lower()
+    unique_filename = f"banner-user-{current_user.id}-{uuid4().hex}.{extension}"
+    try:
+        if get_supabase_storage_config():
+            banner_url = upload_avatar_to_supabase(upload.read(), extension, upload.mimetype)
+        else:
+            banner_url = save_avatar_locally(upload, unique_filename)
+    except ValueError as error:
+        return jsonify({"error": str(error)}), 400
+
+    delete_current_banner_file()
+    current_user.banner_url = banner_url
+    db.session.commit()
+    return jsonify({"profile": serialize_profile(current_user)})
+
+
+@api_bp.delete("/profile/banner")
+@login_required
+def remove_profile_banner():
+    delete_current_banner_file()
+    current_user.banner_url = None
     db.session.commit()
     return jsonify({"profile": serialize_profile(current_user)})
 

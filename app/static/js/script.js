@@ -55,13 +55,36 @@ const examPresets = [
   { category: "Engineering", name: "MHT CET", subjects: ["Physics", "Chemistry", "Mathematics"] },
   { category: "Medical", name: "NEET UG", subjects: ["Physics", "Chemistry", "Botany", "Zoology"] },
   { category: "University / Competitive", name: "CUET UG", subjects: [] },
+  { category: "University / Competitive", name: "UPSC", subjects: [] },
+  { category: "University / Competitive", name: "CA", subjects: [] },
   { category: "University / Competitive", name: "GATE", subjects: [] },
   { category: "University / Competitive", name: "CAT", subjects: ["Quantitative Aptitude", "DILR", "VARC"] },
+  { category: "International", name: "SAT", subjects: ["Math", "Reading", "Writing"] },
+  { category: "International", name: "IB", subjects: [] },
+  { category: "International", name: "A Levels", subjects: [] },
+  { category: "School", name: "CBSE", subjects: [] },
+  { category: "School", name: "ICSE", subjects: [] },
+  { category: "School", name: "State Boards", subjects: [] },
   { category: "School", name: "Class 10 Boards", subjects: [] },
   { category: "School", name: "Class 12 Boards", subjects: [] },
   { category: "College", name: "Semester Exam", subjects: [] },
   { category: "College", name: "Internal Test", subjects: [] },
   { category: "Other", name: "Custom Exam", subjects: [] }
+];
+
+const onboardingSubjectPresets = [
+  "Physics",
+  "Chemistry",
+  "Mathematics",
+  "Biology",
+  "English",
+  "Computer Science",
+  "Economics",
+  "Accountancy",
+  "History",
+  "Geography",
+  "Political Science",
+  "Business Studies"
 ];
 
 const menuToggle = document.getElementById("menu-toggle");
@@ -232,15 +255,45 @@ const accentInput = document.getElementById("accent-input");
 const saveAccentButton = document.getElementById("save-accent");
 const resetAccentButton = document.getElementById("reset-accent");
 const profileAvatar = document.getElementById("profile-avatar");
+const profileBanner = document.getElementById("profile-banner");
 const profileDisplayName = document.getElementById("profile-display-name");
 const profileUsername = document.getElementById("profile-username");
 const profileBio = document.getElementById("profile-bio");
+const profileJoinDate = document.getElementById("profile-join-date");
+const profileExams = document.getElementById("profile-exams");
+const profileFavouriteSubject = document.getElementById("profile-favourite-subject");
+const profileGroupsJoined = document.getElementById("profile-groups-joined");
+const profileAchievementCount = document.getElementById("profile-achievement-count");
+const profileTotalHours = document.getElementById("profile-total-hours");
+const profileTotalSessions = document.getElementById("profile-total-sessions");
+const profileCurrentStreak = document.getElementById("profile-current-streak");
+const profileLongestStreak = document.getElementById("profile-longest-streak");
+const accountEmail = document.getElementById("account-email");
+const accountUsername = document.getElementById("account-username");
+const accountCreated = document.getElementById("account-created");
+const accountLastLogin = document.getElementById("account-last-login");
+const profileCountry = document.getElementById("profile-country");
+const profileTimezone = document.getElementById("profile-timezone");
+const profileStudyGoal = document.getElementById("profile-study-goal");
+const privacyProfile = document.getElementById("privacy-profile");
+const privacyGroups = document.getElementById("privacy-groups");
+const privacyLeaderboard = document.getElementById("privacy-leaderboard");
 const editProfileButton = document.getElementById("edit-profile-button");
 const profileModal = document.getElementById("profile-modal");
 const closeProfileModalButton = document.getElementById("close-profile-modal");
 const profileForm = document.getElementById("profile-form");
 const profileNameInput = document.getElementById("profile-name-input");
+const profileUsernameInput = document.getElementById("profile-username-input");
 const profileBioInput = document.getElementById("profile-bio-input");
+const profileCountryInput = document.getElementById("profile-country-input");
+const profileTimezoneInput = document.getElementById("profile-timezone-input");
+const profileStudyGoalInput = document.getElementById("profile-study-goal-input");
+const profileThemeInput = document.getElementById("profile-theme-input");
+const profileExamsInput = document.getElementById("profile-exams-input");
+const profileSubjectsInput = document.getElementById("profile-subjects-input");
+const profileVisibilityInput = document.getElementById("profile-visibility-input");
+const groupVisibilitySettingInput = document.getElementById("group-visibility-setting-input");
+const leaderboardVisibilityInput = document.getElementById("leaderboard-visibility-input");
 const profileAvatarStyleInput = document.getElementById("profile-avatar-style-input");
 const profileAvatarColorInput = document.getElementById("profile-avatar-color-input");
 const profileAvatarPreview = document.getElementById("profile-avatar-preview");
@@ -248,13 +301,28 @@ const profileAvatarUpload = document.getElementById("profile-avatar-upload");
 const profileAvatarRemove = document.getElementById("profile-avatar-remove");
 const profileAvatarHelp = document.getElementById("profile-avatar-help");
 const profileAvatarOptions = document.getElementById("profile-avatar-options");
+const profileBannerPreview = document.getElementById("profile-banner-preview");
+const profileBannerUpload = document.getElementById("profile-banner-upload");
+const profileBannerRemove = document.getElementById("profile-banner-remove");
+const profileBannerHelp = document.getElementById("profile-banner-help");
 const onboardingModal = document.getElementById("onboarding-modal");
 const onboardingStartButton = document.getElementById("onboarding-start");
+const onboardingBasicsNext = document.getElementById("onboarding-basics-next");
+const onboardingSkipBasics = document.getElementById("onboarding-skip-basics");
 const onboardingExamOptions = document.getElementById("onboarding-exam-options");
 const onboardingExamsNext = document.getElementById("onboarding-exams-next");
 const onboardingSkipExams = document.getElementById("onboarding-skip-exams");
+const onboardingSubjectOptions = document.getElementById("onboarding-subject-options");
+const onboardingCustomSubjects = document.getElementById("onboarding-custom-subjects");
+const onboardingSubjectsNext = document.getElementById("onboarding-subjects-next");
+const onboardingSkipSubjects = document.getElementById("onboarding-skip-subjects");
+const onboardingFinishSkip = document.getElementById("onboarding-finish-skip");
 const onboardingProfileForm = document.getElementById("onboarding-profile-form");
 const onboardingDisplayName = document.getElementById("onboarding-display-name");
+const onboardingUsername = document.getElementById("onboarding-username");
+const onboardingCountry = document.getElementById("onboarding-country");
+const onboardingTimezone = document.getElementById("onboarding-timezone");
+const onboardingStudyGoal = document.getElementById("onboarding-study-goal");
 const onboardingAvatarStyle = document.getElementById("onboarding-avatar-style");
 const onboardingAvatarColor = document.getElementById("onboarding-avatar-color");
 const onboardingAvatarPreview = document.getElementById("onboarding-avatar-preview");
@@ -462,6 +530,71 @@ function renderProfileAvatar(element) {
   renderGeneratedAvatar(element, studyMateUser.displayName, studyMateUser.avatarStyle || "initials", studyMateUser.avatarColor || "violet");
 }
 
+function renderProfileBanner(element) {
+  if (!element) return;
+  element.style.backgroundImage = studyMateUser.bannerUrl ? `url("${studyMateUser.bannerUrl}")` : "";
+  element.classList.toggle("has-image", Boolean(studyMateUser.bannerUrl));
+}
+
+function formatReadableDate(dateString) {
+  if (!dateString) return "-";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatVisibility(value) {
+  const labels = {
+    public: "Public",
+    friends: "Friends only",
+    private: "Private",
+    members: "Members only",
+    groups: "Groups only"
+  };
+  return labels[value] || "Private";
+}
+
+function formatListPreview(items, emptyLabel) {
+  const values = (items || []).filter(Boolean);
+  if (values.length === 0) return emptyLabel;
+  if (values.length <= 3) return values.join(", ");
+  return `${values.slice(0, 3).join(", ")} +${values.length - 3}`;
+}
+
+function parseCommaList(value) {
+  return String(value || "")
+    .split(",")
+    .map(function (item) { return item.trim(); })
+    .filter(Boolean);
+}
+
+function getProfileExamNames() {
+  const fromProfile = Array.isArray(studyMateUser.selectedExams) ? studyMateUser.selectedExams : [];
+  const fromWorkspace = appData.exams.map(function (exam) { return exam.name; });
+  return Array.from(new Set(fromProfile.concat(fromWorkspace)));
+}
+
+function getTotalStudySeconds() {
+  return appData.sessions.reduce(function (total, session) {
+    return total + Number(session.durationSeconds || 0);
+  }, 0);
+}
+
+function getFavouriteSubjectName() {
+  const totals = getSubjectTotalsFromSessions(appData.sessions);
+  const top = getTopSubject(totals);
+  if (top) return top.name;
+  const preferred = Array.isArray(studyMateUser.preferredSubjects) ? studyMateUser.preferredSubjects[0] : "";
+  return preferred || "-";
+}
+
+function getProfileLongestStreak() {
+  const entries = Object.keys(appData.dailyHistory || {}).sort().map(function (key) {
+    return appData.dailyHistory[key];
+  });
+  return Math.max(getCurrentStudyStreak(), getLongestEntryStreak(entries));
+}
+
 function createSubjectDot(subject) {
   const dot = document.createElement("span");
   dot.className = "subject-dot";
@@ -620,19 +753,52 @@ function updateProfileState(profile) {
   studyMateUser.email = profile.email || studyMateUser.email;
   studyMateUser.bio = profile.bio || "";
   studyMateUser.avatarUrl = profile.avatarUrl || "";
+  studyMateUser.bannerUrl = profile.bannerUrl || "";
   studyMateUser.avatarStyle = profile.avatarStyle || "initials";
   studyMateUser.avatarColor = profile.avatarColor || "violet";
   studyMateUser.onboardingCompleted = Boolean(profile.onboardingCompleted);
+  studyMateUser.country = profile.country || "";
+  studyMateUser.timezone = profile.timezone || "UTC";
+  studyMateUser.preferredStudyGoal = profile.preferredStudyGoal || null;
+  studyMateUser.preferredTheme = profile.preferredTheme || "system";
+  studyMateUser.profileVisibility = profile.profileVisibility || "private";
+  studyMateUser.groupVisibility = profile.groupVisibility || "members";
+  studyMateUser.leaderboardVisibility = profile.leaderboardVisibility || "public";
+  studyMateUser.selectedExams = Array.isArray(profile.selectedExams) ? profile.selectedExams : [];
+  studyMateUser.preferredSubjects = Array.isArray(profile.preferredSubjects) ? profile.preferredSubjects : [];
+  studyMateUser.createdAt = profile.createdAt || studyMateUser.createdAt || "";
+  studyMateUser.lastLoginAt = profile.lastLoginAt || studyMateUser.lastLoginAt || "";
 }
 
 function renderProfile() {
   if (!profileAvatar) return;
+  renderProfileBanner(profileBanner);
+  renderProfileBanner(profileBannerPreview);
   renderProfileAvatar(profileAvatar);
   renderProfileAvatar(profileAvatarPreview);
   renderProfileAvatar(onboardingAvatarPreview);
   profileDisplayName.textContent = studyMateUser.displayName || "StudyMate learner";
   profileUsername.textContent = `@${studyMateUser.username} - ${studyMateUser.email}`;
   profileBio.textContent = studyMateUser.bio || "No bio yet.";
+  profileJoinDate.textContent = studyMateUser.createdAt ? `Joined ${formatReadableDate(studyMateUser.createdAt)}` : "";
+  accountEmail.textContent = studyMateUser.email || "-";
+  accountUsername.textContent = `@${studyMateUser.username || "-"}`;
+  accountCreated.textContent = formatReadableDate(studyMateUser.createdAt);
+  accountLastLogin.textContent = studyMateUser.lastLoginAt ? formatReadableDate(studyMateUser.lastLoginAt) : "Not recorded";
+  profileCountry.textContent = studyMateUser.country || "Not set";
+  profileTimezone.textContent = studyMateUser.timezone || "UTC";
+  profileStudyGoal.textContent = studyMateUser.preferredStudyGoal ? formatGoalHours(studyMateUser.preferredStudyGoal) : "Not set";
+  privacyProfile.textContent = formatVisibility(studyMateUser.profileVisibility);
+  privacyGroups.textContent = formatVisibility(studyMateUser.groupVisibility);
+  privacyLeaderboard.textContent = formatVisibility(studyMateUser.leaderboardVisibility);
+  profileExams.textContent = formatListPreview(getProfileExamNames(), "None selected");
+  profileFavouriteSubject.textContent = getFavouriteSubjectName();
+  profileGroupsJoined.textContent = String(appData.studyCircles.length);
+  profileAchievementCount.textContent = "0";
+  profileTotalHours.textContent = formatShortTime(getTotalStudySeconds());
+  profileTotalSessions.textContent = String(appData.sessions.length);
+  profileCurrentStreak.textContent = `${getCurrentStudyStreak()} days`;
+  profileLongestStreak.textContent = `${getProfileLongestStreak()} days`;
 }
 
 async function saveProfilePayload(payload) {
@@ -641,8 +807,13 @@ async function saveProfilePayload(payload) {
     body: JSON.stringify(payload)
   });
   updateProfileState(response.profile);
+  if (response.profile.preferredStudyGoal) appData.goalHours = response.profile.preferredStudyGoal;
+  if (response.profile.preferredTheme && response.profile.preferredTheme !== "system") appData.theme = response.profile.preferredTheme;
+  applyAppearance();
+  saveData();
   renderProfile();
   updateHome();
+  return response.profile;
 }
 
 function loadOlderData() {
@@ -1210,7 +1381,7 @@ function showOnboardingStep(stepNumber) {
 function renderOnboardingExamOptions() {
   if (!onboardingExamOptions) return;
   onboardingExamOptions.innerHTML = "";
-  const popularNames = ["JEE Main", "NEET UG", "Class 12 Boards", "Semester Exam"];
+  const popularNames = ["JEE Main", "JEE Advanced", "NEET UG", "MHT CET", "BITSAT", "GATE", "CUET UG", "SAT"];
   const popularPresets = examPresets.filter(function (preset) { return popularNames.includes(preset.name); });
   const morePresets = examPresets.filter(function (preset) { return !popularNames.includes(preset.name); });
 
@@ -1242,6 +1413,7 @@ function appendOnboardingExamGroup(title, presets, isMoreGroup) {
     button.className = "onboarding-choice";
     button.dataset.examName = preset.name;
     button.innerHTML = `<strong>${preset.name}</strong>`;
+    button.classList.toggle("selected", (studyMateUser.selectedExams || []).includes(preset.name));
     button.addEventListener("click", function () { button.classList.toggle("selected"); });
     grid.appendChild(button);
   });
@@ -1250,31 +1422,72 @@ function appendOnboardingExamGroup(title, presets, isMoreGroup) {
   onboardingExamOptions.appendChild(group);
 }
 
-function createOnboardingExams() {
-  onboardingExamOptions.querySelectorAll(".onboarding-choice.selected").forEach(function (button) {
-    const preset = examPresets.find(function (item) { return item.name === button.dataset.examName; });
-    if (!preset || appData.exams.some(function (exam) { return exam.type === preset.name; })) return;
-    appData.exams.push({
-      id: createId(),
-      type: preset.name,
-      name: preset.name,
-      date: getTodayKey(),
-      time: "",
-      subjects: (preset.subjects.length ? preset.subjects : ["General"]).map(function (subjectName) {
-        return { id: createId(), name: subjectName, chapters: [] };
-      }),
-      notes: "",
-      milestones: [],
-      createdAt: new Date().toISOString()
-    });
+function renderOnboardingSubjectOptions() {
+  if (!onboardingSubjectOptions) return;
+  onboardingSubjectOptions.innerHTML = "";
+  onboardingSubjectPresets.forEach(function (subjectName) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "onboarding-choice";
+    button.dataset.subjectName = subjectName;
+    button.innerHTML = `<strong>${subjectName}</strong>`;
+    button.classList.toggle("selected", (studyMateUser.preferredSubjects || []).includes(subjectName));
+    button.addEventListener("click", function () { button.classList.toggle("selected"); });
+    onboardingSubjectOptions.appendChild(button);
   });
+}
+
+function getSelectedOnboardingExams() {
+  return Array.from(onboardingExamOptions.querySelectorAll(".onboarding-choice.selected"))
+    .map(function (button) { return button.dataset.examName; })
+    .filter(Boolean);
+}
+
+function getSelectedOnboardingSubjects() {
+  const selected = Array.from(onboardingSubjectOptions.querySelectorAll(".onboarding-choice.selected"))
+    .map(function (button) { return button.dataset.subjectName; })
+    .filter(Boolean);
+  return Array.from(new Set(selected.concat(parseCommaList(onboardingCustomSubjects.value))));
+}
+
+async function saveOnboardingBasics() {
+  await saveProfilePayload({
+    displayName: onboardingDisplayName.value.trim() || studyMateUser.displayName,
+    username: onboardingUsername.value.trim() || studyMateUser.username,
+    country: onboardingCountry.value.trim(),
+    timezone: onboardingTimezone.value.trim() || "UTC",
+    preferredStudyGoal: onboardingStudyGoal.value || studyMateUser.preferredStudyGoal,
+    preferredTheme: studyMateUser.preferredTheme || "system"
+  });
+}
+
+async function saveOnboardingExams() {
+  await saveProfilePayload({
+    selectedExams: getSelectedOnboardingExams()
+  });
+}
+
+async function saveOnboardingSubjects() {
+  const subjects = getSelectedOnboardingSubjects();
+  subjects.forEach(function (subjectName) {
+    const exists = appData.subjects.some(function (subject) {
+      return subject.name.toLowerCase() === subjectName.toLowerCase();
+    });
+    if (!exists) appData.subjects.push(createSubject(subjectName));
+  });
+  await saveProfilePayload({ preferredSubjects: subjects });
   saveData();
 }
 
 function maybeShowOnboarding() {
   if (!onboardingModal || studyMateUser.onboardingCompleted) return;
   renderOnboardingExamOptions();
+  renderOnboardingSubjectOptions();
   onboardingDisplayName.value = studyMateUser.displayName || "";
+  onboardingUsername.value = studyMateUser.username || "";
+  onboardingCountry.value = studyMateUser.country || "";
+  onboardingTimezone.value = studyMateUser.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  onboardingStudyGoal.value = studyMateUser.preferredStudyGoal || appData.goalHours || "";
   onboardingAvatarStyle.value = studyMateUser.avatarStyle || "initials";
   onboardingAvatarColor.value = studyMateUser.avatarColor || "violet";
   onboardingBio.value = studyMateUser.bio || "";
@@ -1944,6 +2157,49 @@ async function removeAvatar(helpElement) {
     renderProfile();
     renderAvatarChoices();
     setAvatarHelp(helpElement, "Photo removed. Generated avatar is active.", false);
+  } catch (error) {
+    setAvatarHelp(helpElement, error.message, true);
+  }
+}
+
+async function uploadBanner(fileInput, helpElement) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    setAvatarHelp(helpElement, "Please choose an image file.", true);
+    fileInput.value = "";
+    return;
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    setAvatarHelp(helpElement, "Banner image must be 2 MB or smaller.", true);
+    fileInput.value = "";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("banner", file);
+  try {
+    const response = await fetch("/api/profile/banner", {
+      method: "POST",
+      body: formData
+    });
+    const data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.error || "Upload failed.");
+    updateProfileState(data.profile);
+    renderProfile();
+    setAvatarHelp(helpElement, "Banner saved.", false);
+  } catch (error) {
+    setAvatarHelp(helpElement, error.message, true);
+  }
+  fileInput.value = "";
+}
+
+async function removeBanner(helpElement) {
+  try {
+    const response = await studyMateApi("profile/banner", { method: "DELETE" });
+    updateProfileState(response.profile);
+    renderProfile();
+    setAvatarHelp(helpElement, "Banner removed.", false);
   } catch (error) {
     setAvatarHelp(helpElement, error.message, true);
   }
@@ -4155,7 +4411,17 @@ function renderThemes() {
 
 function openProfileModal() {
   profileNameInput.value = studyMateUser.displayName || "";
+  profileUsernameInput.value = studyMateUser.username || "";
   profileBioInput.value = studyMateUser.bio || "";
+  profileCountryInput.value = studyMateUser.country || "";
+  profileTimezoneInput.value = studyMateUser.timezone || "UTC";
+  profileStudyGoalInput.value = studyMateUser.preferredStudyGoal || "";
+  profileThemeInput.value = studyMateUser.preferredTheme || "system";
+  profileExamsInput.value = (studyMateUser.selectedExams || []).join(", ");
+  profileSubjectsInput.value = (studyMateUser.preferredSubjects || []).join(", ");
+  profileVisibilityInput.value = studyMateUser.profileVisibility || "private";
+  groupVisibilitySettingInput.value = studyMateUser.groupVisibility || "members";
+  leaderboardVisibilityInput.value = studyMateUser.leaderboardVisibility || "public";
   profileAvatarStyleInput.value = studyMateUser.avatarStyle || "initials";
   profileAvatarColorInput.value = studyMateUser.avatarColor || "violet";
   renderAvatarChoices();
@@ -4172,7 +4438,17 @@ async function saveProfile(event) {
   event.preventDefault();
   await saveProfilePayload({
     displayName: profileNameInput.value.trim(),
+    username: profileUsernameInput.value.trim(),
     bio: profileBioInput.value.trim(),
+    country: profileCountryInput.value.trim(),
+    timezone: profileTimezoneInput.value.trim(),
+    preferredStudyGoal: profileStudyGoalInput.value,
+    preferredTheme: profileThemeInput.value,
+    selectedExams: parseCommaList(profileExamsInput.value),
+    preferredSubjects: parseCommaList(profileSubjectsInput.value),
+    profileVisibility: profileVisibilityInput.value,
+    groupVisibility: groupVisibilitySettingInput.value,
+    leaderboardVisibility: leaderboardVisibilityInput.value,
     avatarStyle: profileAvatarStyleInput.value,
     avatarColor: profileAvatarColorInput.value
   });
@@ -5427,23 +5703,45 @@ profileModal.addEventListener("click", function (event) {
 profileForm.addEventListener("submit", saveProfile);
 profileAvatarUpload.addEventListener("change", function () { uploadAvatar(profileAvatarUpload, profileAvatarHelp); });
 profileAvatarRemove.addEventListener("click", function () { removeAvatar(profileAvatarHelp); });
+profileBannerUpload.addEventListener("change", function () { uploadBanner(profileBannerUpload, profileBannerHelp); });
+profileBannerRemove.addEventListener("click", function () { removeBanner(profileBannerHelp); });
 onboardingStartButton.addEventListener("click", function () { showOnboardingStep(2); });
-onboardingExamsNext.addEventListener("click", function () {
-  createOnboardingExams();
+onboardingBasicsNext.addEventListener("click", async function () {
+  await saveOnboardingBasics();
   showOnboardingStep(3);
 });
-onboardingSkipExams.addEventListener("click", function () { showOnboardingStep(3); });
+onboardingSkipBasics.addEventListener("click", function () { showOnboardingStep(3); });
+onboardingExamsNext.addEventListener("click", async function () {
+  await saveOnboardingExams();
+  showOnboardingStep(4);
+});
+onboardingSkipExams.addEventListener("click", function () { showOnboardingStep(4); });
+onboardingSubjectsNext.addEventListener("click", async function () {
+  await saveOnboardingSubjects();
+  showOnboardingStep(5);
+});
+onboardingSkipSubjects.addEventListener("click", function () { showOnboardingStep(5); });
 onboardingAvatarUpload.addEventListener("change", function () { uploadAvatar(onboardingAvatarUpload, onboardingAvatarHelp); });
 onboardingAvatarRemove.addEventListener("click", function () { removeAvatar(onboardingAvatarHelp); });
 onboardingProfileForm.addEventListener("submit", async function (event) {
   event.preventDefault();
   await saveProfilePayload({
     displayName: onboardingDisplayName.value.trim(),
+    username: onboardingUsername.value.trim() || studyMateUser.username,
+    country: onboardingCountry.value.trim(),
+    timezone: onboardingTimezone.value.trim() || "UTC",
+    preferredStudyGoal: onboardingStudyGoal.value,
+    selectedExams: getSelectedOnboardingExams(),
+    preferredSubjects: getSelectedOnboardingSubjects(),
     bio: onboardingBio.value.trim(),
     avatarStyle: onboardingAvatarStyle.value,
     avatarColor: onboardingAvatarColor.value || studyMateUser.avatarColor || "violet",
     onboardingCompleted: true
   });
+  onboardingModal.hidden = true;
+});
+onboardingFinishSkip.addEventListener("click", async function () {
+  await saveProfilePayload({ onboardingCompleted: true });
   onboardingModal.hidden = true;
 });
 createGroupButton.addEventListener("click", function () { openGroupModal("create"); });

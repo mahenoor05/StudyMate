@@ -733,6 +733,67 @@ body.sidebar-collapsed .app-main {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
+.profile-card .profile-banner {
+  grid-column: 1 / -1;
+}
+
+.profile-banner {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--primary) 34%, transparent), transparent),
+    var(--surface-soft);
+  background-position: center;
+  background-size: cover;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius);
+  min-height: 8rem;
+  width: 100%;
+}
+
+.profile-banner.preview {
+  min-height: 5rem;
+}
+
+.profile-stats-grid,
+.settings-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.settings-list > div {
+  align-items: center;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+  padding-bottom: var(--space-2);
+}
+
+.settings-list > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.settings-list span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.settings-list strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.danger-zone-panel .button-row {
+  align-items: flex-start;
+}
+
 .profile-avatar {
   align-items: center;
   border: 1px solid color-mix(in srgb, white 18%, transparent);
@@ -3215,7 +3276,9 @@ body.sidebar-collapsed .app-main {
   .section-mini-header,
   .home-topline,
   .plan-header,
-  .profile-card {
+  .profile-card,
+  .profile-stats-grid,
+  .settings-grid {
     align-items: flex-start;
     display: grid;
     grid-template-columns: 1fr;

@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -79,6 +80,7 @@ def register():
                 email=clean_data["email"]
             )
             user.set_password(clean_data["password"])
+            user.last_login_at = datetime.now(timezone.utc)
             db.session.add(user)
             db.session.commit()
             login_user(user)
@@ -103,6 +105,8 @@ def login():
         ).first()
 
         if user and user.check_password(password):
+            user.last_login_at = datetime.now(timezone.utc)
+            db.session.commit()
             login_user(user)
             next_page = request.args.get("next")
             if is_safe_next_page(next_page):
