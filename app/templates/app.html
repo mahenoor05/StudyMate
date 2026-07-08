@@ -216,6 +216,23 @@
         </aside>
       </div>
 
+      <article class="workspace-surface home-timeline-card">
+        <div class="section-mini-header">
+          <div>
+            <p class="eyebrow">Your Day</p>
+            <h3 id="home-timeline-title">Today timeline</h3>
+          </div>
+          <div class="timeline-controls">
+            <button type="button" class="secondary-button icon-only-button" id="timeline-prev-day" aria-label="Previous day">&lt;</button>
+            <input id="timeline-date-input" type="date" aria-label="Timeline date">
+            <button type="button" class="secondary-button icon-only-button" id="timeline-next-day" aria-label="Next day">&gt;</button>
+            <button type="button" class="text-button" id="timeline-today">Today</button>
+            <button type="button" id="open-study-log-modal">+ Add Study Log</button>
+          </div>
+        </div>
+        <div class="day-timeline-list" id="home-day-timeline"></div>
+      </article>
+
       <div class="home-lower-grid">
         <article class="inline-section home-list-card">
           <div class="section-mini-header">
@@ -317,6 +334,7 @@
                 <button type="button" class="secondary-button" id="session-pause">Pause</button>
                 <button type="button" id="session-finish">Finish Session</button>
                 <button type="button" class="text-button" id="open-distraction-modal">Log Distraction</button>
+                <button type="button" class="text-button" id="session-discard">Discard Session</button>
                 <button type="button" class="text-button" id="session-reset">Reset</button>
                 <button type="button" class="text-button" id="session-skip">Skip Phase</button>
               </div>
@@ -377,6 +395,7 @@
         <div class="section-mini-header">
           <h3>Recent Sessions</h3>
           <div class="history-tabs">
+            <button type="button" class="text-button" id="focus-open-study-log-modal">+ Add Study Log</button>
             <button type="button" class="history-tab active" data-history-range="today">Today</button>
             <button type="button" class="history-tab secondary-button" data-history-range="previous">Previous</button>
           </div>
@@ -511,6 +530,7 @@
           </form>
         </div>
       </div>
+
     </section>
 
     <section class="app-section" id="goals">
@@ -1016,7 +1036,8 @@
           <p class="muted-text" id="profile-join-date"></p>
           <div class="profile-meta-row">
             <span>Country: <strong id="profile-country">Not set</strong></span>
-            <span>Timezone: <strong id="profile-timezone">UTC</strong></span>
+            <span>Timezone: <strong id="profile-timezone">Asia/Kolkata</strong></span>
+            <span>Study day: <strong id="profile-study-day-start">00:00</strong></span>
           </div>
         </div>
         <button type="button" class="secondary-button" id="edit-profile-button">Edit Profile</button>
@@ -1070,6 +1091,31 @@
       </div>
     </section>
 
+    <div class="modal-backdrop" id="study-log-modal" hidden>
+      <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="study-log-title">
+        <div class="section-mini-header">
+          <h3 id="study-log-title">Add Study Log</h3>
+          <button type="button" class="icon-button" id="close-study-log-modal" aria-label="Close study log form">x</button>
+        </div>
+        <form class="stacked-form" id="study-log-form">
+          <input id="study-log-session-id" type="hidden">
+          <label for="study-log-subject">Subject</label>
+          <select id="study-log-subject"></select>
+          <label for="study-log-date">Date</label>
+          <input id="study-log-date" type="date" required>
+          <label for="study-log-start">Start time</label>
+          <input id="study-log-start" type="time">
+          <label for="study-log-end">End time</label>
+          <input id="study-log-end" type="time">
+          <label for="study-log-duration">Duration minutes</label>
+          <input id="study-log-duration" type="number" min="1" max="1080" step="1">
+          <label for="study-log-note">Optional note</label>
+          <textarea id="study-log-note" rows="3" maxlength="180"></textarea>
+          <button type="submit" id="study-log-submit">Save Study Log</button>
+        </form>
+      </div>
+    </div>
+
     <div class="modal-backdrop" id="profile-modal" hidden>
       <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
         <div class="section-mini-header">
@@ -1086,7 +1132,20 @@
           <label for="profile-country-input">Country</label>
           <input id="profile-country-input" type="text" maxlength="80">
           <label for="profile-timezone-input">Timezone</label>
-          <input id="profile-timezone-input" type="text" maxlength="80">
+          <input id="profile-timezone-input" type="text" maxlength="80" list="timezone-options" placeholder="Asia/Kolkata">
+          <datalist id="timezone-options">
+            <option value="UTC"></option>
+            <option value="Asia/Kolkata"></option>
+            <option value="Europe/London"></option>
+            <option value="America/New_York"></option>
+            <option value="America/Los_Angeles"></option>
+            <option value="Asia/Dubai"></option>
+            <option value="Asia/Singapore"></option>
+            <option value="Australia/Sydney"></option>
+          </datalist>
+          <label for="profile-study-day-start-input">Study day starts at</label>
+          <input id="profile-study-day-start-input" type="time" step="60">
+          <p class="form-help">Activity before this time counts toward the previous study day.</p>
           <input id="profile-avatar-style-input" type="hidden" value="initials">
           <input id="profile-avatar-color-input" type="hidden" value="violet">
           <div class="avatar-picker-block">
@@ -1123,6 +1182,7 @@
 
   <script>
     window.STUDYMATE_USER = {
+      id: {{ current_user.id|tojson }},
       displayName: {{ current_user.display_name|tojson }},
       username: {{ current_user.username|tojson }},
       email: {{ current_user.email|tojson }},
@@ -1133,7 +1193,8 @@
       avatarColor: {{ current_user.avatar_color|tojson }},
       onboardingCompleted: {{ current_user.onboarding_completed|tojson }},
       country: {{ (current_user.country or '')|tojson }},
-      timezone: {{ (current_user.timezone or 'UTC')|tojson }},
+      timezone: {{ (current_user.timezone or 'Asia/Kolkata')|tojson }},
+      studyDayStartTime: {{ (current_user.study_day_start_time or '00:00')|tojson }},
       preferredTheme: {{ (current_user.preferred_theme or 'system')|tojson }},
       profileVisibility: {{ (current_user.profile_visibility or 'private')|tojson }},
       groupVisibility: {{ (current_user.group_visibility or 'members')|tojson }},

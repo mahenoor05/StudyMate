@@ -149,7 +149,8 @@ class PersonalDataIsolationTest(unittest.TestCase):
             "username": "account_a_new",
             "bio": "Preparing for JEE.",
             "country": "India",
-            "timezone": "Asia/Kolkata",
+            "timezone": "IST",
+            "studyDayStartTime": "05:00",
             "preferredTheme": "midnight",
             "profileVisibility": "friends",
             "groupVisibility": "members",
@@ -159,6 +160,7 @@ class PersonalDataIsolationTest(unittest.TestCase):
         profile = response.json["profile"]
         self.assertEqual(profile["username"], "account_a_new")
         self.assertEqual(profile["timezone"], "Asia/Kolkata")
+        self.assertEqual(profile["studyDayStartTime"], "05:00")
         self.assertEqual(profile["preferredTheme"], "midnight")
         self.assertEqual(profile["leaderboardVisibility"], "groups")
         self.assertNotIn("preferredStudyGoal", profile)
@@ -256,6 +258,221 @@ class PersonalDataIsolationTest(unittest.TestCase):
         self.login("account_a")
         private_filtered = self.client.get(f"/api/leaderboard?range=today&groupId={group_id}")
         self.assertEqual([row["name"] for row in private_filtered.json["rows"]], ["Account A"])
+
+    def test_active_focus_session_is_scoped_to_current_user(self):
+        from app.models import StudySession
+
+        self.login("account_a")
+        active_response = self.client.put("/api/focus/active", json={
+            "id": "active-a",
+            "subjectId": "subject-a",
+            "subjectName": "Private Physics A",
+            "mode": "Stopwatch",
+            "modeId": "stopwatch",
+            "phase": "focus",
+            "goal": "Read chapter 1",
+            "startedAt": "2026-07-08T10:00:00+00:00",
+            "totalPausedSeconds": 0,
+            "state": "running",
+            "focusSeconds": None,
+            "breakSeconds": 0,
+        })
+        self.assertEqual(active_response.status_code, 200)
+        self.assertEqual(active_response.json["activeSession"]["id"], "active-a")
+
+        sync_response = self.client.put("/api/app-data", json={
+            "date": "2026-07-08",
+            "goalHours": 2,
+            "subjects": [],
+            "tasks": [],
+            "sessions": [],
+            "dailyHistory": {},
+            "plannerItems": [],
+            "exams": [],
+            "distractions": [],
+        })
+        self.assertEqual(sync_response.status_code, 200)
+        self.assertEqual(self.client.get("/api/focus/active").json["activeSession"]["id"], "active-a")
+
+        self.logout()
+        self.login("account_b")
+        self.assertIsNone(self.client.get("/api/focus/active").json["activeSession"])
+        self.assertEqual(self.client.delete("/api/focus/active").status_code, 200)
+
+        complete_other_user = self.client.post("/api/focus/complete", json={
+            "endedAt": "2026-07-08T10:10:00+00:00",
+            "durationSeconds": 600,
+        })
+        self.assertEqual(complete_other_user.status_code, 404)
+
+        self.logout()
+        self.login("account_a")
+        restored = self.client.get("/api/focus/active")
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(restored.json["activeSession"]["id"], "active-a")
+
+        discard_response = self.client.delete("/api/focus/active")
+        self.assertEqual(discard_response.status_code, 200)
+        self.assertIsNone(self.client.get("/api/focus/active").json["activeSession"])
+        with self.app.app_context():
+            self.assertIsNone(StudySession.query.filter_by(client_id="active-a").first())
+
+        fresh_response = self.client.put("/api/focus/active", json={
+            "id": "active-a-fresh",
+            "subjectId": "subject-a",
+            "subjectName": "Private Physics A",
+            "mode": "Stopwatch",
+            "modeId": "stopwatch",
+            "phase": "focus",
+            "goal": "Read chapter 2",
+            "startedAt": "2026-07-08T11:00:00+00:00",
+            "totalPausedSeconds": 0,
+            "state": "running",
+            "focusSeconds": None,
+            "breakSeconds": 0,
+        })
+        self.assertEqual(fresh_response.status_code, 200)
+        self.assertEqual(fresh_response.json["activeSession"]["id"], "active-a-fresh")
+
+        complete_response = self.client.post("/api/focus/complete", json={
+            "endedAt": "2026-07-08T11:10:00+00:00",
+            "durationSeconds": 600,
+        })
+        self.assertEqual(complete_response.status_code, 200)
+        self.assertEqual(complete_response.json["session"]["id"], "active-a-fresh")
+        self.assertEqual(complete_response.json["session"]["durationSeconds"], 600)
+        self.assertIsNone(self.client.get("/api/focus/active").json["activeSession"])
+
+    def test_active_focus_timestamps_round_trip_as_explicit_utc(self):
+        self.login("account_a")
+        active_response = self.client.put("/api/focus/active", json={
+            "id": "roundtrip-a",
+            "subjectId": "",
+            "subjectName": "General Study",
+            "mode": "Stopwatch",
+            "modeId": "stopwatch",
+            "phase": "focus",
+            "startedAt": "2026-07-08T11:50:00.000Z",
+            "pausedAt": None,
+            "totalPausedSeconds": 0,
+            "state": "running",
+            "focusSeconds": None,
+            "breakSeconds": 0,
+        })
+        self.assertEqual(active_response.status_code, 200)
+        started_at = active_response.json["activeSession"]["startedAt"]
+        self.assertTrue(started_at.endswith("+00:00"), started_at)
+        self.assertNotEqual(started_at, "2026-07-08T11:50:00")
+
+    def test_focus_completion_uses_user_study_day(self):
+        self.login("account_a")
+        profile_response = self.client.patch("/api/profile", json={
+            "displayName": "Account A",
+            "username": "account_a",
+            "timezone": "Asia/Kolkata",
+            "studyDayStartTime": "05:00",
+        })
+        self.assertEqual(profile_response.status_code, 200)
+
+        active_response = self.client.put("/api/focus/active", json={
+            "id": "late-night-a",
+            "subjectId": "",
+            "subjectName": "Late Study",
+            "mode": "Stopwatch",
+            "modeId": "stopwatch",
+            "phase": "focus",
+            "startedAt": "2026-07-08T20:30:00+00:00",
+            "totalPausedSeconds": 0,
+            "state": "running",
+            "focusSeconds": None,
+            "breakSeconds": 0,
+        })
+        self.assertEqual(active_response.status_code, 200)
+
+        complete_response = self.client.post("/api/focus/complete", json={
+            "endedAt": "2026-07-08T21:00:00+00:00",
+            "durationSeconds": 1800,
+        })
+        self.assertEqual(complete_response.status_code, 200)
+        self.assertEqual(complete_response.json["session"]["date"], "2026-07-08")
+
+    def test_session_manual_edit_delete_are_scoped_and_audited(self):
+        self.login("account_a")
+        sync_response = self.client.put("/api/app-data", json={
+            "date": "2026-07-08",
+            "goalHours": 2,
+            "subjects": [{"id": "manual-subject-a", "name": "Manual Maths", "seconds": 0}],
+            "tasks": [],
+            "sessions": [],
+            "dailyHistory": {},
+            "plannerItems": [],
+            "exams": [],
+            "distractions": [],
+        })
+        self.assertEqual(sync_response.status_code, 200)
+
+        create_response = self.client.post("/api/sessions", json={
+            "id": "manual-a",
+            "date": "2026-07-08",
+            "subjectId": "manual-subject-a",
+            "subjectName": "Manual Maths",
+            "mode": "Manual",
+            "startedAt": "2026-07-08T09:00:00+00:00",
+            "endedAt": "2026-07-08T09:30:00+00:00",
+            "durationSeconds": 1800,
+            "sourceType": "manual",
+            "reviewNote": "Forgot to start timer",
+        })
+        self.assertEqual(create_response.status_code, 201)
+        self.assertEqual(create_response.json["session"]["sourceType"], "manual")
+        self.assertFalse(create_response.json["session"]["wasEdited"])
+
+        missing_subject = self.client.post("/api/sessions", json={
+            "id": "manual-missing-subject",
+            "subjectName": "Other",
+            "mode": "Manual",
+            "startedAt": "2026-07-08T09:00:00+00:00",
+            "endedAt": "2026-07-08T09:30:00+00:00",
+            "durationSeconds": 1800,
+            "sourceType": "manual",
+        })
+        self.assertEqual(missing_subject.status_code, 400)
+
+        edit_response = self.client.patch("/api/sessions/client/manual-a", json={
+            "id": "manual-a",
+            "date": "2026-07-08",
+            "subjectId": "manual-subject-a",
+            "subjectName": "Manual Maths",
+            "mode": "Manual",
+            "startedAt": "2026-07-08T09:00:00+00:00",
+            "endedAt": "2026-07-08T09:45:00+00:00",
+            "durationSeconds": 2700,
+            "sourceType": "manual",
+            "reviewNote": "Corrected end time",
+        })
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertTrue(edit_response.json["session"]["wasEdited"])
+        self.assertEqual(edit_response.json["session"]["originalDurationSeconds"], 1800)
+        self.assertEqual(edit_response.json["session"]["durationSeconds"], 2700)
+
+        invalid_response = self.client.patch("/api/sessions/client/manual-a", json={
+            "startedAt": "2026-07-08T10:00:00+00:00",
+            "endedAt": "2026-07-08T09:00:00+00:00",
+            "durationSeconds": -1,
+        })
+        self.assertEqual(invalid_response.status_code, 400)
+
+        self.logout()
+        self.login("account_b")
+        self.assertEqual(self.client.patch("/api/sessions/client/manual-a", json={
+            "durationSeconds": 60,
+        }).status_code, 404)
+        self.assertEqual(self.client.delete("/api/sessions/client/manual-a").status_code, 404)
+
+        self.logout()
+        self.login("account_a")
+        self.assertEqual(self.client.delete("/api/sessions/client/manual-a").status_code, 200)
+        self.assertEqual(self.client.delete("/api/sessions/client/manual-a").status_code, 404)
 
 
 if __name__ == "__main__":

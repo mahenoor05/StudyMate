@@ -77,7 +77,8 @@ def register():
             user = User(
                 display_name=clean_data["display_name"],
                 username=clean_data["username"],
-                email=clean_data["email"]
+                email=clean_data["email"],
+                timezone="Asia/Kolkata",
             )
             user.set_password(clean_data["password"])
             user.last_login_at = datetime.now(timezone.utc)

@@ -13,7 +13,18 @@ const themes = [
 ];
 
 const studyMateUser = window.STUDYMATE_USER || {};
-const ACCOUNT_STORAGE_KEY = `${STORAGE_KEY}:user:${studyMateUser.username || studyMateUser.email || "anonymous"}`;
+const ACCOUNT_STORAGE_ID = studyMateUser.id
+  ? `id:${studyMateUser.id}`
+  : (studyMateUser.username || studyMateUser.email || "anonymous");
+const ACCOUNT_STORAGE_KEY = `${STORAGE_KEY}:user:${ACCOUNT_STORAGE_ID}`;
+const ACTIVE_SESSION_STALE_MS = 2 * 60 * 60 * 1000;
+const LEGACY_TIMER_STORAGE_KEYS = [
+  "studymate-active-session",
+  "studymate-current-session",
+  "studymate-focus-session",
+  "studymate-focus-timer",
+  "studymate-session-timer"
+];
 const legacyImportBanner = document.getElementById("legacy-import-banner");
 const importLocalDataButton = document.getElementById("import-local-data");
 let databaseLoaded = false;
@@ -118,6 +129,14 @@ const homeOpenPlan = document.getElementById("home-open-plan");
 const homeAddSubject = document.getElementById("home-add-subject");
 const homeNextExam = document.getElementById("home-next-exam");
 const homeWeekPreview = document.getElementById("home-week-preview");
+const homeTimelineTitle = document.getElementById("home-timeline-title");
+const homeDayTimeline = document.getElementById("home-day-timeline");
+const timelinePrevDay = document.getElementById("timeline-prev-day");
+const timelineNextDay = document.getElementById("timeline-next-day");
+const timelineTodayButton = document.getElementById("timeline-today");
+const timelineDateInput = document.getElementById("timeline-date-input");
+const openStudyLogModalButton = document.getElementById("open-study-log-modal");
+const focusOpenStudyLogModalButton = document.getElementById("focus-open-study-log-modal");
 
 const sessionStatus = document.getElementById("session-status");
 const focusWorkspace = document.getElementById("focus-workspace");
@@ -153,6 +172,7 @@ const sessionPauseButton = document.getElementById("session-pause");
 const sessionResetButton = document.getElementById("session-reset");
 const sessionSkipButton = document.getElementById("session-skip");
 const sessionFinishButton = document.getElementById("session-finish");
+const sessionDiscardButton = document.getElementById("session-discard");
 const focusGoalProgress = document.getElementById("focus-goal-progress");
 const focusSessionCount = document.getElementById("focus-session-count");
 const openDistractionModalButton = document.getElementById("open-distraction-modal");
@@ -161,6 +181,18 @@ const closeFocusDistractionButton = document.getElementById("close-focus-distrac
 const focusDistractionForm = document.getElementById("focus-distraction-form");
 const focusDistractionCategory = document.getElementById("focus-distraction-category");
 const focusDistractionNote = document.getElementById("focus-distraction-note");
+const studyLogModal = document.getElementById("study-log-modal");
+const closeStudyLogModalButton = document.getElementById("close-study-log-modal");
+const studyLogForm = document.getElementById("study-log-form");
+const studyLogTitle = document.getElementById("study-log-title");
+const studyLogSessionId = document.getElementById("study-log-session-id");
+const studyLogSubject = document.getElementById("study-log-subject");
+const studyLogDate = document.getElementById("study-log-date");
+const studyLogStart = document.getElementById("study-log-start");
+const studyLogEnd = document.getElementById("study-log-end");
+const studyLogDuration = document.getElementById("study-log-duration");
+const studyLogNote = document.getElementById("study-log-note");
+const studyLogSubmit = document.getElementById("study-log-submit");
 const completeSessionTitle = document.getElementById("complete-session-title");
 const completeSessionSummary = document.getElementById("complete-session-summary");
 const goalResultOptions = document.getElementById("goal-result-options");
@@ -270,6 +302,7 @@ const accountCreated = document.getElementById("account-created");
 const accountLastLogin = document.getElementById("account-last-login");
 const profileCountry = document.getElementById("profile-country");
 const profileTimezone = document.getElementById("profile-timezone");
+const profileStudyDayStart = document.getElementById("profile-study-day-start");
 const privacyProfile = document.getElementById("privacy-profile");
 const privacyGroups = document.getElementById("privacy-groups");
 const editProfileButton = document.getElementById("edit-profile-button");
@@ -281,6 +314,7 @@ const profileUsernameInput = document.getElementById("profile-username-input");
 const profileBioInput = document.getElementById("profile-bio-input");
 const profileCountryInput = document.getElementById("profile-country-input");
 const profileTimezoneInput = document.getElementById("profile-timezone-input");
+const profileStudyDayStartInput = document.getElementById("profile-study-day-start-input");
 const leaderboardVisibilityInput = document.getElementById("leaderboard-visibility-input");
 const profileAvatarStyleInput = document.getElementById("profile-avatar-style-input");
 const profileAvatarColorInput = document.getElementById("profile-avatar-color-input");
@@ -411,6 +445,9 @@ const challengeCreateButton = document.getElementById("challenge-create-button")
 
 let sessionTimerId = null;
 let roomTimerId = null;
+let isCompletingSession = false;
+let activeSessionRecoveryPromptToken = 0;
+const discardedActiveSessionIds = new Set();
 let appData = createDefaultData();
 let selectedExamPreset = null;
 let challengeDraft = createChallengeDraft();
@@ -435,6 +472,7 @@ function createDefaultData() {
     customFocusMinutes: 30,
     customBreakMinutes: 0,
     selectedHistoryRange: "today",
+    selectedTimelineDate: getTodayKey(),
     selectedAnalyticsRange: "today",
     selectedLeaderboardRange: "today",
     selectedExamId: null,
@@ -526,7 +564,7 @@ function formatReadableDate(dateString) {
   if (!dateString) return "-";
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString(undefined, { timeZone: getAccountTimezone(), month: "short", day: "numeric", year: "numeric" });
 }
 
 function formatVisibility(value) {
@@ -595,19 +633,76 @@ function createSubject(name, colorKey) {
   };
 }
 
-function getTodayKey() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
+function getAccountTimezone() {
+  const aliases = { IST: "Asia/Kolkata", GMT: "UTC", UTC: "UTC" };
+  const timezone = aliases[String(studyMateUser.timezone || "Asia/Kolkata").toUpperCase()] || studyMateUser.timezone || "Asia/Kolkata";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(new Date());
+    return timezone;
+  } catch (error) {
+    return "Asia/Kolkata";
+  }
+}
 
-  return `${year}-${month}-${day}`;
+function getStudyDayStartMinutes() {
+  const value = studyMateUser.studyDayStartTime || "00:00";
+  const parts = value.split(":").map(Number);
+  const hours = Number.isInteger(parts[0]) ? parts[0] : 0;
+  const minutes = Number.isInteger(parts[1]) ? parts[1] : 0;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return 0;
+  return hours * 60 + minutes;
+}
+
+function getLocalDateParts(dateValue = new Date()) {
+  const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: getAccountTimezone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+  const parts = {};
+  formatter.formatToParts(date).forEach(function (part) {
+    parts[part.type] = part.value;
+  });
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour),
+    minute: Number(parts.minute)
+  };
+}
+
+function formatDateKeyParts(parts) {
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+}
+
+function getTodayKey() {
+  return getStudyDateKey(new Date());
+}
+
+function getStudyDateKey(dateValue) {
+  const parts = getLocalDateParts(dateValue);
+  const localMinutes = parts.hour * 60 + parts.minute;
+  if (localMinutes >= getStudyDayStartMinutes()) return formatDateKeyParts(parts);
+  return addDaysToDate(formatDateKeyParts(parts), -1);
 }
 
 function addDaysToDate(dateKey, days) {
-  const date = new Date(`${dateKey}T00:00:00`);
-  date.setDate(date.getDate() + Number(days || 0));
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeUtcTimestamp(value) {
+  if (!value) return value;
+  const text = String(value);
+  if (/[zZ]$|[+-]\d\d:\d\d$/.test(text)) return text.replace(/z$/, "Z");
+  return `${text}Z`;
 }
 
 async function studyMateApi(path, options = {}) {
@@ -628,15 +723,51 @@ function getLegacyBrowserData() {
   const savedData = localStorage.getItem(STORAGE_KEY);
 
   if (savedData) {
-    return parseSavedData(savedData);
+    return removeTransientTimerState(parseSavedData(savedData));
   }
 
-  return loadOlderData();
+  return removeTransientTimerState(loadOlderData());
 }
 
 function getAccountBrowserData() {
   const savedData = localStorage.getItem(ACCOUNT_STORAGE_KEY);
-  return savedData ? parseSavedData(savedData) : createDefaultData();
+  return savedData ? removeTransientTimerState(parseSavedData(savedData)) : createDefaultData();
+}
+
+function removeTransientTimerState(data) {
+  const cleaned = {
+    ...createDefaultData(),
+    ...(data || {})
+  };
+
+  delete cleaned.activeSession;
+  delete cleaned.pendingSessionReview;
+  cleaned.sessionState = "pre-session";
+  cleaned.currentSessionDraft = { goal: "" };
+
+  return cleaned;
+}
+
+function cleanupLegacyTimerStorage() {
+  LEGACY_TIMER_STORAGE_KEYS.forEach(function (key) {
+    localStorage.removeItem(key);
+  });
+
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(`${STORAGE_KEY}:user:`)) continue;
+
+    const stored = localStorage.getItem(key);
+    if (!stored) continue;
+
+    try {
+      const parsed = JSON.parse(stored);
+      if (!parsed.activeSession && !parsed.pendingSessionReview && parsed.sessionState === "pre-session") continue;
+      localStorage.setItem(key, JSON.stringify(removeTransientTimerState(parsed)));
+    } catch (error) {
+      console.warn(`Skipped unreadable StudyMate cache: ${key}`);
+    }
+  }
 }
 
 function hasStoredLegacyData() {
@@ -665,8 +796,10 @@ function showLegacyImportIfNeeded(shouldShow) {
 }
 
 async function loadData() {
+  cleanupLegacyTimerStorage();
   appData = getAccountBrowserData();
   normalizeData();
+  resetTransientFocusState();
 
   try {
     const response = await studyMateApi("app-data");
@@ -674,10 +807,10 @@ async function loadData() {
     if (response.profile) updateProfileState(response.profile);
     if (response.appData) {
       isHydratingFromServer = true;
-      appData = {
+      appData = removeTransientTimerState({
         ...createDefaultData(),
         ...response.appData
-      };
+      });
       normalizeData();
       showLegacyImportIfNeeded(false);
       isHydratingFromServer = false;
@@ -692,13 +825,112 @@ async function loadData() {
   }
 
   if (appData.date !== getTodayKey()) resetDailyData();
+  await loadActiveFocusSession();
   applyAccountPreferencesToAppData();
   appData.streak = getCurrentStudyStreak();
   syncDailyHistory(getTodayKey());
-  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(removeTransientTimerState(appData)));
 
   if (appData.activeSession && appData.sessionState !== "paused") {
     resumeSessionTimer();
+  }
+}
+
+function resetTransientFocusState() {
+  appData.activeSession = null;
+  appData.pendingSessionReview = null;
+  appData.sessionState = "pre-session";
+  appData.currentSessionDraft = { goal: "" };
+  activeSessionRecoveryPromptToken += 1;
+  clearInterval(sessionTimerId);
+  sessionTimerId = null;
+  document.title = "StudyMate";
+}
+
+function normalizeActiveFocusSession(activeSession) {
+  if (!activeSession) return null;
+  return {
+    id: activeSession.id || createId(),
+    mode: activeSession.mode || "Stopwatch",
+    modeId: activeSession.modeId || "stopwatch",
+    phase: activeSession.phase || "focus",
+    subjectId: activeSession.subjectId || "",
+    subjectName: activeSession.subjectName || getSubjectName(activeSession.subjectId),
+    goal: activeSession.goal || "",
+    roomId: activeSession.roomId || null,
+    startedAt: normalizeUtcTimestamp(activeSession.startedAt) || new Date().toISOString(),
+    pausedAt: normalizeUtcTimestamp(activeSession.pausedAt) || null,
+    totalPausedSeconds: Number(activeSession.totalPausedSeconds || 0),
+    state: activeSession.state === "paused" ? "paused" : "running",
+    elapsedSeconds: Number(activeSession.elapsedSeconds || 0),
+    focusSeconds: activeSession.focusSeconds || null,
+    breakSeconds: Number(activeSession.breakSeconds || 0),
+    updatedAt: normalizeUtcTimestamp(activeSession.updatedAt || activeSession.pausedAt || activeSession.startedAt) || new Date().toISOString()
+  };
+}
+
+function isActiveSessionStale(activeSession) {
+  if (!activeSession) return false;
+  const updatedAt = new Date(activeSession.updatedAt || activeSession.pausedAt || activeSession.startedAt).getTime();
+  if (Number.isNaN(updatedAt)) return false;
+  return Date.now() - updatedAt > ACTIVE_SESSION_STALE_MS;
+}
+
+function getSessionElapsedAt(activeSession, dateValue) {
+  if (!activeSession) return 0;
+  const startedAt = new Date(activeSession.startedAt).getTime();
+  const endAt = new Date(dateValue || Date.now()).getTime();
+  const totalPaused = Number(activeSession.totalPausedSeconds || 0);
+  if (Number.isNaN(startedAt) || Number.isNaN(endAt)) return 0;
+  return Math.max(0, Math.floor((endAt - startedAt) / 1000) - totalPaused);
+}
+
+function freezeStaleActiveSession(activeSession) {
+  const freezeAt = activeSession.updatedAt || activeSession.pausedAt || activeSession.startedAt || new Date().toISOString();
+  const elapsedSeconds = getSessionElapsedAt(activeSession, freezeAt);
+  const adjustedStartedAt = new Date(Date.now() - elapsedSeconds * 1000).toISOString();
+  return {
+    ...activeSession,
+    startedAt: adjustedStartedAt,
+    pausedAt: new Date().toISOString(),
+    totalPausedSeconds: 0,
+    elapsedSeconds,
+    state: "paused"
+  };
+}
+
+function applyBackendActiveSession(activeSession) {
+  if (activeSession && discardedActiveSessionIds.has(activeSession.id)) {
+    appData.activeSession = null;
+    appData.sessionState = "pre-session";
+    return false;
+  }
+
+  if (isActiveSessionStale(activeSession)) {
+    appData.activeSession = freezeStaleActiveSession(activeSession);
+    appData.sessionState = "paused";
+    updateAllDisplays();
+    showActiveSessionRecoveryPrompt();
+    return Boolean(appData.activeSession);
+  }
+
+  appData.activeSession = activeSession;
+  appData.sessionState = appData.activeSession
+    ? (appData.activeSession.state === "paused" ? "paused" : appData.activeSession.phase === "break" ? "break" : "active")
+    : "pre-session";
+
+  return Boolean(appData.activeSession);
+}
+
+async function loadActiveFocusSession() {
+  if (!databaseLoaded) return;
+  resetTransientFocusState();
+  try {
+    const response = await studyMateApi("focus/active");
+    const activeSession = normalizeActiveFocusSession(response.activeSession);
+    applyBackendActiveSession(activeSession);
+  } catch (error) {
+    console.warn(error.message);
   }
 }
 
@@ -749,7 +981,8 @@ function updateProfileState(profile) {
   studyMateUser.avatarColor = profile.avatarColor || "violet";
   studyMateUser.onboardingCompleted = Boolean(profile.onboardingCompleted);
   studyMateUser.country = profile.country || "";
-  studyMateUser.timezone = profile.timezone || "UTC";
+  studyMateUser.timezone = profile.timezone || "Asia/Kolkata";
+  studyMateUser.studyDayStartTime = profile.studyDayStartTime || "00:00";
   studyMateUser.preferredTheme = profile.preferredTheme || "system";
   studyMateUser.profileVisibility = profile.profileVisibility || "private";
   studyMateUser.groupVisibility = profile.groupVisibility || "members";
@@ -774,7 +1007,8 @@ function renderProfile() {
   accountCreated.textContent = formatReadableDate(studyMateUser.createdAt);
   accountLastLogin.textContent = studyMateUser.lastLoginAt ? formatReadableDate(studyMateUser.lastLoginAt) : "Not recorded";
   profileCountry.textContent = studyMateUser.country || "Not set";
-  profileTimezone.textContent = studyMateUser.timezone || "UTC";
+  profileTimezone.textContent = studyMateUser.timezone || "Asia/Kolkata";
+  if (profileStudyDayStart) profileStudyDayStart.textContent = studyMateUser.studyDayStartTime || "00:00";
   if (privacyProfile) privacyProfile.textContent = formatVisibility(studyMateUser.profileVisibility);
   if (privacyGroups) privacyGroups.textContent = formatVisibility(studyMateUser.groupVisibility);
   if (leaderboardVisibilityInput) leaderboardVisibilityInput.value = studyMateUser.leaderboardVisibility === "private" ? "private" : "public";
@@ -874,9 +1108,6 @@ function normalizeData() {
   appData.currentSessionDraft = appData.currentSessionDraft && typeof appData.currentSessionDraft === "object" ? appData.currentSessionDraft : { goal: "" };
   appData.currentSessionDraft.goal = appData.currentSessionDraft.goal || "";
   appData.pendingSessionReview = appData.pendingSessionReview && typeof appData.pendingSessionReview === "object" ? appData.pendingSessionReview : null;
-  if (appData.activeSession && appData.sessionState === "pre-session") {
-    appData.sessionState = appData.activeSession.phase === "break" ? "break" : "active";
-  }
   appData.timerModeIndex = Number(appData.timerModeIndex) || 0;
   appData.timerModeIndex = appData.timerModeIndex % timerModes.length;
   appData.customFocusMinutes = Number(appData.customFocusMinutes) || 30;
@@ -899,7 +1130,10 @@ function normalizeData() {
   appData.plannerMonth = Number.isInteger(appData.plannerMonth) ? appData.plannerMonth : new Date().getMonth();
   appData.plannerYear = Number(appData.plannerYear) || new Date().getFullYear();
   appData.selectedPlannerDate = appData.selectedPlannerDate || getTodayKey();
-  appData.selectedSubjectId = getSubjectById(appData.selectedSubjectId) ? appData.selectedSubjectId : appData.subjects[0].id;
+  appData.selectedTimelineDate = appData.selectedTimelineDate || getTodayKey();
+  appData.selectedSubjectId = getSubjectById(appData.selectedSubjectId)
+    ? appData.selectedSubjectId
+    : appData.subjects[0] ? appData.subjects[0].id : "";
   appData.subjects = appData.subjects.map(function (subject, index) {
     return {
       ...subject,
@@ -907,6 +1141,7 @@ function normalizeData() {
     };
   });
   appData.tasks = appData.tasks.map(normalizeTask);
+  appData.sessions = appData.sessions.map(normalizeStudySession);
   appData.dailyHistory = normalizeDailyHistory(appData.dailyHistory);
   appData.distractions = appData.distractions.map(normalizeDistraction);
   appData.plannerItems = appData.plannerItems.map(normalizePlannerItem);
@@ -938,6 +1173,27 @@ function normalizeTask(task) {
   };
 }
 
+function normalizeStudySession(session) {
+  const startedAt = normalizeUtcTimestamp(session.startedAt) || new Date().toISOString();
+  const endedAt = normalizeUtcTimestamp(session.endedAt) || startedAt;
+  return {
+    ...session,
+    id: session.id || createId(),
+    date: session.date || getStudyDateKey(startedAt),
+    subjectId: session.subjectId || "",
+    subjectName: session.subjectName || getSubjectName(session.subjectId),
+    mode: session.mode || "Timer",
+    startedAt,
+    endedAt,
+    durationSeconds: Number(session.durationSeconds || session.studySeconds || 0),
+    sourceType: session.sourceType === "manual" ? "manual" : "tracked",
+    wasEdited: Boolean(session.wasEdited),
+    originalDurationSeconds: session.originalDurationSeconds || null,
+    editedAt: session.editedAt || null,
+    reviewNote: session.reviewNote || session.note || ""
+  };
+}
+
 function normalizeDailyHistory(history) {
   const normalized = {};
   Object.keys(history || {}).forEach(function (dateKey) {
@@ -956,13 +1212,14 @@ function normalizeDailyHistory(history) {
 }
 
 function normalizeDistraction(entry) {
+  const timestamp = normalizeUtcTimestamp(entry.timestamp) || new Date().toISOString();
   return {
     id: entry.id || createId(),
     category: entry.category || "Other",
     reason: entry.reason || entry.note || "",
-    time: entry.time || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    date: entry.date || appData.date || getTodayKey(),
-    timestamp: entry.timestamp || new Date().toISOString(),
+    time: entry.time || formatClockTime(timestamp),
+    date: entry.date || getStudyDateKey(timestamp),
+    timestamp,
     sessionId: entry.sessionId || null
   };
 }
@@ -1233,14 +1490,7 @@ function buildDailyHistoryEntry(dateKey) {
   const completedTasks = tasks.filter(function (task) {
     return isTaskCompletedOnDate(task, dateKey);
   });
-  let studySeconds = getSecondsFromSessions(sessions);
-
-  if (dateKey === getTodayKey()) {
-    studySeconds = Math.max(studySeconds, appData.studySeconds);
-    appData.subjects.forEach(function (subject) {
-      if (subject.seconds > 0) subjectTotals[subject.name] = Math.max(subjectTotals[subject.name] || 0, subject.seconds);
-    });
-  }
+  const studySeconds = getSecondsFromSessions(sessions);
 
   return {
     studySeconds,
@@ -1292,18 +1542,13 @@ function isTaskCompletedOnDate(task, dateKey) {
 function resetDailyData() {
   syncDailyHistory(appData.date);
   appData.date = getTodayKey();
-  appData.studySeconds = 0;
-  appData.distractions = [];
-  appData.subjects = appData.subjects.map(function (subject) {
-    return { ...subject, seconds: 0 };
-  });
   syncDailyHistory(getTodayKey());
 }
 
 function saveData() {
   appData.streak = getCurrentStudyStreak();
   syncDailyHistory(getTodayKey());
-  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
+  localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(removeTransientTimerState(appData)));
   queueDatabaseSync();
 }
 
@@ -1316,7 +1561,176 @@ function getPersonalAppDataPayload() {
     groupsView: "list"
   };
   delete payload.theme;
+  delete payload.activeSession;
+  delete payload.pendingSessionReview;
+  payload.sessionState = "pre-session";
   return payload;
+}
+
+function getActiveFocusPayload() {
+  if (!appData.activeSession) return null;
+  if (discardedActiveSessionIds.has(appData.activeSession.id)) return null;
+  const subject = getSubjectById(appData.activeSession.subjectId);
+  return {
+    ...appData.activeSession,
+    subjectName: subject ? subject.name : appData.activeSession.subjectName || "General Study",
+    state: appData.sessionState === "paused" ? "paused" : "running"
+  };
+}
+
+function canWriteActiveFocusSession(reason) {
+  return ["start", "pause", "resume", "break",].includes(reason);
+}
+
+async function saveActiveFocusSession(reason) {
+  if (!canWriteActiveFocusSession(reason)) return null;
+  const payload = getActiveFocusPayload();
+  if (!payload || !databaseLoaded) return null;
+  try {
+    const response = await studyMateApi("focus/active", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    appData.activeSession = normalizeActiveFocusSession(response.activeSession);
+    return appData.activeSession;
+  } catch (error) {
+    console.warn(error.message);
+    return null;
+  }
+}
+
+async function clearActiveFocusSession() {
+  if (!databaseLoaded) return;
+  try {
+    await studyMateApi("focus/active", { method: "DELETE" });
+  } catch (error) {
+    console.warn(error.message);
+  }
+}
+
+async function discardActiveSession(shouldConfirm = true) {
+    if (shouldConfirm) {
+        const confirmed = window.confirm(
+            "Discard this unfinished session? No study time will be saved."
+        );
+
+        if (!confirmed) return;
+    }
+
+    const discardedId = appData.activeSession?.id;
+
+    try {
+        await studyMateApi("focus/active", {
+            method: "DELETE"
+        });
+
+        // Invalidate any delayed recovery prompt.
+        activeSessionRecoveryPromptToken += 1;
+
+        if (discardedId) {
+            discardedActiveSessionIds.add(discardedId);
+        }
+
+        // Destroy every local reference BEFORE saving.
+        appData.activeSession = null;
+        appData.pendingSessionReview = null;
+        appData.sessionState = "pre-session";
+
+        clearInterval(sessionTimerId);
+        sessionTimerId = null;
+
+        document.title = "StudyMate";
+
+        saveData();
+        updateAllDisplays();
+    } catch (error) {
+        console.warn(error.message);
+    }
+}
+
+async function resumeRecoveredActiveSession() {
+    const recoveredSessionId = appData.activeSession?.id;
+
+    if (!recoveredSessionId) return;
+
+    if (discardedActiveSessionIds.has(recoveredSessionId)) {
+        appData.activeSession = null;
+        appData.sessionState = "pre-session";
+        updateAllDisplays();
+        return;
+    }
+
+    try {
+        // Re-check the backend before restoring anything.
+        const response = await studyMateApi("focus/active");
+        const backendSession = response?.activeSession ?? null;
+
+        // The session no longer exists on the backend.
+        if (
+            !backendSession ||
+            backendSession.id !== recoveredSessionId ||
+            discardedActiveSessionIds.has(recoveredSessionId)
+        ) {
+            appData.activeSession = null;
+            appData.sessionState = "pre-session";
+            document.title = "StudyMate";
+            updateAllDisplays();
+            return;
+        }
+
+        // Only now restore the confirmed backend session.
+        appData.activeSession =
+            normalizeActiveFocusSession(backendSession);
+
+        appData.activeSession.pausedAt = null;
+        appData.activeSession.state = "running";
+
+        appData.sessionState =
+            appData.activeSession.phase === "break"
+                ? "break"
+                : "active";
+
+        // This is now a verified explicit resume.
+        await saveActiveFocusSession("resume");
+
+        resumeSessionTimer();
+        updateAllDisplays();
+    } catch (error) {
+        console.warn(error.message);
+
+        appData.activeSession = null;
+        appData.sessionState = "pre-session";
+        document.title = "StudyMate";
+        updateAllDisplays();
+    }
+}
+
+function showActiveSessionRecoveryPrompt() {
+  const promptToken = activeSessionRecoveryPromptToken;
+  window.setTimeout(function () {
+    if (promptToken !== activeSessionRecoveryPromptToken) return;
+    if (!appData.activeSession || !isActiveSessionStale(appData.activeSession)) return;
+    const shouldResume = window.confirm("Unfinished session found. Press OK to resume it, or Cancel to discard it without saving study time.");
+    if (shouldResume) {
+      resumeRecoveredActiveSession();
+    } else {
+      discardActiveSession(false);
+    }
+  }, 0);
+}
+
+async function completeActiveFocusSession(review) {
+  if (!databaseLoaded || !review) return null;
+  try {
+    const response = await studyMateApi("focus/complete", {
+      method: "POST",
+      body: JSON.stringify(review)
+    });
+    return response.session || null;
+  } catch (error) {
+    console.warn(error.message);
+    return null;
+  }
 }
 
 function queueDatabaseSync() {
@@ -1332,6 +1746,19 @@ function queueDatabaseSync() {
   }, 450);
 }
 
+async function persistAppDataNow() {
+  if (!databaseLoaded || isHydratingFromServer) return;
+  window.clearTimeout(syncTimerId);
+  try {
+    await studyMateApi("app-data", {
+      method: "PUT",
+      body: JSON.stringify(getPersonalAppDataPayload())
+    });
+  } catch (error) {
+    console.warn(error.message);
+  }
+}
+
 async function importLegacyLocalData() {
   if (!importLocalDataButton) return;
   importLocalDataButton.disabled = true;
@@ -1341,9 +1768,9 @@ async function importLegacyLocalData() {
       body: JSON.stringify(getLegacyBrowserData())
     });
     databaseLoaded = true;
-    appData = getLegacyBrowserData();
+    appData = removeTransientTimerState(getLegacyBrowserData());
     normalizeData();
-    localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(appData));
+    localStorage.setItem(ACCOUNT_STORAGE_KEY, JSON.stringify(removeTransientTimerState(appData)));
     showLegacyImportIfNeeded(false);
     updateAllDisplays();
   } catch (error) {
@@ -1436,7 +1863,7 @@ async function saveOnboardingBasics() {
     displayName: onboardingDisplayName.value.trim() || studyMateUser.displayName,
     username: onboardingUsername.value.trim() || studyMateUser.username,
     country: onboardingCountry.value.trim(),
-    timezone: onboardingTimezone.value.trim() || "UTC",
+    timezone: onboardingTimezone.value.trim() || "Asia/Kolkata",
     preferredTheme: studyMateUser.preferredTheme || "system"
   });
   if (onboardingStudyGoal.value) {
@@ -1484,7 +1911,7 @@ function maybeShowOnboarding() {
   onboardingDisplayName.value = studyMateUser.displayName || "";
   onboardingUsername.value = studyMateUser.username || "";
   onboardingCountry.value = studyMateUser.country || "";
-  onboardingTimezone.value = studyMateUser.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  onboardingTimezone.value = studyMateUser.timezone || "Asia/Kolkata";
   onboardingStudyGoal.value = appData.goalHours || "";
   onboardingAvatarStyle.value = studyMateUser.avatarStyle || "initials";
   onboardingAvatarColor.value = studyMateUser.avatarColor || "violet";
@@ -1536,7 +1963,51 @@ function formatGoalHours(hours) {
 
 function formatClockTime(dateString) {
   if (!dateString) return "Not started";
-  return new Date(dateString).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return new Date(normalizeUtcTimestamp(dateString)).toLocaleTimeString([], {
+    timeZone: getAccountTimezone(),
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function getTimeZoneOffsetMs(timeZone, date) {
+  const parts = {};
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date).forEach(function (part) {
+    parts[part.type] = part.value;
+  });
+  const localAsUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return localAsUtc - date.getTime();
+}
+
+function localDateTimeToUtcIso(dateKey, timeValue) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey || "")) throw new Error("Choose a valid date.");
+  if (!/^\d{2}:\d{2}$/.test(timeValue || "")) throw new Error("Choose a valid time.");
+  const dateParts = dateKey.split("-").map(Number);
+  const timeParts = timeValue.split(":").map(Number);
+  const localAsUtc = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2], timeParts[0], timeParts[1]));
+  let offset = getTimeZoneOffsetMs(getAccountTimezone(), localAsUtc);
+  let utcDate = new Date(localAsUtc.getTime() - offset);
+  const correctedOffset = getTimeZoneOffsetMs(getAccountTimezone(), utcDate);
+  if (correctedOffset !== offset) {
+    utcDate = new Date(localAsUtc.getTime() - correctedOffset);
+  }
+  return utcDate.toISOString();
 }
 
 function getSelectedTimerMode() {
@@ -1556,10 +2027,7 @@ function getTimerBreakSeconds() {
 }
 
 function getDateKeyFromDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return getStudyDateKey(date);
 }
 
 function getRangeStart(range) {
@@ -1717,9 +2185,7 @@ function getCompletedTaskCount() {
 }
 
 function getGoalPercent() {
-  const goalSeconds = Number(appData.goalHours || 0) * 3600;
-  if (goalSeconds <= 0) return 0;
-  return Math.min(Math.round((appData.studySeconds / goalSeconds) * 100), 100);
+  return getGoalPercentForSeconds(getTodayStudySeconds());
 }
 
 function getGoalPercentForSeconds(studySeconds) {
@@ -1742,10 +2208,26 @@ function getCompletedStudySessionsForDate(dateKey) {
 }
 
 function getStudySecondsForDate(dateKey) {
-  const sessionSeconds = getSecondsFromSessions(getCompletedStudySessionsForDate(dateKey));
-  if (dateKey === getTodayKey()) return sessionSeconds;
-  const historySeconds = Number((appData.dailyHistory[dateKey] || {}).studySeconds || 0);
-  return Math.max(sessionSeconds, historySeconds);
+  return getSecondsFromSessions(getCompletedStudySessionsForDate(dateKey));
+}
+
+function getActiveSessionDateKey() {
+  return appData.activeSession ? getDateKeyFromDate(new Date(appData.activeSession.startedAt)) : "";
+}
+
+function getLiveStudySecondsForDate(dateKey) {
+  const completedSeconds = getStudySecondsForDate(dateKey);
+  if (dateKey === getActiveSessionDateKey()
+    && appData.activeSession
+    && appData.activeSession.phase === "focus"
+    && !isActiveSessionStale(appData.activeSession)) {
+    return completedSeconds + getSessionElapsedSeconds();
+  }
+  return completedSeconds;
+}
+
+function getTodayStudySeconds() {
+  return getLiveStudySecondsForDate(getTodayKey());
 }
 
 function getCurrentStudyStreak() {
@@ -1784,13 +2266,40 @@ function getSelectedSubject() {
   return getSubjectById(appData.selectedSubjectId) || appData.subjects[0] || { id: "", name: "General Study", seconds: 0 };
 }
 
+function getActiveSessionSubject() {
+  if (!appData.activeSession) return getSelectedSubject();
+  return getSubjectById(appData.activeSession.subjectId) || {
+    id: appData.activeSession.subjectId || "",
+    name: appData.activeSession.subjectName || "General Study",
+    colorKey: "blue"
+  };
+}
+
 function getSessionElapsedSeconds() {
   if (!appData.activeSession) return 0;
-  if (appData.sessionState === "paused") return appData.activeSession.elapsedSeconds;
-  return appData.activeSession.elapsedSeconds + Math.floor((Date.now() - new Date(appData.activeSession.startedAt).getTime()) / 1000);
+  const startedAt = new Date(appData.activeSession.startedAt).getTime();
+  const totalPaused = Number(appData.activeSession.totalPausedSeconds || 0);
+  if (Number.isNaN(startedAt)) return Number(appData.activeSession.elapsedSeconds || 0);
+  if (appData.sessionState === "paused" || appData.activeSession.state === "paused") {
+    const pausedAt = new Date(appData.activeSession.pausedAt || Date.now()).getTime();
+    const pausedSeconds = Number.isNaN(pausedAt) ? totalPaused : totalPaused + Math.max(0, Math.floor((Date.now() - pausedAt) / 1000));
+    return Math.max(0, Math.floor((Date.now() - startedAt) / 1000) - pausedSeconds);
+  }
+  return Math.max(0, Math.floor((Date.now() - startedAt) / 1000) - totalPaused);
+}
+
+function updateBrowserTimerTitle() {
+  if (!appData.activeSession) {
+    document.title = "StudyMate";
+    return;
+  }
+  const subject = getSubjectById(appData.activeSession.subjectId) || { name: appData.activeSession.subjectName || "Study" };
+  const icon = appData.sessionState === "paused" ? "⏸" : "▶";
+  document.title = `${icon} ${formatLongTime(getSessionElapsedSeconds())} - ${subject.name} | StudyMate`;
 }
 
 function updateAllDisplays() {
+  updateBrowserTimerTitle();
   updateHome();
   updateSessionPage();
   updateGoal();
@@ -1808,7 +2317,7 @@ function updateHome() {
   const pendingTasks = getPendingTodayTasks();
   const completedTasks = getCompletedTodayTasks();
   const selectedSubject = getSelectedSubject();
-  const todayStudySeconds = getStudySecondsForDate(getTodayKey());
+  const todayStudySeconds = getTodayStudySeconds();
   const goalPercent = getGoalPercentForSeconds(todayStudySeconds);
   const currentStreak = getCurrentStudyStreak();
   const greeting = getGreeting();
@@ -1823,7 +2332,13 @@ function updateHome() {
   }
 
   dashboardGreeting.textContent = `${greeting}, ${studyMateUser.displayName || "StudyMate learner"}`;
-  todayDate.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  todayDate.textContent = new Date().toLocaleDateString(undefined, {
+    timeZone: getAccountTimezone(),
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
   homeDaySummary.textContent = summaryParts.join(" - ");
   homeTotalTime.textContent = formatShortTime(todayStudySeconds);
   homeStreak.textContent = `${currentStreak}-day streak`;
@@ -1835,23 +2350,23 @@ function updateHome() {
     : "No daily goal set yet.";
 
   if (appData.activeSession) {
-    const activeSubject = getSubjectById(appData.activeSession.subjectId) || selectedSubject;
-    homeActiveSubject.textContent = appData.activeSession.phase === "break" ? "Break" : "● Studying";
-    homeActiveCopy.textContent = activeSubject.name;
+    const activeSubject = getActiveSessionSubject();
+    homeActiveSubject.textContent = appData.activeSession.phase === "break" ? "Break" : `● Studying ${activeSubject.name}`;
+    homeActiveCopy.textContent = formatLongTime(getSessionElapsedSeconds());
     homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Studying";
     homeSessionStart.textContent = appData.activeSession.mode;
     homeSessionMode.textContent = "";
-    homeSessionElapsed.textContent = formatLongTime(getSessionElapsedSeconds());
-    homeContinueSession.textContent = "Continue";
+    homeSessionElapsed.textContent = "";
+    homeContinueSession.textContent = "Return to Focus";
     homeSubjectSelect.disabled = true;
   } else {
-    homeActiveSubject.textContent = "Ready to focus?";
-    homeActiveCopy.textContent = "Choose what you want to study today.";
+    homeActiveSubject.textContent = "Quick Focus";
+    homeActiveCopy.textContent = "Choose a subject and start a fresh stopwatch session.";
     homeActiveStatus.textContent = "";
-    homeSessionStart.textContent = getSelectedTimerMode().name;
-    homeSessionMode.textContent = "Not started";
-    homeSessionElapsed.textContent = "0h 00m 00s";
-    homeContinueSession.textContent = "Start Session";
+    homeSessionStart.textContent = "";
+    homeSessionMode.textContent = "";
+    homeSessionElapsed.textContent = "";
+    homeContinueSession.textContent = "Start Stopwatch";
     homeSubjectSelect.disabled = false;
   }
 
@@ -1872,6 +2387,7 @@ function updateHome() {
   renderHomeSubjectOptions();
   renderHomeNextExam(nearestExam);
   renderHomeWeekPreview();
+  renderHomeTimeline();
   renderSubjectBreakdown(homeSubjectList);
   renderHomeDistractions();
 }
@@ -1892,7 +2408,7 @@ function updateSessionPage() {
   const progressPercent = isCountdown ? Math.min((elapsed / focusSeconds) * 100, 100) : 0;
   const state = getFocusState();
   const subject = appData.activeSession
-    ? getSubjectById(appData.activeSession.subjectId) || getSelectedSubject()
+    ? getActiveSessionSubject()
     : getSelectedSubject();
   const goal = appData.activeSession ? appData.activeSession.goal : appData.currentSessionDraft.goal;
 
@@ -1921,9 +2437,12 @@ function updateSessionPage() {
   sessionActiveGoal.textContent = goal ? goal : "No session goal set.";
   sessionModePill.textContent = appData.activeSession ? appData.activeSession.mode : mode.name;
   sessionPauseButton.textContent = state === "paused" ? "Resume" : "Pause";
+  sessionFinishButton.textContent = appData.activeSession && appData.activeSession.modeId === "stopwatch" ? "End Session" : "Finish Session";
+  sessionDiscardButton.hidden = !appData.activeSession;
+  sessionResetButton.hidden = appData.activeSession && appData.activeSession.modeId === "stopwatch";
   sessionSkipButton.hidden = !appData.activeSession || appData.activeSession.modeId === "stopwatch";
   sessionProgressBar.style.width = `${progressPercent}%`;
-  sessionTotalToday.textContent = formatShortTime(appData.studySeconds);
+  sessionTotalToday.textContent = formatShortTime(getTodayStudySeconds());
   focusGoalProgress.textContent = `${getGoalPercent()}%`;
   focusSessionCount.textContent = getSessionsForDate(getTodayKey()).length;
   intentionInput.value = appData.focusIntention;
@@ -1988,7 +2507,7 @@ function updateGoal() {
   goalDisplay.textContent = appData.goalHours ? formatGoalHours(appData.goalHours) : "Set today's goal";
   planGoalProgress.textContent = `${goalPercent}%`;
   planGoalCopy.textContent = appData.goalHours
-    ? `${formatShortTime(appData.studySeconds)} / ${formatGoalHours(appData.goalHours)}`
+    ? `${formatShortTime(getTodayStudySeconds())} / ${formatGoalHours(appData.goalHours)}`
     : "No daily goal set yet.";
   planGoalBar.style.width = `${goalPercent}%`;
   planSummaryGoal.textContent = appData.goalHours ? formatGoalHours(appData.goalHours) : "Not set";
@@ -2025,7 +2544,7 @@ function updateInsights() {
 }
 
 function isFreshInsightsState() {
-  return appData.studySeconds === 0
+  return getTodayStudySeconds() === 0
     && appData.sessions.length === 0
     && getTodayTasks().length === 0
     && appData.distractions.length === 0;
@@ -2069,6 +2588,7 @@ function renderSubjectOptions() {
   });
 
   sessionSubjectSelect.value = getSubjectById(currentValue) ? currentValue : appData.selectedSubjectId;
+  sessionSubjectSelect.disabled = Boolean(appData.activeSession);
 }
 
 function renderColorOptions(selectElement, selectedKey) {
@@ -2330,7 +2850,7 @@ function renderHomeWeekPreview() {
     date.setDate(date.getDate() - index);
     const dateKey = getDateKeyFromDate(date);
     const seconds = dateKey === getTodayKey()
-      ? Math.max(totalsByDate[dateKey] || 0, appData.studySeconds)
+      ? getLiveStudySecondsForDate(dateKey)
       : totalsByDate[dateKey] || 0;
 
     const day = document.createElement("div");
@@ -2982,6 +3502,10 @@ function renderRecentSessions() {
   const sessions = appData.selectedHistoryRange === "previous"
     ? appData.sessions.filter(function (session) { return session.date !== getTodayKey(); })
     : appData.sessions.filter(function (session) { return session.date === getTodayKey(); });
+  const shouldShowLiveSession = appData.selectedHistoryRange !== "previous"
+    && appData.activeSession
+    && appData.activeSession.phase === "focus"
+    && !isActiveSessionStale(appData.activeSession);
 
   historyTabs.forEach(function (tab) {
     const isActive = tab.dataset.historyRange === appData.selectedHistoryRange;
@@ -2989,40 +3513,339 @@ function renderRecentSessions() {
     tab.classList.toggle("secondary-button", !isActive);
   });
 
-  if (sessions.length === 0) {
+  if (shouldShowLiveSession) {
+    appendRecentSessionRow({
+      id: appData.activeSession.id,
+      subjectId: appData.activeSession.subjectId,
+      subjectName: appData.activeSession.subjectName || getSubjectName(appData.activeSession.subjectId),
+      mode: appData.activeSession.mode,
+      startedAt: appData.activeSession.startedAt,
+      endedAt: null,
+      durationSeconds: getSessionElapsedSeconds(),
+      liveStatus: appData.sessionState === "paused" ? "Paused" : "Studying"
+    }, true);
+  }
+
+  if (sessions.length === 0 && !shouldShowLiveSession) {
     appendSimpleItem(recentSessionList, "No saved sessions yet.");
     return;
   }
 
   sessions.slice(0, 8).forEach(function (session) {
-    const item = document.createElement("article");
-    item.className = "session-history-row";
-    const topLine = document.createElement("div");
-    const bottomLine = document.createElement("div");
-    const title = document.createElement("strong");
-    const meta = document.createElement("span");
-    const time = document.createElement("span");
-    const duration = document.createElement("strong");
-    const result = document.createElement("small");
-    const sessionSubject = getSubjectById(session.subjectId);
-    title.className = "subject-label";
-    title.appendChild(createSubjectDot(sessionSubject || { colorKey: "blue" }));
-    title.appendChild(document.createTextNode(session.subjectName || getSubjectName(session.subjectId)));
-    meta.textContent = session.mode || "Timer";
-    time.textContent = `${formatClockTime(session.startedAt)} -> ${formatClockTime(session.endedAt)}`;
-    duration.textContent = formatShortTime(session.durationSeconds);
-    result.textContent = session.goalResult ? `Goal: ${formatGoalResult(session.goalResult)}` : "";
-    topLine.className = "session-row-top";
-    bottomLine.className = "session-row-bottom";
-    topLine.appendChild(title);
-    topLine.appendChild(meta);
-    topLine.appendChild(duration);
-    bottomLine.appendChild(time);
-    if (result.textContent) bottomLine.appendChild(result);
-    item.appendChild(topLine);
-    item.appendChild(bottomLine);
-    recentSessionList.appendChild(item);
+    appendRecentSessionRow(session, false);
   });
+}
+
+function appendRecentSessionRow(session, isLive) {
+  const item = document.createElement("article");
+  item.className = "session-history-row";
+  if (isLive) item.classList.add("live-session-row");
+  const topLine = document.createElement("div");
+  const bottomLine = document.createElement("div");
+  const title = document.createElement("strong");
+  const meta = document.createElement("span");
+  const time = document.createElement("span");
+  const duration = document.createElement("strong");
+  const result = document.createElement("small");
+  const actions = document.createElement("div");
+  const sessionSubject = getSubjectById(session.subjectId);
+  title.className = "subject-label";
+  title.appendChild(createSubjectDot(sessionSubject || { colorKey: "blue" }));
+  title.appendChild(document.createTextNode(session.subjectName || getSubjectName(session.subjectId)));
+  meta.textContent = isLive ? `${session.mode || "Timer"} - ${session.liveStatus}` : `${session.mode || "Timer"} - ${getSessionSourceLabel(session)}`;
+  time.textContent = isLive
+    ? `${formatClockTime(session.startedAt)} -> now`
+    : `${formatClockTime(session.startedAt)} -> ${formatClockTime(session.endedAt)}`;
+  duration.textContent = formatShortTime(session.durationSeconds);
+  result.textContent = isLive ? "Live" : session.goalResult ? `Goal: ${formatGoalResult(session.goalResult)}` : "";
+  actions.className = "session-row-actions";
+  topLine.className = "session-row-top";
+  bottomLine.className = "session-row-bottom";
+  topLine.appendChild(title);
+  topLine.appendChild(meta);
+  topLine.appendChild(duration);
+  bottomLine.appendChild(time);
+  if (result.textContent) bottomLine.appendChild(result);
+  if (!isLive) {
+    actions.appendChild(createSessionAction("Edit", function () { openStudyLogModal(session); }));
+    actions.appendChild(createSessionAction("Delete", function () { deleteStudySession(session.id); }, "danger"));
+    bottomLine.appendChild(actions);
+  }
+  item.appendChild(topLine);
+  item.appendChild(bottomLine);
+  recentSessionList.appendChild(item);
+}
+
+function getSessionSourceLabel(session) {
+  if (session.wasEdited) return "Edited";
+  if (session.sourceType === "manual") return "Manual";
+  return "Tracked";
+}
+
+function createSessionAction(label, onClick, tone) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = tone === "danger" ? "text-danger-button subtle-action" : "text-button subtle-action";
+  button.textContent = label;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function renderHomeTimeline() {
+  if (!homeDayTimeline) return;
+  const dateKey = appData.selectedTimelineDate || getTodayKey();
+  const sessions = getCompletedStudySessionsForDate(dateKey)
+    .slice()
+    .sort(function (first, second) {
+      return new Date(first.startedAt) - new Date(second.startedAt);
+    });
+
+  timelineDateInput.value = dateKey;
+  timelineNextDay.disabled = dateKey >= getTodayKey();
+  homeTimelineTitle.textContent = dateKey === getTodayKey()
+    ? "Today timeline"
+    : new Date(`${dateKey}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  homeDayTimeline.innerHTML = "";
+
+  if (sessions.length === 0) {
+    const empty = document.createElement("div");
+    const copy = document.createElement("p");
+    const actions = document.createElement("div");
+    empty.className = "timeline-empty";
+    copy.className = "muted-text";
+    copy.textContent = "Nothing logged for this day.";
+    actions.className = "button-row";
+    actions.appendChild(createSessionAction("Add Study Log", function () { openStudyLogModal(null, dateKey); }));
+    actions.appendChild(createSessionAction("Start Focus", function () { showSection("focus-hub"); }));
+    empty.appendChild(copy);
+    empty.appendChild(actions);
+    homeDayTimeline.appendChild(empty);
+    return;
+  }
+
+  sessions.forEach(function (session) {
+    const item = document.createElement("article");
+    const time = document.createElement("span");
+    const main = document.createElement("div");
+    const title = document.createElement("strong");
+    const meta = document.createElement("small");
+    const actions = document.createElement("div");
+    const subject = getSubjectById(session.subjectId);
+    item.className = "timeline-session-item";
+    item.style.borderLeftColor = getSubjectColorValue(subject || { colorKey: "blue" });
+    time.textContent = `${formatClockTime(session.startedAt)} - ${formatClockTime(session.endedAt)}`;
+    title.textContent = session.subjectName || getSubjectName(session.subjectId);
+    meta.textContent = `${formatShortTime(session.durationSeconds)} - ${session.mode || "Timer"} - ${getSessionSourceLabel(session)}`;
+    actions.className = "session-row-actions";
+    actions.appendChild(createSessionAction("Edit", function () { openStudyLogModal(session); }));
+    actions.appendChild(createSessionAction("Delete", function () { deleteStudySession(session.id); }, "danger"));
+    main.appendChild(title);
+    main.appendChild(meta);
+    item.appendChild(time);
+    item.appendChild(main);
+    item.appendChild(actions);
+    homeDayTimeline.appendChild(item);
+  });
+}
+
+function changeTimelineDate(days) {
+  appData.selectedTimelineDate = addDaysToDate(appData.selectedTimelineDate || getTodayKey(), days);
+  if (appData.selectedTimelineDate > getTodayKey()) appData.selectedTimelineDate = getTodayKey();
+  saveData();
+  updateAllDisplays();
+}
+
+function selectTimelineDate(dateKey) {
+  appData.selectedTimelineDate = dateKey || getTodayKey();
+  if (appData.selectedTimelineDate > getTodayKey()) appData.selectedTimelineDate = getTodayKey();
+  saveData();
+  updateAllDisplays();
+}
+
+function renderStudyLogSubjects(selectedSubjectId) {
+  studyLogSubject.innerHTML = "";
+  if (appData.subjects.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "Add a subject first";
+    option.disabled = true;
+    option.selected = true;
+    studyLogSubject.appendChild(option);
+    return;
+  }
+  appData.subjects.forEach(function (subject) {
+    const option = document.createElement("option");
+    option.value = subject.id;
+    option.textContent = subject.name;
+    studyLogSubject.appendChild(option);
+  });
+  studyLogSubject.value = getSubjectById(selectedSubjectId) ? selectedSubjectId : appData.subjects[0].id;
+}
+
+function openStudyLogModal(session = null, dateKey = appData.selectedTimelineDate || getTodayKey()) {
+  const isEditing = Boolean(session);
+  studyLogTitle.textContent = isEditing ? "Edit Session" : "Add Study Log";
+  studyLogSubmit.textContent = isEditing ? "Save Changes" : "Save Study Log";
+  studyLogSessionId.value = isEditing ? session.id : "";
+  renderStudyLogSubjects(isEditing ? session.subjectId : appData.selectedSubjectId);
+  studyLogDate.value = isEditing ? session.date : dateKey;
+  studyLogStart.value = isEditing ? formatInputTime(session.startedAt) : "";
+  studyLogEnd.value = isEditing ? formatInputTime(session.endedAt) : "";
+  studyLogDuration.value = isEditing ? Math.max(1, Math.round(Number(session.durationSeconds || 0) / 60)) : "";
+  studyLogNote.value = isEditing ? session.reviewNote || "" : "";
+  studyLogModal.hidden = false;
+  studyLogDate.focus();
+}
+
+function closeStudyLogModal() {
+  studyLogModal.hidden = true;
+}
+
+function formatInputTime(dateString) {
+  const date = new Date(normalizeUtcTimestamp(dateString));
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = {};
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: getAccountTimezone(),
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date).forEach(function (part) {
+    parts[part.type] = part.value;
+  });
+  return `${parts.hour}:${parts.minute}`;
+}
+
+function getStudyLogPayload() {
+  const subject = getSubjectById(studyLogSubject.value);
+  const dateKey = studyLogDate.value || getTodayKey();
+  const startTime = studyLogStart.value;
+  const endTime = studyLogEnd.value;
+  const durationMinutes = Number(studyLogDuration.value || 0);
+  let startedAt = "";
+  let endedAt = "";
+  let durationSeconds = Math.round(durationMinutes * 60);
+
+  if (!subject) throw new Error("Choose a subject before saving a study log.");
+
+  if (startTime && endTime) {
+    const start = new Date(localDateTimeToUtcIso(dateKey, startTime));
+    const end = new Date(localDateTimeToUtcIso(dateKey, endTime));
+    if (end <= start) throw new Error("End time must be after start time.");
+    startedAt = start.toISOString();
+    endedAt = end.toISOString();
+    durationSeconds = Math.round((end - start) / 1000);
+  } else if (durationSeconds > 0) {
+    const start = new Date(localDateTimeToUtcIso(dateKey, startTime || "12:00"));
+    const end = new Date(start.getTime() + durationSeconds * 1000);
+    startedAt = start.toISOString();
+    endedAt = end.toISOString();
+  } else {
+    throw new Error("Add a duration or both start and end time.");
+  }
+
+  if (durationSeconds <= 0) throw new Error("Duration must be greater than 0.");
+  if (durationSeconds > 18 * 3600) throw new Error("Sessions longer than 18 hours are not accepted here.");
+
+  return {
+    id: studyLogSessionId.value || createId(),
+    date: dateKey,
+    subjectId: subject.id,
+    subjectName: subject.name,
+    mode: studyLogSessionId.value ? "Timer" : "Manual",
+    modeId: studyLogSessionId.value ? "tracked" : "manual",
+    startedAt,
+    endedAt,
+    durationSeconds,
+    sourceType: studyLogSessionId.value ? "tracked" : "manual",
+    wasEdited: Boolean(studyLogSessionId.value),
+    editedAt: studyLogSessionId.value ? new Date().toISOString() : null,
+    reviewNote: studyLogNote.value.trim()
+  };
+}
+
+async function saveStudyLog(event) {
+  event.preventDefault();
+  let payload;
+  try {
+    payload = getStudyLogPayload();
+  } catch (error) {
+    alert(error.message);
+    return;
+  }
+
+  const existingIndex = appData.sessions.findIndex(function (session) { return session.id === payload.id; });
+  if (existingIndex >= 0) {
+    const original = appData.sessions[existingIndex];
+    payload = {
+      ...original,
+      ...payload,
+      mode: original.mode || payload.mode,
+      modeId: original.modeId || payload.modeId,
+      sourceType: original.sourceType || "tracked",
+      originalDurationSeconds: original.originalDurationSeconds || original.durationSeconds,
+      wasEdited: true,
+      editedAt: new Date().toISOString()
+    };
+    if (databaseLoaded) {
+      try {
+        const response = await studyMateApi(`sessions/client/${payload.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload)
+        });
+        payload = response.session || payload;
+      } catch (error) {
+        console.warn(error.message);
+        alert(error.message);
+        return;
+      }
+    }
+    appData.sessions[existingIndex] = normalizeStudySession(payload);
+  } else {
+    payload.sourceType = "manual";
+    payload.mode = "Manual";
+    if (databaseLoaded) {
+      try {
+        const response = await studyMateApi("sessions", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        payload = response.session || payload;
+      } catch (error) {
+        console.warn(error.message);
+        alert(error.message);
+        return;
+      }
+    }
+    appData.sessions = appData.sessions.filter(function (session) { return session.id !== payload.id; });
+    appData.sessions.unshift(normalizeStudySession(payload));
+  }
+
+  closeStudyLogModal();
+  saveData();
+  await persistAppDataNow();
+  updateAllDisplays();
+}
+
+async function deleteStudySession(sessionId) {
+  const session = appData.sessions.find(function (item) { return item.id === sessionId; });
+  if (!session) return;
+  if (!window.confirm(`Delete this ${formatShortTime(session.durationSeconds)} ${session.subjectName || "study"} session?`)) return;
+  appData.sessions = appData.sessions.filter(function (item) { return item.id !== sessionId; });
+  if (appData.pendingSessionReview && appData.pendingSessionReview.id === sessionId) {
+    appData.pendingSessionReview = null;
+    appData.sessionState = "pre-session";
+  }
+  if (databaseLoaded) {
+    try {
+      await studyMateApi(`sessions/client/${sessionId}`, { method: "DELETE" });
+    } catch (error) {
+      console.warn(error.message);
+    }
+  }
+  saveData();
+  await persistAppDataNow();
+  updateAllDisplays();
 }
 
 function formatGoalResult(result) {
@@ -3030,13 +3853,29 @@ function formatGoalResult(result) {
   return labels[result] || result;
 }
 
-function startSession() {
+async function startSession() {
   if (appData.activeSession || appData.pendingSessionReview) return;
 
   appData.customFocusMinutes = Math.max(1, Number(customFocusInput.value) || appData.customFocusMinutes);
   appData.customBreakMinutes = Math.max(0, Number(customBreakInput.value) || 0);
   appData.selectedSubjectId = sessionSubjectSelect.value || appData.selectedSubjectId;
   appData.currentSessionDraft.goal = sessionGoalInput.value.trim();
+
+  if (databaseLoaded) {
+    try {
+      const response = await studyMateApi("focus/active");
+      const backendActiveSession = normalizeActiveFocusSession(response.activeSession);
+      if (applyBackendActiveSession(backendActiveSession)) {
+        if (appData.sessionState !== "paused") resumeSessionTimer();
+        saveData();
+        updateAllDisplays();
+        return;
+      }
+    } catch (error) {
+      console.warn(error.message);
+    }
+  }
+
   const mode = getSelectedTimerMode();
   appData.activeSession = {
     id: createId(),
@@ -3047,12 +3886,16 @@ function startSession() {
     goal: appData.currentSessionDraft.goal,
     roomId: appData.activeRoomId || null,
     startedAt: new Date().toISOString(),
+    pausedAt: null,
+    totalPausedSeconds: 0,
+    state: "running",
     elapsedSeconds: 0,
     focusSeconds: getTimerFocusSeconds(),
     breakSeconds: getTimerBreakSeconds()
   };
   appData.sessionState = "active";
 
+  await saveActiveFocusSession("start");
   saveData();
   resumeSessionTimer();
   updateAllDisplays();
@@ -3072,6 +3915,8 @@ function tickStudySession() {
 
   updateSessionPage();
   updateHome();
+  renderRecentSessions();
+  updateBrowserTimerTitle();
 
   if (appData.activeSession.focusSeconds && getSessionElapsedSeconds() >= appData.activeSession.focusSeconds) {
     if (appData.activeSession.phase === "focus") {
@@ -3097,8 +3942,14 @@ function toggleSessionPause() {
   if (!appData.activeSession) return;
 
   if (appData.sessionState === "paused") {
-    appData.activeSession.startedAt = new Date().toISOString();
+    if (appData.activeSession.pausedAt) {
+      appData.activeSession.totalPausedSeconds = Number(appData.activeSession.totalPausedSeconds || 0)
+        + Math.max(0, Math.floor((Date.now() - new Date(appData.activeSession.pausedAt).getTime()) / 1000));
+    }
+    appData.activeSession.pausedAt = null;
+    appData.activeSession.state = "running";
     appData.sessionState = appData.activeSession.phase === "break" ? "break" : "active";
+    saveActiveFocusSession("resume");
     saveData();
     resumeSessionTimer();
     updateAllDisplays();
@@ -3106,15 +3957,19 @@ function toggleSessionPause() {
   }
 
   appData.activeSession.elapsedSeconds = getSessionElapsedSeconds();
+  appData.activeSession.pausedAt = new Date().toISOString();
+  appData.activeSession.state = "paused";
   appData.sessionState = "paused";
   clearInterval(sessionTimerId);
   sessionTimerId = null;
+  saveActiveFocusSession("pause");
   saveData();
   updateAllDisplays();
 }
 
 function resetActiveSession() {
   if (!appData.activeSession) return;
+  clearActiveFocusSession();
   appData.activeSession = null;
   appData.sessionState = "pre-session";
   clearInterval(sessionTimerId);
@@ -3123,17 +3978,14 @@ function resetActiveSession() {
   updateAllDisplays();
 }
 
-function finalizeFocusSession(shouldShowReview = true) {
+async function finalizeFocusSession(shouldShowReview = true) {
   if (!appData.activeSession) return null;
+  if (isCompletingSession) return null;
+  isCompletingSession = true;
 
   const durationSeconds = getSessionElapsedSeconds();
   const subject = getSubjectById(appData.activeSession.subjectId) || getSelectedSubject();
   const activeSession = appData.activeSession;
-
-  if (appData.activeSession.phase === "focus") {
-    appData.studySeconds += durationSeconds;
-    subject.seconds += durationSeconds;
-  }
 
   let review = null;
   if (durationSeconds > 0 && activeSession.phase === "focus") {
@@ -3152,11 +4004,12 @@ function finalizeFocusSession(shouldShowReview = true) {
       goalResult: "",
       reviewNote: ""
     };
+    appData.sessions = appData.sessions.filter(function (session) { return session.id !== review.id; });
+    appData.sessions.unshift(review);
+    await completeActiveFocusSession(review);
     if (shouldShowReview) {
       appData.pendingSessionReview = review;
       renderCompletionReview(review);
-    } else {
-      appData.sessions.unshift(review);
     }
   }
 
@@ -3165,15 +4018,17 @@ function finalizeFocusSession(shouldShowReview = true) {
   clearInterval(sessionTimerId);
   sessionTimerId = null;
   saveData();
+  await persistAppDataNow();
   updateAllDisplays();
+  isCompletingSession = false;
   return review;
 }
 
-function completeFocusPhase() {
+async function completeFocusPhase() {
   const activeSession = appData.activeSession;
   if (!activeSession) return;
 
-  finalizeFocusSession(!activeSession.breakSeconds);
+  await finalizeFocusSession(!activeSession.breakSeconds);
 
   if (activeSession.breakSeconds > 0) {
     appData.activeSession = {
@@ -3185,11 +4040,15 @@ function completeFocusPhase() {
       goal: activeSession.goal || "",
       roomId: activeSession.roomId || null,
       startedAt: new Date().toISOString(),
+      pausedAt: null,
+      totalPausedSeconds: 0,
+      state: "running",
       elapsedSeconds: 0,
       focusSeconds: activeSession.breakSeconds,
       breakSeconds: 0
     };
     appData.sessionState = "break";
+    saveActiveFocusSession("break");
     saveData();
     resumeSessionTimer();
   }
@@ -3199,6 +4058,7 @@ function completeFocusPhase() {
 
 function completeBreakPhase() {
   if (!appData.activeSession) return;
+  clearActiveFocusSession();
   appData.activeSession = null;
   appData.sessionState = "pre-session";
   clearInterval(sessionTimerId);
@@ -3264,11 +4124,17 @@ function saveSessionReview(startAnother = false) {
     goalResult: appData.pendingSessionReview.goalResult || "yes",
     reviewNote: sessionReviewNote.value.trim()
   };
-  appData.sessions.unshift(review);
+  const index = appData.sessions.findIndex(function (session) { return session.id === review.id; });
+  if (index >= 0) {
+    appData.sessions[index] = review;
+  } else {
+    appData.sessions.unshift(review);
+  }
   appData.pendingSessionReview = null;
   appData.sessionState = "pre-session";
   if (startAnother) appData.currentSessionDraft.goal = "";
   saveData();
+  persistAppDataNow();
   updateAllDisplays();
 }
 
@@ -3288,15 +4154,16 @@ function saveCustomTimerSettings() {
 }
 
 function resetSession() {
+  if (appData.activeSession && appData.activeSession.modeId === "stopwatch") return;
   resetActiveSession();
 }
 
 function changeSessionSubject() {
-  appData.selectedSubjectId = sessionSubjectSelect.value;
-
   if (appData.activeSession) {
-    appData.activeSession.subjectId = appData.selectedSubjectId;
+    sessionSubjectSelect.value = appData.activeSession.subjectId || "";
+    return;
   }
+  appData.selectedSubjectId = sessionSubjectSelect.value;
 
   saveData();
   updateAllDisplays();
@@ -3348,20 +4215,32 @@ function closeFocusDistractionModal() {
   focusDistractionModal.hidden = true;
 }
 
-function addFocusDistraction(event) {
+async function addFocusDistraction(event) {
   event.preventDefault();
   const now = new Date();
-  appData.distractions.unshift({
+  const distraction = {
     id: createId(),
     category: focusDistractionCategory.value,
     reason: focusDistractionNote.value.trim(),
-    time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    time: formatClockTime(now.toISOString()),
     date: getTodayKey(),
     timestamp: now.toISOString(),
     sessionId: appData.activeSession ? appData.activeSession.id : null
-  });
+  };
+  appData.distractions.unshift(distraction);
+  if (databaseLoaded) {
+    try {
+      await studyMateApi("focus/distractions", {
+        method: "POST",
+        body: JSON.stringify(distraction)
+      });
+    } catch (error) {
+      console.warn(error.message);
+    }
+  }
   closeFocusDistractionModal();
   saveData();
+  await persistAppDataNow();
   updateAllDisplays();
 }
 
@@ -3439,7 +4318,13 @@ function renderTasks() {
 
   pendingTaskList.innerHTML = "";
   completedTaskList.innerHTML = "";
-  planDateLabel.textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  planDateLabel.textContent = new Date().toLocaleDateString(undefined, {
+    timeZone: getAccountTimezone(),
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  });
   planTaskSummary.textContent = pendingTasks.length === 0
     ? "Nothing planned yet."
     : `${pendingTasks.length} still open today.`;
@@ -3541,6 +4426,8 @@ function startOrContinueFromHome() {
   }
 
   appData.selectedSubjectId = homeSubjectSelect.value || appData.selectedSubjectId;
+  appData.timerModeIndex = timerModes.findIndex(function (mode) { return mode.id === "stopwatch"; });
+  if (appData.timerModeIndex < 0) appData.timerModeIndex = 0;
   sessionSubjectSelect.value = appData.selectedSubjectId;
   startSession();
 }
@@ -4344,7 +5231,7 @@ function addDistraction(event) {
     id: createId(),
     category: distractionCategory.value,
     reason,
-    time: now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    time: formatClockTime(now.toISOString()),
     date: getTodayKey(),
     timestamp: now.toISOString(),
     sessionId: appData.activeSession ? appData.activeSession.id : null
@@ -4444,7 +5331,8 @@ function openProfileModal() {
   profileUsernameInput.value = studyMateUser.username || "";
   profileBioInput.value = studyMateUser.bio || "";
   profileCountryInput.value = studyMateUser.country || "";
-  profileTimezoneInput.value = studyMateUser.timezone || "UTC";
+  profileTimezoneInput.value = studyMateUser.timezone || "Asia/Kolkata";
+  if (profileStudyDayStartInput) profileStudyDayStartInput.value = studyMateUser.studyDayStartTime || "00:00";
   profileAvatarStyleInput.value = studyMateUser.avatarStyle || "initials";
   profileAvatarColorInput.value = studyMateUser.avatarColor || "violet";
   renderAvatarChoices();
@@ -4467,6 +5355,7 @@ async function saveProfile(event) {
     bio: profileBioInput.value.trim(),
     country: profileCountryInput.value.trim(),
     timezone: profileTimezoneInput.value.trim(),
+    studyDayStartTime: profileStudyDayStartInput ? profileStudyDayStartInput.value : "00:00",
     avatarStyle: profileAvatarStyleInput.value,
     avatarColor: profileAvatarColorInput.value
   });
@@ -5638,7 +6527,7 @@ function addGroupActivity(circle, text) {
 }
 
 function formatActivityTime(dateString) {
-  return new Date(dateString).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return formatClockTime(dateString);
 }
 
 function getInitials(text) {
@@ -5680,13 +6569,26 @@ homeOpenSession.addEventListener("click", function () { showSection("focus-hub")
 homeOpenPlan.addEventListener("click", function () { showSection("task-board"); });
 homeAddSubject.addEventListener("click", openSubjectModal);
 homeSubjectSelect.addEventListener("change", function () {
+  if (appData.activeSession) {
+    homeSubjectSelect.value = appData.activeSession.subjectId || "";
+    return;
+  }
   appData.selectedSubjectId = homeSubjectSelect.value;
   saveData();
   renderSubjectOptions();
 });
+timelinePrevDay.addEventListener("click", function () { changeTimelineDate(-1); });
+timelineNextDay.addEventListener("click", function () { changeTimelineDate(1); });
+timelineTodayButton.addEventListener("click", function () { selectTimelineDate(getTodayKey()); });
+timelineDateInput.addEventListener("change", function () { selectTimelineDate(timelineDateInput.value); });
+openStudyLogModalButton.addEventListener("click", function () { openStudyLogModal(null); });
+if (focusOpenStudyLogModalButton) {
+  focusOpenStudyLogModalButton.addEventListener("click", function () { openStudyLogModal(null, getTodayKey()); });
+}
 sessionStartButton.addEventListener("click", startSession);
 sessionPauseButton.addEventListener("click", function () { pauseSession(true); });
 sessionFinishButton.addEventListener("click", finishSession);
+sessionDiscardButton.addEventListener("click", function () { discardActiveSession(true); });
 sessionResetButton.addEventListener("click", resetSession);
 sessionSkipButton.addEventListener("click", skipSession);
 timerModePrev.addEventListener("click", function () { changeTimerMode(-1); });
@@ -5710,6 +6612,11 @@ focusDistractionModal.addEventListener("click", function (event) {
   if (event.target === focusDistractionModal) closeFocusDistractionModal();
 });
 focusDistractionForm.addEventListener("submit", addFocusDistraction);
+closeStudyLogModalButton.addEventListener("click", closeStudyLogModal);
+studyLogModal.addEventListener("click", function (event) {
+  if (event.target === studyLogModal) closeStudyLogModal();
+});
+studyLogForm.addEventListener("submit", saveStudyLog);
 goalResultOptions.querySelectorAll("button").forEach(function (button) {
   button.addEventListener("click", function () { setGoalResult(button.dataset.goalResult); });
 });
@@ -5783,7 +6690,7 @@ onboardingProfileForm.addEventListener("submit", async function (event) {
     displayName: onboardingDisplayName.value.trim(),
     username: onboardingUsername.value.trim() || studyMateUser.username,
     country: onboardingCountry.value.trim(),
-    timezone: onboardingTimezone.value.trim() || "UTC",
+    timezone: onboardingTimezone.value.trim() || "Asia/Kolkata",
     bio: onboardingBio.value.trim(),
     avatarStyle: onboardingAvatarStyle.value,
     avatarColor: onboardingAvatarColor.value || studyMateUser.avatarColor || "violet",

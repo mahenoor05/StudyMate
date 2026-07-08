@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 
 from app.extensions import db
 from app.models import (
+    ActiveFocusSession,
     DailyGoal,
     Distraction,
     Exam,
@@ -31,6 +32,15 @@ from app.models import (
     Task,
     User,
     UserAppState,
+)
+from app.time_utils import (
+    DEFAULT_TIMEZONE,
+    as_utc_datetime,
+    get_study_day_bounds,
+    get_user_study_date,
+    normalize_study_day_start,
+    normalize_timezone_name,
+    utc_isoformat,
 )
 
 
@@ -63,7 +73,15 @@ def parse_datetime(value):
 
 
 def iso_datetime(value):
-    return value.isoformat() if value else None
+    return utc_isoformat(value)
+
+
+def utc_now():
+    return datetime.now(timezone.utc)
+
+
+def as_utc(value):
+    return as_utc_datetime(value)
 
 
 def clean_payload(value):
@@ -200,7 +218,8 @@ def serialize_profile(user):
         "avatarColor": user.avatar_color or "violet",
         "onboardingCompleted": bool(user.onboarding_completed),
         "country": user.country or "",
-        "timezone": user.timezone or "UTC",
+        "timezone": normalize_timezone_name(user.timezone or DEFAULT_TIMEZONE),
+        "studyDayStartTime": normalize_study_day_start(getattr(user, "study_day_start_time", "00:00")),
         "preferredTheme": user.preferred_theme or "system",
         "profileVisibility": user.profile_visibility or "private",
         "groupVisibility": user.group_visibility or "members",
@@ -212,6 +231,150 @@ def serialize_profile(user):
 
 def scoped_or_404(model, record_id):
     return model.query.filter_by(id=record_id, user_id=current_user.id).first_or_404()
+
+
+def serialize_active_focus_session(active):
+    if not active:
+        return None
+    payload = dict(active.payload or {})
+    payload.update({
+        "id": active.client_id,
+        "subjectId": active.subject_client_id or payload.get("subjectId") or "",
+        "subjectName": active.subject_name,
+        "mode": active.timer_mode,
+        "modeId": active.mode_id,
+        "phase": active.phase,
+        "goal": active.session_goal or "",
+        "startedAt": iso_datetime(active.started_at),
+        "pausedAt": iso_datetime(active.paused_at),
+        "totalPausedSeconds": int(active.total_paused_seconds or 0),
+        "state": active.state,
+        "focusSeconds": active.focus_seconds,
+        "breakSeconds": int(active.break_seconds or 0),
+        "roomId": active.room_id,
+        "updatedAt": iso_datetime(active.updated_at),
+    })
+    return payload
+
+
+def get_active_focus_session():
+    return ActiveFocusSession.query.filter_by(user_id=current_user.id).first()
+
+
+def find_user_subject(subject_client_id):
+    if not subject_client_id:
+        return None
+    return Subject.query.filter_by(user_id=current_user.id, client_id=str(subject_client_id)).first()
+
+
+def upsert_active_focus_session(data):
+    payload = clean_payload(data)
+    now = utc_now()
+    subject = find_user_subject(payload.get("subjectId"))
+    active = get_active_focus_session()
+    if not active:
+        active = ActiveFocusSession(user_id=current_user.id, created_at=now)
+        db.session.add(active)
+
+    active.client_id = str(payload.get("id") or active.client_id or uuid4())
+    active.subject_id = subject.id if subject else None
+    active.subject_client_id = str(payload.get("subjectId") or "") or None
+    active.subject_name = payload.get("subjectName") or (subject.name if subject else "General Study")
+    active.timer_mode = payload.get("mode") or "Stopwatch"
+    active.mode_id = payload.get("modeId") or "stopwatch"
+    active.phase = payload.get("phase") or "focus"
+    active.session_goal = payload.get("goal") or None
+    active.started_at = as_utc(parse_datetime(payload.get("startedAt"))) or now
+    active.paused_at = as_utc(parse_datetime(payload.get("pausedAt")))
+    active.total_paused_seconds = int(payload.get("totalPausedSeconds") or 0)
+    active.state = payload.get("state") if payload.get("state") in {"running", "paused"} else "running"
+    active.focus_seconds = int(payload.get("focusSeconds")) if payload.get("focusSeconds") else None
+    active.break_seconds = int(payload.get("breakSeconds") or 0)
+    active.room_id = str(payload.get("roomId") or "") or None
+    active.updated_at = now
+    active.payload = payload
+    return active
+
+
+def get_active_elapsed_seconds(active, ended_at=None):
+    end = as_utc(ended_at) or utc_now()
+    started_at = as_utc(active.started_at)
+    paused_at = as_utc(active.paused_at)
+    paused_seconds = int(active.total_paused_seconds or 0)
+    if active.state == "paused" and paused_at:
+        paused_seconds += max(0, int((end - paused_at).total_seconds()))
+    return max(0, int((end - started_at).total_seconds()) - paused_seconds)
+
+
+def clean_session_source(value):
+    return value if value in {"tracked", "manual"} else "tracked"
+
+
+def serialize_study_session(session):
+    payload = dict(session.payload or {})
+    payload.update({
+        "id": session.client_id,
+        "date": get_user_study_date(current_user, session.started_at).isoformat(),
+        "subjectName": session.subject_name,
+        "mode": session.timer_mode,
+        "startedAt": iso_datetime(session.started_at),
+        "endedAt": iso_datetime(session.ended_at),
+        "durationSeconds": int(session.study_seconds or 0),
+        "goal": session.session_goal or "",
+        "goalResult": session.goal_result or "",
+        "reviewNote": session.note or "",
+        "sourceType": session.source_type or "tracked",
+        "wasEdited": bool(session.was_edited),
+        "editedAt": iso_datetime(session.edited_at),
+        "originalDurationSeconds": session.original_duration_seconds,
+    })
+    return payload
+
+
+def validate_session_times(payload):
+    started_at = as_utc(parse_datetime(payload.get("startedAt")))
+    ended_at = as_utc(parse_datetime(payload.get("endedAt")))
+    duration_seconds = int(payload.get("durationSeconds") or 0)
+    if started_at and ended_at:
+        if ended_at <= started_at:
+            return None, None, None, "End time must be after start time."
+        duration_seconds = int((ended_at - started_at).total_seconds())
+    if duration_seconds <= 0:
+        return None, None, None, "Duration must be greater than 0."
+    if duration_seconds > 18 * 3600:
+        return None, None, None, "Sessions longer than 18 hours are not accepted here."
+    return started_at, ended_at, duration_seconds, None
+
+
+def apply_session_payload(session, payload, mark_edited=False):
+    payload = clean_payload(payload)
+    started_at, ended_at, duration_seconds, error = validate_session_times(payload)
+    if error:
+        return error
+    subject = find_user_subject(payload.get("subjectId"))
+    source_type = clean_session_source(payload.get("sourceType") or session.source_type or "tracked")
+    if source_type == "manual" and not subject:
+        return "Choose a valid subject for manual study logs."
+    if mark_edited and not session.was_edited:
+        session.original_duration_seconds = session.study_seconds
+    session.subject_id = subject.id if subject else None
+    session.subject_name = payload.get("subjectName") or (subject.name if subject else session.subject_name or "General Study")
+    session.timer_mode = payload.get("mode") or session.timer_mode or "Timer"
+    session.started_at = started_at or session.started_at
+    session.ended_at = ended_at
+    session.study_seconds = duration_seconds
+    session.break_seconds = int(payload.get("breakSeconds") or session.break_seconds or 0)
+    session.session_goal = payload.get("goal") or None
+    session.goal_result = payload.get("goalResult") or None
+    session.note = payload.get("reviewNote") or payload.get("note") or None
+    session.source_type = source_type
+    if mark_edited:
+        session.was_edited = True
+        session.edited_at = utc_now()
+    merged = {**(session.payload or {}), **payload}
+    merged.update(serialize_study_session(session))
+    session.payload = merged
+    return None
 
 
 def nested_exam_or_404(record, path):
@@ -241,7 +404,7 @@ def get_owner_membership_or_404(group_id):
 
 
 def get_range_start(range_name):
-    today = datetime.now(timezone.utc).date()
+    today = get_user_study_date(current_user)
     if range_name == "month":
         return date(today.year, today.month, 1)
     if range_name == "week":
@@ -253,8 +416,10 @@ def get_session_totals_by_user(user_ids, range_name):
     start_date = get_range_start(range_name)
     query = StudySession.query.filter(StudySession.user_id.in_(user_ids))
     totals = {user_id: 0 for user_id in user_ids}
+    users = {user.id: user for user in User.query.filter(User.id.in_(user_ids)).all()}
     for session in query.all():
-        session_date = session.started_at.date()
+        session_user = users.get(session.user_id) or current_user
+        session_date = get_user_study_date(session_user, session.started_at)
         if session_date >= start_date:
             totals[session.user_id] = totals.get(session.user_id, 0) + int(session.study_seconds or 0)
     return totals
@@ -326,6 +491,7 @@ def has_personal_data(user_id):
         PlannerEvent.query.filter_by(user_id=user_id).first(),
         Exam.query.filter_by(user_id=user_id).first(),
         Distraction.query.filter_by(user_id=user_id).first(),
+        ActiveFocusSession.query.filter_by(user_id=user_id).first(),
     ]
     return any(checks)
 
@@ -390,8 +556,8 @@ def save_sessions(user_id, sessions, subject_map):
     session_map = {}
     for item in sessions:
         payload = clean_payload(item)
-        started_at = parse_datetime(payload.get("startedAt")) or datetime.now(timezone.utc)
-        ended_at = parse_datetime(payload.get("endedAt"))
+        started_at = as_utc(parse_datetime(payload.get("startedAt"))) or utc_now()
+        ended_at = as_utc(parse_datetime(payload.get("endedAt")))
         session = StudySession(
             client_id=str(payload.get("id") or ""),
             user_id=user_id,
@@ -404,6 +570,10 @@ def save_sessions(user_id, sessions, subject_map):
             break_seconds=int(payload.get("breakSeconds") or 0),
             session_goal=payload.get("goal") or None,
             goal_result=payload.get("goalResult") or None,
+            source_type=clean_session_source(payload.get("sourceType") or "tracked"),
+            was_edited=bool(payload.get("wasEdited")),
+            edited_at=as_utc(parse_datetime(payload.get("editedAt"))),
+            original_duration_seconds=int(payload.get("originalDurationSeconds")) if payload.get("originalDurationSeconds") else None,
             note=payload.get("reviewNote") or payload.get("note") or None,
             payload=payload,
         )
@@ -417,9 +587,9 @@ def save_tasks(user_id, tasks, subject_map):
     replace_user_rows(Task, user_id)
     for item in tasks:
         payload = clean_payload(item)
-        completed_at = parse_datetime(payload.get("completedAt"))
+        completed_at = as_utc(parse_datetime(payload.get("completedAt")))
         if not completed_at and payload.get("completed"):
-            completed_at = datetime.now(timezone.utc)
+            completed_at = utc_now()
         db.session.add(Task(
             client_id=str(payload.get("id") or ""),
             user_id=user_id,
@@ -465,7 +635,7 @@ def save_distractions(user_id, distractions, session_map):
             study_session_id=session_map.get(str(payload.get("sessionId") or "")),
             category=payload.get("category") or "Other",
             note=payload.get("reason") or payload.get("note") or None,
-            created_at=parse_datetime(payload.get("timestamp")) or datetime.now(timezone.utc),
+            created_at=as_utc(parse_datetime(payload.get("timestamp"))) or utc_now(),
             payload=payload,
         ))
 
@@ -498,7 +668,7 @@ def save_exams(user_id, exams):
             exam_type=payload.get("type") or "Custom Exam",
             name=payload.get("name") or "Untitled Exam",
             exam_date=exam_date,
-            created_at=parse_datetime(payload.get("createdAt")) or datetime.now(timezone.utc),
+            created_at=as_utc(parse_datetime(payload.get("createdAt"))) or utc_now(),
             payload=payload,
         )
         db.session.add(exam)
@@ -554,11 +724,11 @@ def persist_app_data(user_id, app_data):
     db.session.commit()
 
 
-def apply_today_goal_to_app_payload(user_id, payload):
+def apply_today_goal_to_app_payload(user, payload):
     if not isinstance(payload, dict):
         return payload
-    today = date.today()
-    goal = DailyGoal.query.filter_by(user_id=user_id, date=today).first()
+    today = get_user_study_date(user)
+    goal = DailyGoal.query.filter_by(user_id=user.id, date=today).first()
     payload = dict(payload)
     if goal:
         payload["goalHours"] = round(goal.target_minutes / 60, 2)
@@ -579,10 +749,129 @@ def get_app_data():
     state = UserAppState.query.filter_by(user_id=current_user.id).first()
     has_data = has_personal_data(current_user.id)
     return jsonify({
-        "appData": apply_today_goal_to_app_payload(current_user.id, state.payload) if state else None,
+        "appData": apply_today_goal_to_app_payload(current_user, state.payload) if state else None,
         "hasData": has_data,
         "profile": serialize_profile(current_user),
     })
+
+
+@api_bp.get("/focus/active")
+@login_required
+def get_active_focus():
+    return jsonify({"activeSession": serialize_active_focus_session(get_active_focus_session())})
+
+
+@api_bp.put("/focus/active")
+@login_required
+def save_active_focus():
+    data = request.get_json(silent=True) or {}
+    active = upsert_active_focus_session(data)
+    db.session.commit()
+    return jsonify({"activeSession": serialize_active_focus_session(active)})
+
+
+@api_bp.patch("/focus/active")
+@login_required
+def update_active_focus():
+    data = request.get_json(silent=True) or {}
+    active = get_active_focus_session()
+    if not active:
+        active = upsert_active_focus_session(data)
+    else:
+        payload = {**(active.payload or {}), **clean_payload(data)}
+        active = upsert_active_focus_session(payload)
+    db.session.commit()
+    return jsonify({"activeSession": serialize_active_focus_session(active)})
+
+
+@api_bp.delete("/focus/active")
+@login_required
+def clear_active_focus():
+    active = get_active_focus_session()
+    if active:
+        db.session.delete(active)
+        db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.post("/focus/complete")
+@login_required
+def complete_active_focus():
+    active = get_active_focus_session()
+    if not active:
+        return jsonify({"error": "No active focus session found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    ended_at = as_utc(parse_datetime(data.get("endedAt"))) or utc_now()
+    payload = {**(active.payload or {}), **clean_payload(data)}
+    duration_seconds = max(0, int(data.get("durationSeconds") or get_active_elapsed_seconds(active, ended_at)))
+    subject = find_user_subject(active.subject_client_id)
+    session_payload = {
+        **payload,
+        "id": active.client_id,
+        "date": get_user_study_date(current_user, ended_at).isoformat(),
+        "subjectId": active.subject_client_id or "",
+        "subjectName": active.subject_name,
+        "mode": active.timer_mode,
+        "modeId": active.mode_id,
+        "goal": active.session_goal or "",
+        "startedAt": iso_datetime(active.started_at),
+        "endedAt": iso_datetime(ended_at),
+        "durationSeconds": duration_seconds,
+        "goalResult": data.get("goalResult") or "",
+        "reviewNote": data.get("reviewNote") or "",
+        "sourceType": "tracked",
+        "wasEdited": False,
+    }
+    session = StudySession(
+        client_id=active.client_id,
+        user_id=current_user.id,
+        subject_id=subject.id if subject else None,
+        subject_name=active.subject_name,
+        timer_mode=active.timer_mode,
+        started_at=active.started_at,
+        ended_at=ended_at,
+        study_seconds=duration_seconds,
+        break_seconds=int(active.break_seconds or 0),
+        session_goal=active.session_goal,
+        goal_result=session_payload.get("goalResult") or None,
+        source_type="tracked",
+        was_edited=False,
+        note=session_payload.get("reviewNote") or None,
+        payload=session_payload,
+    )
+    db.session.add(session)
+    db.session.flush()
+
+    distractions = Distraction.query.filter_by(user_id=current_user.id, study_session_id=None).all()
+    for distraction in distractions:
+        if (distraction.payload or {}).get("sessionId") == active.client_id:
+            distraction.study_session_id = session.id
+
+    db.session.delete(active)
+    db.session.commit()
+    return jsonify({"session": session.payload})
+
+
+@api_bp.post("/focus/distractions")
+@login_required
+def create_focus_distraction():
+    data = request.get_json(silent=True) or {}
+    payload = clean_payload(data)
+    active = get_active_focus_session()
+    session_client_id = payload.get("sessionId") or (active.client_id if active else None)
+    distraction = Distraction(
+        client_id=str(payload.get("id") or uuid4()),
+        user_id=current_user.id,
+        study_session_id=None,
+        category=payload.get("category") or "Other",
+        note=payload.get("reason") or payload.get("note") or None,
+        created_at=as_utc(parse_datetime(payload.get("timestamp"))) or utc_now(),
+        payload={**payload, "sessionId": session_client_id},
+    )
+    db.session.add(distraction)
+    db.session.commit()
+    return jsonify({"distraction": distraction.payload})
 
 
 @api_bp.get("/profile")
@@ -616,7 +905,9 @@ def update_profile():
     if "country" in data:
         current_user.country = str(data.get("country") or "").strip()[:80]
     if "timezone" in data:
-        current_user.timezone = str(data.get("timezone") or "UTC").strip()[:80] or "UTC"
+        current_user.timezone = normalize_timezone_name(data.get("timezone"))
+    if "studyDayStartTime" in data:
+        current_user.study_day_start_time = normalize_study_day_start(data.get("studyDayStartTime"))
     if "preferredTheme" in data:
         current_user.preferred_theme = str(data.get("preferredTheme") or "system").strip()[:40] or "system"
 
@@ -939,11 +1230,35 @@ def delete_task(record_id):
     return jsonify({"ok": True})
 
 
+@api_bp.post("/sessions")
+@login_required
+def create_session():
+    data = request.get_json(silent=True) or {}
+    payload = clean_payload(data)
+    session = StudySession(
+        client_id=str(payload.get("id") or uuid4()),
+        user_id=current_user.id,
+        subject_name=payload.get("subjectName") or "General Study",
+        timer_mode=payload.get("mode") or "Timer",
+        started_at=utc_now(),
+        study_seconds=1,
+        break_seconds=0,
+        source_type=clean_session_source(payload.get("sourceType") or "manual"),
+        payload={},
+    )
+    error = apply_session_payload(session, payload, mark_edited=False)
+    if error:
+        return jsonify({"error": error}), 400
+    db.session.add(session)
+    db.session.commit()
+    return jsonify({"session": serialize_study_session(session)}), 201
+
+
 @api_bp.get("/sessions/<int:record_id>")
 @login_required
 def get_session(record_id):
     session = scoped_or_404(StudySession, record_id)
-    return jsonify({"session": session.payload})
+    return jsonify({"session": serialize_study_session(session)})
 
 
 @api_bp.patch("/sessions/<int:record_id>")
@@ -951,17 +1266,37 @@ def get_session(record_id):
 def update_session(record_id):
     session = scoped_or_404(StudySession, record_id)
     data = request.get_json(silent=True) or {}
-    session.payload = {**session.payload, **clean_payload(data)}
-    session.subject_name = session.payload.get("subjectName") or session.subject_name
-    session.timer_mode = session.payload.get("mode") or session.timer_mode
+    error = apply_session_payload(session, data, mark_edited=True)
+    if error:
+        return jsonify({"error": error}), 400
     db.session.commit()
-    return jsonify({"session": session.payload})
+    return jsonify({"session": serialize_study_session(session)})
 
 
 @api_bp.delete("/sessions/<int:record_id>")
 @login_required
 def delete_session(record_id):
     session = scoped_or_404(StudySession, record_id)
+    db.session.delete(session)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@api_bp.patch("/sessions/client/<client_id>")
+@login_required
+def update_session_by_client_id(client_id):
+    session = StudySession.query.filter_by(user_id=current_user.id, client_id=client_id).first_or_404()
+    error = apply_session_payload(session, request.get_json(silent=True) or {}, mark_edited=True)
+    if error:
+        return jsonify({"error": error}), 400
+    db.session.commit()
+    return jsonify({"session": serialize_study_session(session)})
+
+
+@api_bp.delete("/sessions/client/<client_id>")
+@login_required
+def delete_session_by_client_id(client_id):
+    session = StudySession.query.filter_by(user_id=current_user.id, client_id=client_id).first_or_404()
     db.session.delete(session)
     db.session.commit()
     return jsonify({"ok": True})

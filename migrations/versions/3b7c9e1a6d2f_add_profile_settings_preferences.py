@@ -25,7 +25,7 @@ def upgrade():
     additions = [
         ("banner_url", sa.Column("banner_url", sa.String(length=255), nullable=True)),
         ("country", sa.Column("country", sa.String(length=80), nullable=True)),
-        ("timezone", sa.Column("timezone", sa.String(length=80), nullable=False, server_default="UTC")),
+        ("timezone", sa.Column("timezone", sa.String(length=80), nullable=False, server_default="Asia/Kolkata")),
         ("preferred_study_goal", sa.Column("preferred_study_goal", sa.Float(), nullable=True)),
         ("preferred_theme", sa.Column("preferred_theme", sa.String(length=40), nullable=False, server_default="system")),
         ("profile_visibility", sa.Column("profile_visibility", sa.String(length=30), nullable=False, server_default="private")),
@@ -40,7 +40,7 @@ def upgrade():
         if not has_column("user", column_name):
             op.add_column("user", column)
 
-    op.execute('UPDATE "user" SET timezone = \'UTC\' WHERE timezone IS NULL OR timezone = \'\'')
+    op.execute('UPDATE "user" SET timezone = \'Asia/Kolkata\' WHERE timezone IS NULL OR timezone = \'\' OR timezone = \'IST\'')
     op.execute('UPDATE "user" SET preferred_theme = \'system\' WHERE preferred_theme IS NULL OR preferred_theme = \'\'')
     op.execute('UPDATE "user" SET profile_visibility = \'private\' WHERE profile_visibility IS NULL OR profile_visibility = \'\'')
     op.execute('UPDATE "user" SET group_visibility = \'members\' WHERE group_visibility IS NULL OR group_visibility = \'\'')
