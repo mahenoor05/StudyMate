@@ -29,6 +29,14 @@ const legacyImportBanner = document.getElementById("legacy-import-banner");
 const importLocalDataButton = document.getElementById("import-local-data");
 let databaseLoaded = false;
 let isHydratingFromServer = false;
+// Save guard state: which server save our data is based on, and one save at a time.
+let appDataRevision = 0;
+let appDataSaveInFlight = null;
+let appDataSaveQueued = false;
+let appDataSyncBlocked = false;
+let appDataBase = null;
+let appDataConflictRetries = 0;
+let appDataSavePending = false;
 let syncTimerId = null;
 
 const subjectPalette = [
@@ -724,7 +732,12 @@ async function studyMateApi(path, options = {}) {
   });
 
   const data = await response.json().catch(function () { return {}; });
-  if (!response.ok) throw new Error(data.error || "StudyMate API request failed.");
+  if (!response.ok) {
+    const error = new Error(data.error || "StudyMate API request failed.");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
   return data;
 }
 
@@ -814,6 +827,7 @@ async function loadData() {
     const response = await studyMateApi("app-data");
     databaseLoaded = true;
     if (response.profile) updateProfileState(response.profile);
+    appDataRevision = response.appData ? Number(response.appData._rev || 0) : 0;
     if (response.appData) {
       isHydratingFromServer = true;
       appData = removeTransientTimerState({
@@ -821,11 +835,13 @@ async function loadData() {
         ...response.appData
       });
       normalizeData();
+      appDataBase = JSON.parse(JSON.stringify(getPersonalAppDataPayload()));
       showLegacyImportIfNeeded(false);
       isHydratingFromServer = false;
     } else {
       appData = createDefaultData();
       normalizeData();
+      appDataBase = JSON.parse(JSON.stringify(getPersonalAppDataPayload()));
       showLegacyImportIfNeeded(!response.hasData);
     }
   } catch (error) {
@@ -1573,6 +1589,7 @@ function getPersonalAppDataPayload() {
   delete payload.activeSession;
   delete payload.pendingSessionReview;
   payload.sessionState = "pre-session";
+  payload._rev = appDataRevision;
   return payload;
 }
 
@@ -1742,31 +1759,188 @@ async function completeActiveFocusSession(review) {
   }
 }
 
-function queueDatabaseSync() {
-  if (!databaseLoaded || isHydratingFromServer) return;
+// --- app data sync with save guard ---
+const MERGE_LIST_KEYS = ["tasks", "subjects", "sessions", "plannerItems", "exams", "distractions"];
+const MERGE_PREPEND_KEYS = ["sessions", "distractions"];
+// What you are looking at (open tab, selected date...) stays per-tab and is never taken from another tab.
+const MERGE_LOCAL_UI_KEYS = ["date", "selectedSubjectId", "selectedHistoryRange", "selectedTimelineDate", "selectedAnalyticsRange", "selectedLeaderboardRange", "selectedExamId", "selectedExamTab", "plannerMonth", "plannerYear", "selectedPlannerDate", "selectedCircleTab", "selectedRankingRange", "selectedChallengeStatus", "selectedChallengeId", "activeRoomId", "sidebarCollapsed", "timerModeIndex"];
+const MERGE_SKIP_KEYS = ["_rev", "activeSession", "pendingSessionReview", "sessionState", "currentSessionDraft", "studyCircles", "selectedCircleId", "groupsView", "theme", "dailyHistory"];
+
+function mergeListById(local, base, server, prepend) {
+  const baseJson = new Map(base.map(function (item) { return [String(item.id), JSON.stringify(item)]; }));
+  const localIds = new Set(local.map(function (item) { return String(item.id); }));
+  const result = new Map(server.map(function (item) { return [String(item.id), item]; }));
+  const added = [];
+
+  local.forEach(function (item) {
+    const id = String(item.id);
+    const isNew = !baseJson.has(id);
+    const isEdited = !isNew && JSON.stringify(item) !== baseJson.get(id);
+    if (!isNew && !isEdited) return; // unchanged here, so the server's copy stands
+    if (result.has(id)) result.set(id, item);
+    else added.push(item);
+  });
+
+  // Things deleted in this tab stay deleted.
+  baseJson.forEach(function (json, id) {
+    if (!localIds.has(id)) result.delete(id);
+  });
+
+  const kept = Array.from(result.values());
+  return prepend ? added.concat(kept) : kept.concat(added);
+}
+
+function mergeAppData(local, base, server) {
+  const safeBase = base || {};
+  const merged = { ...server };
+
+  Object.keys(local).forEach(function (key) {
+    if (MERGE_LOCAL_UI_KEYS.includes(key)) {
+      merged[key] = local[key];
+      return;
+    }
+    if (MERGE_SKIP_KEYS.includes(key) || MERGE_LIST_KEYS.includes(key)) return;
+    if (JSON.stringify(local[key]) !== JSON.stringify(safeBase[key])) merged[key] = local[key];
+  });
+
+  MERGE_LIST_KEYS.forEach(function (key) {
+    merged[key] = mergeListById(
+      Array.isArray(local[key]) ? local[key] : [],
+      Array.isArray(safeBase[key]) ? safeBase[key] : [],
+      Array.isArray(server[key]) ? server[key] : [],
+      MERGE_PREPEND_KEYS.includes(key)
+    );
+  });
+
+  merged.dailyHistory = { ...(local.dailyHistory || {}), ...(server.dailyHistory || {}) };
+  return merged;
+}
+
+function mergeServerChangesIntoLocal(serverData) {
+  const merged = mergeAppData(getPersonalAppDataPayload(), appDataBase, serverData);
+  appDataRevision = Number(serverData._rev || 0);
+  Object.keys(merged).forEach(function (key) {
+    if (MERGE_SKIP_KEYS.includes(key) && key !== "dailyHistory") return;
+    appData[key] = merged[key];
+  });
+  appData.tasks = appData.tasks.map(normalizeTask);
+  appData.sessions = appData.sessions.map(normalizeStudySession);
+  appData.distractions = appData.distractions.map(normalizeDistraction);
+  appData.plannerItems = appData.plannerItems.map(normalizePlannerItem);
+  appData.exams = appData.exams.map(normalizeExam);
+  if (appData.selectedExamId && typeof getExamById === "function" && !getExamById(appData.selectedExamId)) {
+    appData.selectedExamId = null;
+    if (typeof examListView !== "undefined" && examListView) examListView.hidden = false;
+    if (typeof examWorkspace !== "undefined" && examWorkspace) examWorkspace.hidden = true;
+  }
+  if (typeof renderTasks === "function") renderTasks();
+  if (typeof renderDistractions === "function") renderDistractions();
+  if (typeof updateAllDisplays === "function") updateAllDisplays();
+}
+
+function reloadAfterConflict() {
+  appDataSyncBlocked = true;
   window.clearTimeout(syncTimerId);
-  syncTimerId = window.setTimeout(function () {
-    studyMateApi("app-data", {
-      method: "PUT",
-      body: JSON.stringify(getPersonalAppDataPayload())
-    }).catch(function (error) {
-      console.warn(error.message);
-    });
-  }, 450);
+  window.alert("StudyMate was updated in another tab or device and the changes could not be combined automatically. It will reload now to show your latest data.");
+  window.location.reload();
+}
+
+async function handleAppDataConflict() {
+  appDataConflictRetries += 1;
+  if (appDataConflictRetries > 3) {
+    reloadAfterConflict();
+    return;
+  }
+
+  // Pause saving while we combine this tab's changes with what the other tab saved.
+  appDataSyncBlocked = true;
+  window.clearTimeout(syncTimerId);
+  try {
+    const response = await studyMateApi("app-data");
+    if (!response.appData) throw new Error("No saved data to combine with.");
+    mergeServerChangesIntoLocal(response.appData);
+  } catch (error) {
+    console.warn(error.message);
+    reloadAfterConflict();
+    return;
+  }
+  appDataSyncBlocked = false;
+  await pushAppDataToServer();
+}
+
+function pushAppDataToServer() {
+  if (!databaseLoaded || isHydratingFromServer || appDataSyncBlocked) return Promise.resolve();
+  if (appDataSaveInFlight) {
+    appDataSaveQueued = true;
+    return appDataSaveInFlight;
+  }
+
+  appDataSaveInFlight = (async function () {
+    try {
+      do {
+        appDataSaveQueued = false;
+        appDataSavePending = false;
+        const body = JSON.stringify(getPersonalAppDataPayload());
+        const response = await studyMateApi("app-data", { method: "PUT", body });
+        if (response && response.rev !== undefined) appDataRevision = Number(response.rev) || 0;
+        appDataBase = JSON.parse(body);
+        appDataConflictRetries = 0;
+      } while (appDataSaveQueued && !appDataSyncBlocked);
+    } catch (error) {
+      if (error.status === 409) {
+        handleAppDataConflict();
+      } else {
+        console.warn(error.message);
+      }
+    } finally {
+      appDataSaveInFlight = null;
+    }
+  })();
+  return appDataSaveInFlight;
+}
+
+function queueDatabaseSync() {
+  if (!databaseLoaded || isHydratingFromServer || appDataSyncBlocked) return;
+  appDataSavePending = true;
+  window.clearTimeout(syncTimerId);
+  syncTimerId = window.setTimeout(pushAppDataToServer, 450);
 }
 
 async function persistAppDataNow() {
-  if (!databaseLoaded || isHydratingFromServer) return;
+  if (!databaseLoaded || isHydratingFromServer || appDataSyncBlocked) return;
   window.clearTimeout(syncTimerId);
+  await pushAppDataToServer();
+}
+// Pick up changes made in other tabs or devices without a reload.
+async function checkForRemoteChanges() {
+  if (typeof document !== "undefined" && document.hidden) return;
+  if (!databaseLoaded || isHydratingFromServer || appDataSyncBlocked) return;
+  if (appDataSaveInFlight || appDataSavePending) return;
+
   try {
-    await studyMateApi("app-data", {
-      method: "PUT",
-      body: JSON.stringify(getPersonalAppDataPayload())
-    });
+    const status = await studyMateApi("app-data/revision");
+    if (Number(status.rev || 0) <= appDataRevision) return;
+    if (appDataSaveInFlight || appDataSavePending) return;
+
+    const response = await studyMateApi("app-data");
+    if (!response.appData) return;
+    // If you changed something while we were asking, leave it for the normal save to sort out.
+    if (appDataSaveInFlight || appDataSavePending) return;
+
+    mergeServerChangesIntoLocal(response.appData);
+    appDataBase = JSON.parse(JSON.stringify(getPersonalAppDataPayload()));
   } catch (error) {
     console.warn(error.message);
   }
 }
+
+if (typeof window.setInterval === "function") window.setInterval(checkForRemoteChanges, 8000);
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) checkForRemoteChanges();
+  });
+}
+// --- end app data sync ---
 
 async function importLegacyLocalData() {
   if (!importLocalDataButton) return;
@@ -5295,8 +5469,8 @@ function renderLeaderboard() {
         row.className = "leaderboard-row";
         row.innerHTML = `
           <strong>#${index + 1}</strong>
-          <span class="group-avatar">${getInitials(user.name)}</span>
-          <span>${user.name}</span>
+          <span class="group-avatar">${escapeHtml(getInitials(user.name))}</span>
+          <span>${escapeHtml(user.name)}</span>
           <span>${formatShortTime(user.totalSeconds)}</span>
         `;
         leaderboardTable.appendChild(row);
@@ -5752,8 +5926,8 @@ function renderGroupMembers(circle) {
     const row = document.createElement("div");
     row.className = "member-table-row";
     row.innerHTML = `
-      <span class="group-avatar">${getInitials(member.name)}</span>
-      <span><strong>${member.name}</strong><small>${member.role}</small></span>
+      <span class="group-avatar">${escapeHtml(getInitials(member.name))}</span>
+      <span><strong>${escapeHtml(member.name)}</strong><small>${escapeHtml(member.role)}</small></span>
       <span>${formatShortTime(member.totalSeconds)} today</span>
       <span>${member.streak}-day streak</span>
     `;
@@ -6262,14 +6436,14 @@ function createChallengeCard(challenge, compact, circle) {
   card.innerHTML = `
     <div class="section-mini-header">
       <div>
-        <h3>${challenge.title}</h3>
+        <h3>${escapeHtml(challenge.title)}</h3>
         <p class="muted-text">${formatChallengeFormat(challenge.format)} - ${formatChallengeMetric(challenge.metric)} - ${getChallengeTimeLabel(challenge)}</p>
       </div>
       <span class="status-pill">${status}</span>
     </div>
     <div class="challenge-progress">
       <span>${challenge.format === "group-goal" ? "Group progress" : "Current leader"}</span>
-      <strong>${challenge.format === "group-goal" ? `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)}` : `${leader.name} - ${formatChallengeValue(leader.progress, challenge.metric)}`}</strong>
+      <strong>${challenge.format === "group-goal" ? `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)}` : `${escapeHtml(leader.name)} - ${formatChallengeValue(leader.progress, challenge.metric)}`}</strong>
       <div class="progress-bar"><span style="width: ${progressPercent}%"></span></div>
     </div>
   `;
@@ -6310,12 +6484,12 @@ function renderChallengeDetail(circle, challenge) {
   header.innerHTML = `
     <div>
       <p class="eyebrow">${formatChallengeFormat(challenge.format)} - ${formatChallengeMetric(challenge.metric)}</p>
-      <h3>${challenge.title}</h3>
+      <h3>${escapeHtml(challenge.title)}</h3>
       <p class="muted-text">${getChallengeTimeLabel(challenge)}</p>
     </div>
     <div class="summary-strip compact">
       <div><span>Status</span><strong>${status}</strong></div>
-      <div><span>${isGroupGoal ? "Progress" : "Leader"}</span><strong>${isGroupGoal ? `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)}` : leader.name}</strong></div>
+      <div><span>${isGroupGoal ? "Progress" : "Leader"}</span><strong>${isGroupGoal ? `${formatChallengeValue(challenge.progress, challenge.metric)} / ${formatChallengeValue(challenge.target, challenge.metric)}` : escapeHtml(leader.name)}</strong></div>
       <div><span>Your progress</span><strong>${formatChallengeValue(challenge.yourProgress, challenge.metric)}</strong></div>
     </div>
   `;
@@ -6324,7 +6498,7 @@ function renderChallengeDetail(circle, challenge) {
   if (result) {
     const resultBox = document.createElement("article");
     resultBox.className = "challenge-result-box";
-    resultBox.innerHTML = `<h3>${isGroupGoal ? result.title : "Challenge Complete"}</h3><p>${result.copy}</p>`;
+    resultBox.innerHTML = `<h3>${escapeHtml(isGroupGoal ? result.title : "Challenge Complete")}</h3><p>${escapeHtml(result.copy)}</p>`;
     challengeDetailContent.appendChild(resultBox);
   }
 

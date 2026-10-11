@@ -766,16 +766,58 @@ def apply_today_goal_to_app_payload(user, payload):
     return payload
 
 
+def parse_revision(value):
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def get_state_revision(user_id):
+    """Current save number for this user's app data. Locks the row on Postgres so two saves cannot both pass the check."""
+    state = UserAppState.query.filter_by(user_id=user_id).with_for_update().first()
+    if not state or not isinstance(state.payload, dict):
+        return 0
+    return parse_revision(state.payload.get("_rev"))
+
+
+def merge_unsynced_sessions(user, payload):
+    """Add study sessions that exist as database rows but never made it into the saved app data
+    (for example the tab was closed right after finishing a focus session)."""
+    if not isinstance(payload, dict):
+        return payload
+    sessions = payload.get("sessions") if isinstance(payload.get("sessions"), list) else []
+    known = {str(item.get("id")) for item in sessions if isinstance(item, dict)}
+    rows = [
+        row for row in StudySession.query.filter_by(user_id=user.id).all()
+        if row.client_id and row.client_id not in known
+    ]
+    if not rows:
+        return payload
+    rows.sort(key=lambda row: as_utc(row.started_at) or utc_now(), reverse=True)
+    merged = dict(payload)
+    merged["sessions"] = [serialize_study_session(row) for row in rows] + sessions
+    return merged
+
+
 @api_bp.get("/app-data")
 @login_required
 def get_app_data():
     state = UserAppState.query.filter_by(user_id=current_user.id).first()
     has_data = has_personal_data(current_user.id)
     return jsonify({
-        "appData": apply_today_goal_to_app_payload(current_user, state.payload) if state else None,
+        "appData": merge_unsynced_sessions(current_user, apply_today_goal_to_app_payload(current_user, state.payload)) if state else None,
         "hasData": has_data,
         "profile": serialize_profile(current_user),
     })
+
+
+@api_bp.get("/app-data/revision")
+@login_required
+def get_app_data_revision():
+    state = UserAppState.query.filter_by(user_id=current_user.id).first()
+    rev = parse_revision(state.payload.get("_rev")) if state and isinstance(state.payload, dict) else 0
+    return jsonify({"rev": rev})
 
 
 @api_bp.get("/focus/active")
@@ -1047,8 +1089,21 @@ def update_app_data():
     app_data = request.get_json(silent=True) or {}
     if not isinstance(app_data, dict):
         return jsonify({"error": "Invalid app data."}), 400
+
+    # Save guard: the browser says which save number it started from. If someone else (another tab or
+    # device) saved in the meantime, refuse instead of overwriting their newer data.
+    current_rev = get_state_revision(current_user.id)
+    if parse_revision(app_data.get("_rev")) != current_rev:
+        db.session.rollback()
+        return jsonify({
+            "error": "Your data was changed in another tab or device. Reload to see the latest version.",
+            "code": "stale_data",
+            "rev": current_rev,
+        }), 409
+
+    app_data["_rev"] = current_rev + 1
     persist_app_data(current_user.id, app_data)
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "rev": app_data["_rev"]})
 
 
 @api_bp.post("/import-local")
