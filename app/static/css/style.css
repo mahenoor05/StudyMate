@@ -577,7 +577,7 @@ body.sidebar-collapsed .app-main {
 }
 
 .auth-shell {
-  align-items: stretch;
+  align-items: center;
   display: grid;
   gap: var(--space-5);
   grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
@@ -695,6 +695,14 @@ body.sidebar-collapsed .app-main {
 .auth-switch a {
   color: var(--primary-dark);
   font-weight: 700;
+}
+
+.auth-forgot-link {
+  color: var(--primary-dark);
+  font-size: 0.85rem;
+  font-weight: 700;
+  justify-self: end;
+  margin-top: -0.25rem;
 }
 
 .page-topline,
@@ -1738,8 +1746,30 @@ button.profile-banner:hover {
 .mock-bubble {
   background: var(--surface-soft);
   border-radius: var(--radius);
+  display: grid;
+  gap: 0.2rem;
   margin: 0.7rem 0 0;
+  overflow-wrap: anywhere;
   padding: 0.85rem;
+}
+
+.mock-bubble > strong {
+  font-size: 0.85rem;
+}
+
+.mock-bubble > span {
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.mock-bubble > small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+#group-chat-messages {
+  max-height: 55vh;
+  overflow-y: auto;
 }
 
 .header-actions,

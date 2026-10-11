@@ -2,6 +2,7 @@ import os
 import json
 import random
 import re
+import secrets
 import string
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
@@ -229,6 +230,17 @@ def serialize_profile(user):
     }
 
 
+def serialize_public_user(user):
+    """Only what other group members are allowed to see. Never include email, country, timezone or login times."""
+    return {
+        "displayName": user.display_name,
+        "username": user.username,
+        "avatarUrl": user.avatar_url,
+        "avatarStyle": user.avatar_style or "initials",
+        "avatarColor": user.avatar_color or "violet",
+    }
+
+
 def scoped_or_404(model, record_id):
     return model.query.filter_by(id=record_id, user_id=current_user.id).first_or_404()
 
@@ -414,7 +426,12 @@ def get_range_start(range_name):
 
 def get_session_totals_by_user(user_ids, range_name):
     start_date = get_range_start(range_name)
-    query = StudySession.query.filter(StudySession.user_id.in_(user_ids))
+    # Two-day cushion covers timezone and custom study-day offsets; exact day is still checked below.
+    cutoff = datetime.combine(start_date - timedelta(days=2), datetime.min.time())
+    query = StudySession.query.filter(
+        StudySession.user_id.in_(user_ids),
+        StudySession.started_at >= cutoff,
+    )
     totals = {user_id: 0 for user_id in user_ids}
     users = {user.id: user for user in User.query.filter(User.id.in_(user_ids)).all()}
     for session in query.all():
@@ -428,7 +445,7 @@ def get_session_totals_by_user(user_ids, range_name):
 def generate_group_invite_code():
     alphabet = string.ascii_uppercase + string.digits
     while True:
-        code = "SM-" + "".join(random.choice(alphabet) for _ in range(6))
+        code = "SM-" + "".join(secrets.choice(alphabet) for _ in range(6))
         if not StudyGroup.query.filter_by(invite_code=code).first():
             return code
 
@@ -467,7 +484,13 @@ def serialize_group(group, include_messages=False):
         "activity": [],
     }
     if include_messages:
-        data["messages"] = [serialize_group_message(message) for message in group.messages[-50:]]
+        recent = (
+            GroupMessage.query.filter_by(group_id=group.id)
+            .order_by(GroupMessage.created_at.desc(), GroupMessage.id.desc())
+            .limit(50)
+            .all()
+        )
+        data["messages"] = [serialize_group_message(message) for message in reversed(recent)]
     return data
 
 
@@ -478,7 +501,7 @@ def serialize_group_message(message):
         "userId": message.user_id,
         "message": message.message,
         "createdAt": iso_datetime(message.created_at),
-        "user": serialize_profile(message.user),
+        "user": serialize_public_user(message.user),
     }
 
 
@@ -1126,8 +1149,13 @@ def delete_group(group_id):
 @login_required
 def list_group_messages(group_id):
     membership = get_membership_or_404(group_id)
-    messages = GroupMessage.query.filter_by(group_id=membership.group_id).order_by(GroupMessage.created_at.asc()).limit(100).all()
-    return jsonify({"messages": [serialize_group_message(message) for message in messages]})
+    recent = (
+        GroupMessage.query.filter_by(group_id=membership.group_id)
+        .order_by(GroupMessage.created_at.desc(), GroupMessage.id.desc())
+        .limit(100)
+        .all()
+    )
+    return jsonify({"messages": [serialize_group_message(message) for message in reversed(recent)]})
 
 
 @api_bp.post("/groups/<int:group_id>/messages")

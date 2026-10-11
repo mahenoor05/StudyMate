@@ -129,4 +129,8 @@ def create_app():
             f"{removed_groups} seeded groups removed, {cleared_goals} untouched default goals cleared."
         )
 
+    from .cli import register_cli
+
+    register_cli(app)
+
     return app

@@ -705,6 +705,15 @@ function normalizeUtcTimestamp(value) {
   return `${text}Z`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function studyMateApi(path, options = {}) {
   const response = await fetch(`/api/${path}`, {
     headers: {
@@ -1838,7 +1847,7 @@ function renderOnboardingSubjectOptions() {
     button.type = "button";
     button.className = "onboarding-choice";
     button.dataset.subjectName = subjectName;
-    button.innerHTML = `<strong>${subjectName}</strong>`;
+    button.innerHTML = `<strong>${escapeHtml(subjectName)}</strong>`;
     button.classList.toggle("selected", appData.subjects.some(function (subject) { return subject.name === subjectName; }));
     button.addEventListener("click", function () { button.classList.toggle("selected"); });
     onboardingSubjectOptions.appendChild(button);
@@ -4803,7 +4812,7 @@ function renderExamOverview(exam) {
   const next = document.createElement("article");
   next.className = "inline-section";
   const nextMilestone = exam.milestones.find(function (milestone) { return !milestone.completed; });
-  next.innerHTML = `<h3>Next Planned Step</h3><p class="muted-text">${nextMilestone ? nextMilestone.title : "No milestones yet. Create the next thing you want to finish."}</p>`;
+  next.innerHTML = `<h3>Next Planned Step</h3><p class="muted-text">${nextMilestone ? escapeHtml(nextMilestone.title) : "No milestones yet. Create the next thing you want to finish."}</p>`;
   panel.appendChild(next);
 }
 
@@ -4848,7 +4857,7 @@ function renderSubjectSyllabus(exam, subject) {
   details.open = true;
   const summary = document.createElement("summary");
   const stats = getSubjectStats(subject);
-  summary.innerHTML = `<strong>${subject.name}</strong><span>${stats.progressPercent}%</span>`;
+  summary.innerHTML = `<strong>${escapeHtml(subject.name)}</strong><span>${stats.progressPercent}%</span>`;
   details.appendChild(summary);
 
   const actions = document.createElement("div");
@@ -4868,7 +4877,7 @@ function renderChapterSyllabus(exam, subject, chapter) {
   details.className = "syllabus-chapter";
   const stats = getChapterStats(chapter);
   const summary = document.createElement("summary");
-  summary.innerHTML = `<strong>${chapter.name}</strong><span>${stats.completedTopics}/${stats.totalTopics}</span>`;
+  summary.innerHTML = `<strong>${escapeHtml(chapter.name)}</strong><span>${stats.completedTopics}/${stats.totalTopics}</span>`;
   details.appendChild(summary);
 
   const list = document.createElement("ul");
@@ -4947,7 +4956,7 @@ function renderExamProgress(exam) {
     const row = document.createElement("div");
     const subjectStats = getSubjectStats(subject);
     row.className = "insight-row";
-    row.innerHTML = `<span>${subject.name}</span><strong>${subjectStats.progressPercent}%</strong>`;
+    row.innerHTML = `<span>${escapeHtml(subject.name)}</span><strong>${subjectStats.progressPercent}%</strong>`;
     list.appendChild(row);
   });
   if (exam.subjects.length === 0) appendSimpleItem(list, "Add subjects to see subject progress.");
@@ -5773,7 +5782,7 @@ function renderGroupRanking(circle) {
       response.rows.forEach(function (member, index) {
         const row = document.createElement("div");
         row.className = "ranking-row";
-        row.innerHTML = `<span>#${index + 1}</span><span>${member.name}</span><span>${formatShortTime(member.totalSeconds)}</span>`;
+        row.innerHTML = `<span>#${index + 1}</span><span>${escapeHtml(member.name)}</span><span>${formatShortTime(member.totalSeconds)}</span>`;
         groupRankingList.appendChild(row);
       });
     })
@@ -5795,7 +5804,7 @@ function renderGroupChat(circle) {
     const row = document.createElement("div");
     row.className = "mock-bubble";
     const name = (message.user && message.user.displayName) || "Student";
-    row.innerHTML = `<strong>${name}</strong><span>${message.message}</span><small>${formatActivityTime(message.createdAt)}</small>`;
+    row.innerHTML = `<strong>${escapeHtml(name)}</strong><span>${escapeHtml(message.message)}</span><small>${escapeHtml(formatActivityTime(message.createdAt))}</small>`;
     groupChatMessages.appendChild(row);
   });
 }
@@ -5819,6 +5828,29 @@ async function sendGroupMessage(event) {
     console.warn(error.message);
   }
 }
+
+let groupChatPollId = null;
+
+async function pollGroupChat() {
+  if (document.hidden) return;
+  const circle = getSelectedCircle();
+  if (!circle || appData.groupsView !== "workspace" || appData.selectedCircleTab !== "chat") return;
+
+  try {
+    const response = await studyMateApi(`groups/${circle.id}/messages`);
+    const latest = (response.messages || []).map(normalizeGroupMessage);
+    const known = circle.messages || [];
+    const sameLast = latest.length && known.length && latest[latest.length - 1].id === known[known.length - 1].id;
+    if (sameLast && latest.length === known.length) return;
+    circle.messages = latest;
+    renderGroupChat(circle);
+    groupChatMessages.scrollTop = groupChatMessages.scrollHeight;
+  } catch (error) {
+    console.warn(error.message);
+  }
+}
+
+if (!groupChatPollId) groupChatPollId = setInterval(pollGroupChat, 5000);
 
 function openGroupModal(mode) {
   const circle = getSelectedCircle();
@@ -6305,7 +6337,7 @@ function renderChallengeDetail(circle, challenge) {
   rows.forEach(function (entry, index) {
     const row = document.createElement("div");
     row.className = "ranking-row";
-    row.innerHTML = `<span>${isGroupGoal ? "" : `#${index + 1}`}</span><span>${entry.name}<small>${getEntryMembers(entry, circle)}</small></span><span>${formatChallengeValue(entry.progress, challenge.metric)}</span><span>${getEntryPercent(entry, challenge)}%</span><span>${entry.memberIds.includes("you") ? "You" : ""}</span>`;
+    row.innerHTML = `<span>${isGroupGoal ? "" : `#${index + 1}`}</span><span>${escapeHtml(entry.name)}<small>${escapeHtml(getEntryMembers(entry, circle))}</small></span><span>${formatChallengeValue(entry.progress, challenge.metric)}</span><span>${getEntryPercent(entry, challenge)}%</span><span>${entry.memberIds.includes("you") ? "You" : ""}</span>`;
     list.appendChild(row);
   });
 
