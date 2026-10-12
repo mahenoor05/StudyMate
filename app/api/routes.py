@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 
 from flask import Blueprint, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
@@ -39,6 +40,7 @@ from app.time_utils import (
     as_utc_datetime,
     get_study_day_bounds,
     get_user_study_date,
+    get_user_timezone,
     normalize_study_day_start,
     normalize_timezone_name,
     utc_isoformat,
@@ -279,6 +281,26 @@ def find_user_subject(subject_client_id):
     return Subject.query.filter_by(user_id=current_user.id, client_id=str(subject_client_id)).first()
 
 
+def find_active_session_conflict(data):
+    """Another focus session is already running under a different id (started in another tab or device)."""
+    existing = get_active_focus_session()
+    incoming_id = str((data or {}).get("id") or "")
+    if not existing or not incoming_id or existing.client_id == incoming_id:
+        return None
+    # A break after a finished focus phase legitimately replaces the old row.
+    if ((data or {}).get("phase") or "focus") == "break":
+        return None
+    return existing
+
+
+def session_in_progress_response(existing):
+    return jsonify({
+        "error": "Another focus session is already running. Only one session can run at a time.",
+        "code": "session_in_progress",
+        "activeSession": serialize_active_focus_session(existing),
+    }), 409
+
+
 def upsert_active_focus_session(data):
     payload = clean_payload(data)
     now = utc_now()
@@ -343,6 +365,48 @@ def serialize_study_session(session):
     return payload
 
 
+def ranges_overlap(start_a, end_a, start_b, end_b):
+    """True when two time ranges share any time. Touching end-to-start is fine."""
+    return start_a < end_b and start_b < end_a
+
+
+def study_session_end(session):
+    start = as_utc(session.started_at)
+    if session.ended_at:
+        return as_utc(session.ended_at)
+    return start + timedelta(seconds=int(session.study_seconds or 0)) if start else None
+
+
+def find_overlapping_session(user_id, start, end, exclude_id=None):
+    # Sessions are capped at 18 hours, so anything starting earlier than start - 19h cannot reach us.
+    window_start = (start - timedelta(hours=19)).replace(tzinfo=None)
+    window_end = end.replace(tzinfo=None)
+    candidates = StudySession.query.filter(
+        StudySession.user_id == user_id,
+        StudySession.started_at < window_end,
+        StudySession.started_at > window_start,
+    ).all()
+    for candidate in candidates:
+        if exclude_id is not None and candidate.id == exclude_id:
+            continue
+        candidate_start = as_utc(candidate.started_at)
+        candidate_end = study_session_end(candidate)
+        if candidate_start and candidate_end and ranges_overlap(start, end, candidate_start, candidate_end):
+            return candidate
+    return None
+
+
+def describe_overlap(clash):
+    zone = get_user_timezone(current_user)
+    fmt = "%d %b %I:%M %p"
+    clash_start = as_utc(clash.started_at).astimezone(zone).strftime(fmt)
+    clash_end = study_session_end(clash).astimezone(zone).strftime(fmt)
+    return (
+        f"This overlaps your {clash.subject_name} session ({clash_start} to {clash_end}). "
+        "Two study sessions can't run at the same time, so please adjust the time."
+    )
+
+
 def validate_session_times(payload):
     started_at = as_utc(parse_datetime(payload.get("startedAt")))
     ended_at = as_utc(parse_datetime(payload.get("endedAt")))
@@ -363,6 +427,17 @@ def apply_session_payload(session, payload, mark_edited=False):
     started_at, ended_at, duration_seconds, error = validate_session_times(payload)
     if error:
         return error
+
+    range_start = started_at
+    range_end = ended_at or (started_at + timedelta(seconds=duration_seconds) if started_at else None)
+    if range_start and range_end:
+        is_new = session.id is None
+        times_changed = is_new or as_utc(session.started_at) != range_start or as_utc(session.ended_at) != range_end
+        if times_changed:
+            clash = find_overlapping_session(current_user.id, range_start, range_end, exclude_id=session.id)
+            if clash:
+                return describe_overlap(clash)
+
     subject = find_user_subject(payload.get("subjectId"))
     source_type = clean_session_source(payload.get("sourceType") or session.source_type or "tracked")
     if source_type == "manual" and not subject:
@@ -830,8 +905,19 @@ def get_active_focus():
 @login_required
 def save_active_focus():
     data = request.get_json(silent=True) or {}
-    active = upsert_active_focus_session(data)
-    db.session.commit()
+    conflict = find_active_session_conflict(data)
+    if conflict:
+        return session_in_progress_response(conflict)
+    try:
+        active = upsert_active_focus_session(data)
+        db.session.commit()
+    except IntegrityError:
+        # Two tabs started at the same instant; the database allows only one running session per user.
+        db.session.rollback()
+        existing = get_active_focus_session()
+        if existing:
+            return session_in_progress_response(existing)
+        raise
     return jsonify({"activeSession": serialize_active_focus_session(active)})
 
 

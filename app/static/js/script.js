@@ -37,6 +37,9 @@ let appDataSyncBlocked = false;
 let appDataBase = null;
 let appDataConflictRetries = 0;
 let appDataSavePending = false;
+// Focus session guard: how many session requests are in flight, and which session the server confirmed.
+let activeFocusBusy = 0;
+let confirmedActiveSessionId = null;
 let syncTimerId = null;
 
 const subjectPalette = [
@@ -925,6 +928,7 @@ function freezeStaleActiveSession(activeSession) {
 }
 
 function applyBackendActiveSession(activeSession) {
+  confirmedActiveSessionId = activeSession ? activeSession.id : null;
   if (activeSession && discardedActiveSessionIds.has(activeSession.id)) {
     appData.activeSession = null;
     appData.sessionState = "pre-session";
@@ -1612,25 +1616,90 @@ async function saveActiveFocusSession(reason) {
   if (!canWriteActiveFocusSession(reason)) return null;
   const payload = getActiveFocusPayload();
   if (!payload || !databaseLoaded) return null;
+  activeFocusBusy += 1;
   try {
     const response = await studyMateApi("focus/active", {
       method: "PUT",
       body: JSON.stringify(payload)
     });
     appData.activeSession = normalizeActiveFocusSession(response.activeSession);
+    confirmedActiveSessionId = appData.activeSession ? appData.activeSession.id : null;
     return appData.activeSession;
   } catch (error) {
+    if (error.status === 409 && error.data && error.data.code === "session_in_progress") {
+      adoptRunningSession(error.data.activeSession);
+      return appData.activeSession;
+    }
     console.warn(error.message);
     return null;
+  } finally {
+    activeFocusBusy -= 1;
+  }
+}
+
+function adoptRunningSession(activeSession) {
+  const running = normalizeActiveFocusSession(activeSession);
+  if (!running) return;
+  clearInterval(sessionTimerId);
+  sessionTimerId = null;
+  applyBackendActiveSession(running);
+  if (appData.activeSession && appData.sessionState !== "paused") resumeSessionTimer();
+  updateAllDisplays();
+  window.alert("Another focus session is already running (started in another tab or device), so StudyMate switched to it. Only one session can run at a time.");
+}
+
+// Keep the running timer the same in every open tab, and stop a tab from showing a session that already ended elsewhere.
+async function syncActiveFocusFromServer() {
+  if (typeof document !== "undefined" && document.hidden) return;
+  if (!databaseLoaded || activeFocusBusy > 0 || isCompletingSession || appData.pendingSessionReview) return;
+
+  try {
+    const response = await studyMateApi("focus/active");
+    if (activeFocusBusy > 0 || isCompletingSession || appData.pendingSessionReview) return;
+    const server = normalizeActiveFocusSession(response.activeSession);
+    const local = appData.activeSession;
+
+    if (!server) {
+      if (local && confirmedActiveSessionId === local.id) {
+        clearInterval(sessionTimerId);
+        sessionTimerId = null;
+        appData.activeSession = null;
+        appData.sessionState = "pre-session";
+        confirmedActiveSessionId = null;
+        document.title = "StudyMate";
+        updateAllDisplays();
+      }
+      return;
+    }
+
+    if (discardedActiveSessionIds.has(server.id)) return;
+    const changed = !local
+      || local.id !== server.id
+      || local.phase !== server.phase
+      || local.state !== server.state
+      || Number(local.totalPausedSeconds || 0) !== Number(server.totalPausedSeconds || 0)
+      || (local.pausedAt || null) !== (server.pausedAt || null);
+    if (!changed) return;
+
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+    applyBackendActiveSession(server);
+    if (appData.activeSession && appData.sessionState !== "paused") resumeSessionTimer();
+    updateAllDisplays();
+  } catch (error) {
+    console.warn(error.message);
   }
 }
 
 async function clearActiveFocusSession() {
   if (!databaseLoaded) return;
+  activeFocusBusy += 1;
   try {
     await studyMateApi("focus/active", { method: "DELETE" });
   } catch (error) {
     console.warn(error.message);
+  } finally {
+    activeFocusBusy -= 1;
   }
 }
 
@@ -1934,10 +2003,15 @@ async function checkForRemoteChanges() {
   }
 }
 
-if (typeof window.setInterval === "function") window.setInterval(checkForRemoteChanges, 8000);
+async function refreshFromOtherTabs() {
+  await checkForRemoteChanges();
+  if (typeof syncActiveFocusFromServer === "function") await syncActiveFocusFromServer();
+}
+
+if (typeof window.setInterval === "function") window.setInterval(refreshFromOtherTabs, 8000);
 if (typeof document !== "undefined" && document.addEventListener) {
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) checkForRemoteChanges();
+    if (!document.hidden) refreshFromOtherTabs();
   });
 }
 // --- end app data sync ---

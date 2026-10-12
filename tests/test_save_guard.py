@@ -45,7 +45,7 @@ class SaveGuardTestCase(unittest.TestCase):
         self.assertIn('@api_bp.get("/app-data/revision")', ROUTES)
         self.assertIn("async function checkForRemoteChanges()", SCRIPT)
         self.assertIn('studyMateApi("app-data/revision")', SCRIPT)
-        self.assertIn("window.setInterval(checkForRemoteChanges", SCRIPT)
+        self.assertIn("window.setInterval(refreshFromOtherTabs", SCRIPT)
         self.assertIn("MERGE_LOCAL_UI_KEYS", SCRIPT)
 
     def test_user_typed_names_are_escaped_before_going_into_html(self):
