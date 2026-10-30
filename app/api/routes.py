@@ -223,7 +223,7 @@ def serialize_profile(user):
         "country": user.country or "",
         "timezone": normalize_timezone_name(user.timezone or DEFAULT_TIMEZONE),
         "studyDayStartTime": normalize_study_day_start(getattr(user, "study_day_start_time", "00:00")),
-        "preferredTheme": user.preferred_theme or "system",
+        "preferredTheme": user.preferred_theme if user.preferred_theme and user.preferred_theme != "system" else "dark",
         "profileVisibility": user.profile_visibility or "private",
         "groupVisibility": user.group_visibility or "members",
         "leaderboardVisibility": user.leaderboard_visibility or "public",
@@ -1060,7 +1060,7 @@ def update_profile():
     if "studyDayStartTime" in data:
         current_user.study_day_start_time = normalize_study_day_start(data.get("studyDayStartTime"))
     if "preferredTheme" in data:
-        current_user.preferred_theme = str(data.get("preferredTheme") or "system").strip()[:40] or "system"
+        current_user.preferred_theme = str(data.get("preferredTheme") or "dark").strip()[:40] or "dark"
 
     profile_visibility = str(data.get("profileVisibility") or current_user.profile_visibility or "private")
     group_visibility = str(data.get("groupVisibility") or current_user.group_visibility or "members")

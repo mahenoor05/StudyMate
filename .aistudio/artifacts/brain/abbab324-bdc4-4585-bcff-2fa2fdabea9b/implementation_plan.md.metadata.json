@@ -1,0 +1,6 @@
+{
+  "summary":  "Complete overhaul of the Cozy Library / Virtual Study Space in templates/app.html, static/css/style.css, and static/js/script.js. Includes dynamic active group header, unified pill switcher, fullscreen mode, 3D spatial room structure with 4 physical zones, cozy non-AI seated avatars with warm radial glow, floating paper note tooltips, in-canvas video call swapping in the same viewport, integrated bottom glass dock, and slide-out glass drawer.",
+  "updatedAt":  "2026-10-30T11:26:25.239445771Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

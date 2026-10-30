@@ -2,14 +2,8 @@ const STORAGE_KEY = "studymate-app-v4";
 const OLD_STORAGE_KEYS = ["studymate-app-v3", "studymate-app-v2", "studymate-dashboard"];
 
 const themes = [
-  { id: "midnight", name: "Midnight Black", accent: "#8b6cff", secondaryAccent: "#35d4ff" },
-  { id: "amoled", name: "AMOLED Black", accent: "#f8fafc", secondaryAccent: "#00f5a0" },
-  { id: "ocean", name: "Ocean Blue", accent: "#38bdf8", secondaryAccent: "#2dd4bf" },
-  { id: "nebula", name: "Purple Nebula", accent: "#a78bfa", secondaryAccent: "#f472b6" },
-  { id: "forest", name: "Forest Green", accent: "#34d399", secondaryAccent: "#bef264" },
-  { id: "sakura", name: "Sakura Pink", accent: "#f9a8d4", secondaryAccent: "#fb7185" },
-  { id: "coffee", name: "Warm Coffee", accent: "#f59e0b", secondaryAccent: "#fbbf24" },
-  { id: "light", name: "Minimal Light", accent: "#2563eb", secondaryAccent: "#14b8a6" }
+  { id: "dark", name: "Forest Dark", accent: "#2D6A4F", secondaryAccent: "#E09F67", desc: "Deep charcoal-forest & rich emerald" },
+  { id: "light", name: "Sage Light", accent: "#1E4B35", secondaryAccent: "#C67A52", desc: "Pale sage wash & deep bottle green" }
 ];
 
 const studyMateUser = window.STUDYMATE_USER || {};
@@ -43,29 +37,30 @@ let confirmedActiveSessionId = null;
 let syncTimerId = null;
 
 const subjectPalette = [
-  { key: "blue", name: "Blue", value: "#38bdf8" },
-  { key: "violet", name: "Violet", value: "#8b6cff" },
-  { key: "pink", name: "Pink", value: "#f472b6" },
-  { key: "teal", name: "Teal", value: "#2dd4bf" },
-  { key: "green", name: "Green", value: "#34d399" },
-  { key: "amber", name: "Amber", value: "#f59e0b" },
-  { key: "coral", name: "Coral", value: "#fb7185" },
-  { key: "indigo", name: "Indigo", value: "#6366f1" }
+  { key: "teal", name: "Teal", value: "#0F766E" },
+  { key: "coral", name: "Coral", value: "#E76F51" },
+  { key: "blue", name: "Sky Blue", value: "#0284C7" },
+  { key: "sage", name: "Sage", value: "#2D6A4F" },
+  { key: "amber", name: "Amber", value: "#D97706" },
+  { key: "rose", name: "Rose", value: "#E11D48" },
+  { key: "slate", name: "Slate", value: "#475569" },
+  { key: "mint", name: "Mint", value: "#059669" }
 ];
 
 const avatarPresets = [
-  { style: "initials", color: "violet", label: "Initials" },
-  { style: "spark", color: "amber", label: "Spark" },
-  { style: "orbit", color: "blue", label: "Orbit" },
   { style: "initials", color: "teal", label: "Teal" },
-  { style: "spark", color: "pink", label: "Rose" },
-  { style: "orbit", color: "green", label: "Leaf" }
+  { style: "spark", color: "coral", label: "Coral" },
+  { style: "orbit", color: "blue", label: "Sky" },
+  { style: "initials", color: "sage", label: "Sage" },
+  { style: "spark", color: "amber", label: "Amber" },
+  { style: "orbit", color: "slate", label: "Slate" }
 ];
 
 const timerModes = [
   { id: "stopwatch", name: "Stopwatch", description: "Count up while you study.", focusMinutes: null, breakMinutes: 0 },
   { id: "pomodoro", name: "Pomodoro", description: "25 minutes focus, then a 5 minute break.", focusMinutes: 25, breakMinutes: 5 },
   { id: "deep-focus", name: "Deep Focus", description: "50 minutes focus, then a 10 minute break.", focusMinutes: 50, breakMinutes: 10 },
+  { id: "ultradian", name: "Ultradian Cycle", description: "90 minutes focus, then a 20 minute break.", focusMinutes: 90, breakMinutes: 20 },
   { id: "custom", name: "Custom Timer", description: "Choose your own focus and break duration.", focusMinutes: 30, breakMinutes: 0 }
 ];
 
@@ -225,7 +220,13 @@ const taskForm = document.getElementById("task-form");
 const taskInput = document.getElementById("task-input");
 const taskDateInput = document.getElementById("task-date-input");
 const taskSubjectInput = document.getElementById("task-subject-input");
+const taskPriorityInput = document.getElementById("task-priority-input");
+const taskDurationInput = document.getElementById("task-duration-input");
 const taskRepeatInput = document.getElementById("task-repeat-input");
+const inlineTaskForm = document.getElementById("inline-task-form");
+const inlineTaskInput = document.getElementById("inline-task-input");
+const inlineTaskPriority = document.getElementById("inline-task-priority");
+const inlineTaskDuration = document.getElementById("inline-task-duration");
 const pendingTaskList = document.getElementById("pending-task-list");
 const completedTaskList = document.getElementById("completed-task-list");
 const openTaskModalButton = document.getElementById("open-task-modal");
@@ -233,14 +234,31 @@ const closeTaskModalButton = document.getElementById("close-task-modal");
 const taskModal = document.getElementById("task-modal");
 const completedTaskSummary = document.getElementById("completed-task-summary");
 const completedTaskDetails = document.getElementById("completed-task-details");
+const clearCompletedTasksButton = document.getElementById("clear-completed-tasks");
 const planDateLabel = document.getElementById("plan-date-label");
 const planTaskSummary = document.getElementById("plan-task-summary");
 const planSummaryGoal = document.getElementById("plan-summary-goal");
 const planSummaryPlanned = document.getElementById("plan-summary-planned");
 const planSummaryDone = document.getElementById("plan-summary-done");
+const planSummaryWorkload = document.getElementById("plan-summary-workload");
 const planGoalProgress = document.getElementById("plan-goal-progress");
 const planGoalCopy = document.getElementById("plan-goal-copy");
 const planGoalBar = document.getElementById("plan-goal-bar");
+const taskFilterChips = document.querySelectorAll(".task-filter-chip");
+const taskSubjectFilter = document.getElementById("task-subject-filter");
+const filterCountAll = document.getElementById("filter-count-all");
+const filterCountHigh = document.getElementById("filter-count-high");
+const filterCountToday = document.getElementById("filter-count-today");
+
+const timerPresetsBar = document.getElementById("timer-presets-bar");
+const chimeToggleBtn = document.getElementById("chime-toggle-btn");
+const chimeBtnIcon = document.getElementById("chime-btn-icon");
+const sessionTaskHud = document.getElementById("session-task-hud");
+const taskHudStatus = document.getElementById("task-hud-status");
+const taskHudCheckbox = document.getElementById("task-hud-checkbox");
+const taskHudText = document.getElementById("task-hud-text");
+const taskHudNote = document.getElementById("task-hud-note");
+const taskHudNoteFeedback = document.getElementById("task-hud-note-feedback");
 
 const goalForm = document.getElementById("goal-form");
 const goalInput = document.getElementById("goal-input");
@@ -468,7 +486,7 @@ function createDefaultData() {
 
   return {
     date: getTodayKey(),
-    theme: "midnight",
+    theme: "dark",
     accentColor: null,
     sidebarCollapsed: false,
     studySeconds: 0,
@@ -562,7 +580,7 @@ function renderProfileAvatar(element) {
     element.dataset.avatarStyle = "photo";
     return;
   }
-  renderGeneratedAvatar(element, studyMateUser.displayName, studyMateUser.avatarStyle || "initials", studyMateUser.avatarColor || "violet");
+  renderGeneratedAvatar(element, studyMateUser.displayName, studyMateUser.avatarStyle || "initials", studyMateUser.avatarColor || "teal");
 }
 
 function renderProfileBanner(element) {
@@ -964,8 +982,16 @@ async function loadActiveFocusSession() {
 }
 
 function applyAccountPreferencesToAppData() {
-  if (studyMateUser.preferredTheme && studyMateUser.preferredTheme !== "system") {
-    appData.theme = studyMateUser.preferredTheme;
+  if (studyMateUser.preferredTheme === "light") {
+    appData.theme = "light";
+  } else if (studyMateUser.preferredTheme === "dark") {
+    appData.theme = "dark";
+  } else {
+    var localTheme = null;
+    try {
+      localTheme = localStorage.getItem("studymate-theme");
+    } catch (e) {}
+    appData.theme = (localTheme === "light") ? "light" : "dark";
   }
 }
 
@@ -1007,7 +1033,7 @@ function updateProfileState(profile) {
   studyMateUser.avatarUrl = profile.avatarUrl || "";
   studyMateUser.bannerUrl = profile.bannerUrl || "";
   studyMateUser.avatarStyle = profile.avatarStyle || "initials";
-  studyMateUser.avatarColor = profile.avatarColor || "violet";
+  studyMateUser.avatarColor = profile.avatarColor || "teal";
   studyMateUser.onboardingCompleted = Boolean(profile.onboardingCompleted);
   studyMateUser.country = profile.country || "";
   studyMateUser.timezone = profile.timezone || "Asia/Kolkata";
@@ -1126,6 +1152,15 @@ function normalizeData() {
   if (!Array.isArray(appData.exams)) appData.exams = [];
   if (!Array.isArray(appData.distractions)) appData.distractions = [];
   if (!Array.isArray(appData.studyCircles)) appData.studyCircles = [];
+
+  if (studyMateUser.preferredTheme === "light") {
+    appData.theme = "light";
+  } else if (studyMateUser.preferredTheme === "dark") {
+    appData.theme = "dark";
+  } else if (appData.theme !== "light" && appData.theme !== "dark") {
+    appData.theme = "dark";
+  }
+  appData.accentColor = null;
 
   appData.studySeconds = Number(appData.studySeconds) || 0;
   appData.goalHours = appData.goalHours === null || appData.goalHours === "" || typeof appData.goalHours === "undefined"
@@ -2171,7 +2206,7 @@ function maybeShowOnboarding() {
   onboardingTimezone.value = studyMateUser.timezone || "Asia/Kolkata";
   onboardingStudyGoal.value = appData.goalHours || "";
   onboardingAvatarStyle.value = studyMateUser.avatarStyle || "initials";
-  onboardingAvatarColor.value = studyMateUser.avatarColor || "violet";
+  onboardingAvatarColor.value = studyMateUser.avatarColor || "teal";
   onboardingBio.value = studyMateUser.bio || "";
   renderAvatarChoices();
   renderProfile();
@@ -2187,7 +2222,44 @@ function showSection(sectionId) {
   navButtons.forEach(function (button) {
     button.classList.toggle("active", button.dataset.section === sectionId);
   });
+
+  if (sectionId === "cozy-library" && typeof initCozyLibrary === "function") {
+    initCozyLibrary();
+  }
 }
+
+function showToast(message, duration) {
+  if (!message) return;
+  const timeout = typeof duration === "number" ? duration : 3000;
+  let container = document.getElementById("app-toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "app-toast-container";
+    container.className = "app-toast-container";
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement("div");
+  toast.className = "app-toast";
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  requestAnimationFrame(function () {
+    toast.classList.add("show");
+  });
+
+  setTimeout(function () {
+    toast.classList.remove("show");
+    setTimeout(function () {
+      toast.remove();
+      if (container && container.children.length === 0) {
+        container.remove();
+      }
+    }, 250);
+  }, timeout);
+}
+
+window.showToast = showToast;
 
 function formatLongTime(seconds) {
   const safeSeconds = Math.max(0, Math.floor(seconds));
@@ -2352,9 +2424,15 @@ function getCompletedTodayTasks() {
 
 function getNearestExam() {
   const today = getTodayKey();
-  return appData.exams
+  const upcoming = appData.exams
     .filter(function (exam) { return exam.date && exam.date >= today; })
-    .sort(function (first, second) { return new Date(first.date) - new Date(second.date); })[0];
+    .sort(function (first, second) { return new Date(first.date) - new Date(second.date); });
+  if (upcoming.length > 0) return upcoming[0];
+  if (appData.exams.length > 0) {
+    const withDate = appData.exams.filter(e => e.date).sort((a,b) => new Date(a.date) - new Date(b.date));
+    return withDate[0] || appData.exams[0];
+  }
+  return null;
 }
 
 function getExamById(examId) {
@@ -2585,7 +2663,13 @@ function updateHome() {
   ];
 
   if (nearestExam) {
-    summaryParts.push(`next exam ${getExamCountdown(nearestExam.date).toLowerCase()}`);
+    const today = new Date(`${getTodayKey()}T00:00:00`);
+    const examDate = nearestExam.date ? new Date(`${nearestExam.date}T00:00:00`) : null;
+    const diff = examDate ? Math.round((examDate - today) / 86400000) : null;
+    if (diff === 0) summaryParts.push(`${nearestExam.name} today`);
+    else if (diff === 1) summaryParts.push(`${nearestExam.name} tomorrow`);
+    else if (diff > 1) summaryParts.push(`${nearestExam.name} in ${diff}d`);
+    else summaryParts.push(`${nearestExam.name}`);
   }
 
   dashboardGreeting.textContent = `${greeting}, ${studyMateUser.displayName || "StudyMate learner"}`;
@@ -2706,6 +2790,40 @@ function updateSessionPage() {
   intentionCount.textContent = `${appData.focusIntention.length}/180`;
   renderTimerModeIndicators();
   renderSubjectBreakdown(sessionSubjectBreakdown);
+
+  if (timerPresetsBar) {
+    const currentModeId = mode.id;
+    timerPresetsBar.querySelectorAll(".preset-chip").forEach(function (chip) {
+      chip.classList.toggle("active", chip.dataset.preset === currentModeId);
+    });
+  }
+
+  if (chimeToggleBtn && chimeBtnIcon) {
+    const isChimeOn = appData.chimeEnabled !== false;
+    chimeToggleBtn.classList.toggle("active", isChimeOn);
+    chimeBtnIcon.textContent = isChimeOn ? "🔔" : "🔕";
+  }
+
+  if (sessionTaskHud) {
+    if (appData.activeSession) {
+      sessionTaskHud.hidden = false;
+      const currentGoal = appData.activeSession.goal || "Deep study objective";
+      taskHudText.textContent = currentGoal;
+      const matchingTask = appData.tasks.find(function (t) {
+        return (appData.activeSession.taskId && t.id === appData.activeSession.taskId)
+          || (t.text && t.text.toLowerCase().trim() === currentGoal.toLowerCase().trim());
+      });
+      const isDone = matchingTask ? isTaskCompletedToday(matchingTask) : Boolean(appData.activeSession.isTaskCompleted);
+      taskHudCheckbox.checked = isDone;
+      taskHudStatus.textContent = isDone ? "Completed ✓" : (state === "paused" ? "Paused" : "In Progress");
+      taskHudStatus.classList.toggle("completed", isDone);
+      if (taskHudNote && !taskHudNote.matches(":focus")) {
+        taskHudNote.value = appData.activeSession.sessionNotes || "";
+      }
+    } else {
+      sessionTaskHud.hidden = true;
+    }
+  }
 }
 
 function renderTimerModeIndicators() {
@@ -3038,59 +3156,164 @@ function renderHomeSubjectOptions() {
 
 function appendTaskPreview(parent, task) {
   const item = document.createElement("li");
-  const taskText = document.createElement("span");
-  const taskMeta = document.createElement("small");
-  const metaParts = [];
-
-  taskText.textContent = task.text;
+  item.className = "task-row home-task-row";
+  if (isTaskCompletedToday(task)) item.classList.add("completed");
   if (task.subjectId) item.style.borderLeft = `3px solid ${getSubjectColorValue(getSubjectById(task.subjectId) || "blue")}`;
-  if (task.date) metaParts.push(task.date === getTodayKey() ? "Today" : task.date);
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "task-checkbox";
+  checkbox.checked = isTaskCompletedToday(task);
+  checkbox.setAttribute("aria-label", `Mark ${task.text} as complete`);
+  checkbox.addEventListener("change", function () {
+    toggleTask(task.id);
+  });
+
+  const content = document.createElement("span");
+  content.className = "task-content";
+
+  const taskText = document.createElement("span");
+  taskText.className = "task-text";
+  taskText.textContent = task.text;
+
+  const taskMeta = document.createElement("small");
+  taskMeta.className = "task-meta";
+  const metaParts = [];
   if (task.subjectId) metaParts.push(getSubjectName(task.subjectId));
   if (task.repeat === "daily") metaParts.push("Daily");
-  taskMeta.textContent = metaParts.join(" - ");
+  taskMeta.textContent = metaParts.join(" · ");
 
-  item.appendChild(taskText);
-  if (taskMeta.textContent) item.appendChild(taskMeta);
+  content.appendChild(taskText);
+  if (taskMeta.textContent) content.appendChild(taskMeta);
+
+  item.appendChild(checkbox);
+  item.appendChild(content);
   parent.appendChild(item);
 }
 
 function renderHomeNextExam(exam) {
   homeNextExam.innerHTML = "";
+  const titleEl = document.getElementById("home-exam-title");
 
   if (!exam) {
-    homeNextExam.className = "compact-empty";
-    homeNextExam.innerHTML = "";
-    const empty = document.createElement("span");
+    if (titleEl) titleEl.textContent = "Upcoming Exam";
+    homeNextExam.className = "compact-empty next-exam-countdown-box";
+    const empty = document.createElement("strong");
+    empty.textContent = "No upcoming exams yet";
+    const sub = document.createElement("p");
+    sub.className = "muted-text";
+    sub.textContent = "Set an exam target to see how many days are left.";
     const action = document.createElement("button");
-    empty.textContent = "No exams saved yet.";
     action.type = "button";
-    action.className = "text-button";
-    action.textContent = "Add your first exam →";
+    action.className = "text-button exam-add-target-btn";
+    action.textContent = "+ Add upcoming exam";
     action.addEventListener("click", function () { showSection("exams"); openExamModal(); });
     homeNextExam.appendChild(empty);
+    homeNextExam.appendChild(sub);
     homeNextExam.appendChild(action);
     return;
   }
 
-  homeNextExam.className = "exam-mini";
-  const title = document.createElement("strong");
-  const meta = document.createElement("span");
-  const progress = document.createElement("small");
-  const action = document.createElement("button");
+  homeNextExam.className = "exam-big-countdown-card";
   const stats = getExamStats(exam);
+  const today = new Date(`${getTodayKey()}T00:00:00`);
+  const examDate = exam.date ? new Date(`${exam.date}T00:00:00`) : null;
+  const daysDiff = examDate ? Math.round((examDate - today) / 86400000) : null;
 
+  if (titleEl) {
+    if (daysDiff === null) {
+      titleEl.textContent = `${exam.name}`;
+    } else if (daysDiff === 0) {
+      titleEl.textContent = `${exam.name} today`;
+    } else if (daysDiff === 1) {
+      titleEl.textContent = `${exam.name} tomorrow`;
+    } else if (daysDiff > 1) {
+      titleEl.textContent = `${exam.name} in ${daysDiff} days`;
+    } else {
+      titleEl.textContent = `${exam.name} completed`;
+    }
+  }
+
+  const headerRow = document.createElement("div");
+  headerRow.className = "exam-card-top-row";
+
+  const title = document.createElement("h4");
+  title.className = "exam-card-title";
   title.textContent = exam.name;
-  meta.textContent = `${getExamCountdown(exam.date)} - ${getExamSubjectSummary(exam)}`;
-  progress.textContent = `${stats.progressPercent}% complete`;
+
+  const badge = document.createElement("span");
+  badge.className = "status-pill exam-type-badge";
+  badge.textContent = exam.category || "Target Exam";
+
+  headerRow.appendChild(title);
+  headerRow.appendChild(badge);
+
+  const countdownHero = document.createElement("div");
+  countdownHero.className = "countdown-hero-block";
+
+  const num = document.createElement("div");
+  num.className = "countdown-big-number";
+  if (daysDiff === null) {
+    num.textContent = "—";
+  } else if (daysDiff < 0) {
+    num.textContent = "0";
+  } else {
+    num.textContent = String(daysDiff);
+  }
+
+  const labelBox = document.createElement("div");
+  labelBox.className = "countdown-labels-box";
+  const unit = document.createElement("div");
+  unit.className = "countdown-unit-text";
+  if (daysDiff === null) {
+    unit.textContent = "DATE TBD";
+  } else if (daysDiff === 0) {
+    unit.textContent = "TODAY";
+  } else if (daysDiff === 1) {
+    unit.textContent = "DAY LEFT";
+  } else if (daysDiff < 0) {
+    unit.textContent = "PAST TARGET";
+  } else {
+    unit.textContent = "DAYS LEFT";
+  }
+
+  const dateSub = document.createElement("div");
+  dateSub.className = "countdown-date-sub";
+  dateSub.textContent = exam.date ? `Target: ${exam.date}` : "Date not scheduled";
+
+  labelBox.appendChild(unit);
+  labelBox.appendChild(dateSub);
+  countdownHero.appendChild(num);
+  countdownHero.appendChild(labelBox);
+
+  const footerRow = document.createElement("div");
+  footerRow.className = "exam-card-footer";
+
+  const progressWrap = document.createElement("div");
+  progressWrap.className = "exam-progress-wrap";
+  const progressText = document.createElement("span");
+  progressText.className = "muted-text";
+  progressText.textContent = `${stats.progressPercent}% syllabus completed`;
+  const bar = document.createElement("div");
+  bar.className = "progress-bar";
+  const barSpan = document.createElement("span");
+  barSpan.style.width = `${stats.progressPercent}%`;
+  bar.appendChild(barSpan);
+  progressWrap.appendChild(progressText);
+  progressWrap.appendChild(bar);
+
+  const action = document.createElement("button");
   action.type = "button";
-  action.className = "text-button";
-  action.textContent = "Open Exam";
+  action.className = "text-button exam-open-link";
+  action.textContent = "View Syllabus & Topics →";
   action.addEventListener("click", function () { openExamWorkspace(exam.id); });
 
-  homeNextExam.appendChild(title);
-  homeNextExam.appendChild(meta);
-  homeNextExam.appendChild(progress);
-  homeNextExam.appendChild(action);
+  footerRow.appendChild(progressWrap);
+  footerRow.appendChild(action);
+
+  homeNextExam.appendChild(headerRow);
+  homeNextExam.appendChild(countdownHero);
+  homeNextExam.appendChild(footerRow);
 }
 
 function renderHomeWeekPreview() {
@@ -3809,10 +4032,10 @@ function appendRecentSessionRow(session, isLive) {
   title.className = "subject-label";
   title.appendChild(createSubjectDot(sessionSubject || { colorKey: "blue" }));
   title.appendChild(document.createTextNode(session.subjectName || getSubjectName(session.subjectId)));
-  meta.textContent = isLive ? `${session.mode || "Timer"} - ${session.liveStatus}` : `${session.mode || "Timer"} - ${getSessionSourceLabel(session)}`;
+  meta.textContent = isLive ? `${session.mode || "Timer"} · ${session.liveStatus}` : `${session.mode || "Timer"} · ${getSessionSourceLabel(session)}`;
   time.textContent = isLive
-    ? `${formatClockTime(session.startedAt)} -> now`
-    : `${formatClockTime(session.startedAt)} -> ${formatClockTime(session.endedAt)}`;
+    ? `${formatClockTime(session.startedAt)} – now`
+    : `${formatClockTime(session.startedAt)} – ${formatClockTime(session.endedAt)}`;
   duration.textContent = formatShortTime(session.durationSeconds);
   result.textContent = isLive ? "Live" : session.goalResult ? `Goal: ${formatGoalResult(session.goalResult)}` : "";
   actions.className = "session-row-actions";
@@ -3919,24 +4142,43 @@ function selectTimelineDate(dateKey) {
   updateAllDisplays();
 }
 
-function renderStudyLogSubjects(selectedSubjectId) {
-  studyLogSubject.innerHTML = "";
-  if (appData.subjects.length === 0) {
-    const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "Add a subject first";
-    option.disabled = true;
-    option.selected = true;
-    studyLogSubject.appendChild(option);
-    return;
+function findOrCreateSubject(nameOrId) {
+  const raw = String(nameOrId || "").trim();
+  if (!raw) {
+    let general = appData.subjects.find(function (s) { return s.name.toLowerCase() === "general study"; });
+    if (!general) {
+      general = createSubject("General Study", "blue");
+      appData.subjects.push(general);
+    }
+    return general;
   }
+  let match = appData.subjects.find(function (s) { return String(s.id) === raw; });
+  if (match) return match;
+  match = appData.subjects.find(function (s) { return s.name.toLowerCase() === raw.toLowerCase(); });
+  if (match) return match;
+  const newSub = createSubject(raw, getNextSubjectColorKey());
+  appData.subjects.push(newSub);
+  renderSubjectOptions();
+  renderTaskSubjectOptions();
+  return newSub;
+}
+
+function renderStudyLogSubjects(selectedSubjectId) {
+  let datalist = document.getElementById("subject-datalist");
+  if (!datalist) {
+    datalist = document.createElement("datalist");
+    datalist.id = "subject-datalist";
+    document.body.appendChild(datalist);
+  }
+  datalist.innerHTML = "";
   appData.subjects.forEach(function (subject) {
     const option = document.createElement("option");
-    option.value = subject.id;
-    option.textContent = subject.name;
-    studyLogSubject.appendChild(option);
+    option.value = subject.name;
+    datalist.appendChild(option);
   });
-  studyLogSubject.value = getSubjectById(selectedSubjectId) ? selectedSubjectId : appData.subjects[0].id;
+
+  const currentSub = getSubjectById(selectedSubjectId);
+  studyLogSubject.value = currentSub ? currentSub.name : (selectedSubjectId || "");
 }
 
 function openStudyLogModal(session = null, dateKey = appData.selectedTimelineDate || getTodayKey()) {
@@ -3974,7 +4216,7 @@ function formatInputTime(dateString) {
 }
 
 function getStudyLogPayload() {
-  const subject = getSubjectById(studyLogSubject.value);
+  const subject = findOrCreateSubject(studyLogSubject.value.trim() || "General Study");
   const dateKey = studyLogDate.value || getTodayKey();
   const startTime = studyLogStart.value;
   const endTime = studyLogEnd.value;
@@ -3982,8 +4224,6 @@ function getStudyLogPayload() {
   let startedAt = "";
   let endedAt = "";
   let durationSeconds = Math.round(durationMinutes * 60);
-
-  if (!subject) throw new Error("Choose a subject before saving a study log.");
 
   if (startTime && endTime) {
     const start = new Date(localDateTimeToUtcIso(dateKey, startTime));
@@ -4264,6 +4504,7 @@ async function finalizeFocusSession(shouldShowReview = true) {
     appData.sessions = appData.sessions.filter(function (session) { return session.id !== review.id; });
     appData.sessions.unshift(review);
     await completeActiveFocusSession(review);
+    if (typeof playCompletionChime === "function") playCompletionChime();
     if (shouldShowReview) {
       appData.pendingSessionReview = review;
       renderCompletionReview(review);
@@ -4508,14 +4749,16 @@ function saveIntention(event) {
   updateAllDisplays();
 }
 
-function createTask(text, date, subjectId, repeat) {
+function createTask(text, date, subjectId, repeat, priority = "normal", durationMinutes = 25) {
   return {
     id: createId(),
     text,
     completed: false,
-    date,
-    subjectId,
-    repeat,
+    date: date || getTodayKey(),
+    subjectId: subjectId || "",
+    repeat: repeat || "never",
+    priority: priority || "normal",
+    durationMinutes: Number(durationMinutes || 25),
     completedDates: []
   };
 }
@@ -4525,13 +4768,94 @@ function addTask(event) {
   const taskText = taskInput.value.trim();
   if (!taskText) return;
 
-  appData.tasks.push(createTask(taskText, taskDateInput.value, taskSubjectInput.value, taskRepeatInput.value));
+  const priority = taskPriorityInput ? taskPriorityInput.value : "normal";
+  const duration = taskDurationInput ? Number(taskDurationInput.value) || 25 : 25;
+
+  appData.tasks.push(createTask(taskText, taskDateInput.value, taskSubjectInput.value, taskRepeatInput.value, priority, duration));
   taskInput.value = "";
   taskDateInput.value = "";
   taskSubjectInput.value = "";
+  if (taskPriorityInput) taskPriorityInput.value = "normal";
+  if (taskDurationInput) taskDurationInput.value = "25";
   taskRepeatInput.value = "never";
   saveData();
   closeTaskModal();
+  renderTasks();
+  updateAllDisplays();
+}
+
+function startFocusOnTask(task) {
+  if (task.subjectId) {
+    appData.selectedSubjectId = task.subjectId;
+  }
+  appData.currentSessionDraft.goal = task.text;
+  if (sessionGoalInput) sessionGoalInput.value = task.text;
+  if (!appData.activeSession) {
+    const mins = Number(task.durationMinutes || 25);
+    if (mins === 25) {
+      const idx = timerModes.findIndex(function (m) { return m.id === "pomodoro"; });
+      if (idx >= 0) appData.timerModeIndex = idx;
+    } else if (mins === 50) {
+      const idx = timerModes.findIndex(function (m) { return m.id === "deep-focus"; });
+      if (idx >= 0) appData.timerModeIndex = idx;
+    } else if (mins === 90) {
+      const idx = timerModes.findIndex(function (m) { return m.id === "ultradian"; });
+      if (idx >= 0) appData.timerModeIndex = idx;
+    } else {
+      const idx = timerModes.findIndex(function (m) { return m.id === "custom"; });
+      if (idx >= 0) {
+        appData.timerModeIndex = idx;
+        appData.customFocusMinutes = mins;
+        appData.customBreakMinutes = Math.max(5, Math.round(mins / 5));
+      }
+    }
+  }
+
+  saveData();
+  showSection("focus-hub");
+  updateAllDisplays();
+
+  if (sessionStartButton && !appData.activeSession) {
+    sessionStartButton.scrollIntoView({ behavior: "smooth", block: "center" });
+    sessionStartButton.classList.add("focus-pulse-highlight");
+    setTimeout(function () {
+      sessionStartButton.classList.remove("focus-pulse-highlight");
+    }, 2200);
+  }
+}
+
+function renderTaskSubjectFilter() {
+  if (!taskSubjectFilter) return;
+  const currentVal = appData.selectedTaskSubjectFilter || "all";
+  taskSubjectFilter.innerHTML = '<option value="all">All Subjects</option>';
+  appData.subjects.forEach(function (sub) {
+    const opt = document.createElement("option");
+    opt.value = sub.id;
+    opt.textContent = sub.name;
+    opt.selected = sub.id === currentVal;
+    taskSubjectFilter.appendChild(opt);
+  });
+  taskSubjectFilter.value = currentVal;
+}
+
+function clearCompletedTasks() {
+  const completedCount = getCompletedTodayTasks().length;
+  if (completedCount === 0) return;
+  if (!window.confirm(`Clear ${completedCount} completed task(s)?`)) return;
+
+  const today = getTodayKey();
+  appData.tasks = appData.tasks.filter(function (task) {
+    if (task.repeat === "daily") {
+      if (Array.isArray(task.completedDates)) {
+        task.completedDates = task.completedDates.filter(function (d) { return d !== today; });
+        task.completed = false;
+      }
+      return true;
+    }
+    return !task.completed;
+  });
+
+  saveData();
   renderTasks();
   updateAllDisplays();
 }
@@ -4570,7 +4894,7 @@ function deleteTask(taskId) {
 }
 
 function renderTasks() {
-  const pendingTasks = getPendingTodayTasks();
+  const allPendingTasks = getPendingTodayTasks();
   const completedTasks = getCompletedTodayTasks();
 
   pendingTaskList.innerHTML = "";
@@ -4582,21 +4906,64 @@ function renderTasks() {
     day: "numeric",
     year: "numeric"
   });
-  planTaskSummary.textContent = pendingTasks.length === 0
+
+  // Calculate estimated workload
+  const totalEstMinutes = allPendingTasks.reduce(function (sum, task) {
+    return sum + Number(task.durationMinutes || 25);
+  }, 0);
+  if (planSummaryWorkload) {
+    planSummaryWorkload.textContent = formatShortTime(totalEstMinutes * 60);
+  }
+
+  // Filter badge counts
+  const highPriorityCount = allPendingTasks.filter(function (t) {
+    return t.priority === "high" || t.priority === "urgent";
+  }).length;
+  const todayOnlyCount = allPendingTasks.filter(function (t) {
+    return t.date === getTodayKey();
+  }).length;
+  if (filterCountAll) filterCountAll.textContent = allPendingTasks.length;
+  if (filterCountHigh) filterCountHigh.textContent = highPriorityCount;
+  if (filterCountToday) filterCountToday.textContent = todayOnlyCount;
+
+  renderTaskSubjectFilter();
+
+  // Active filter state
+  const activeFilter = appData.selectedTaskFilter || "all";
+  const activeSubject = appData.selectedTaskSubjectFilter || "all";
+
+  taskFilterChips.forEach(function (chip) {
+    chip.classList.toggle("active", chip.dataset.taskFilter === activeFilter);
+  });
+
+  let filteredPending = allPendingTasks.slice();
+  if (activeFilter === "high") {
+    filteredPending = filteredPending.filter(function (t) { return t.priority === "high" || t.priority === "urgent"; });
+  } else if (activeFilter === "today") {
+    filteredPending = filteredPending.filter(function (t) { return t.date === getTodayKey(); });
+  }
+
+  if (activeSubject !== "all") {
+    filteredPending = filteredPending.filter(function (t) { return t.subjectId === activeSubject; });
+  }
+
+  planTaskSummary.textContent = allPendingTasks.length === 0
     ? "Nothing planned yet."
-    : `${pendingTasks.length} still open today.`;
+    : `${allPendingTasks.length} open today (${formatShortTime(totalEstMinutes * 60)} est.)`;
   planSummaryPlanned.textContent = getTodayTasks().length;
   planSummaryDone.textContent = completedTasks.length;
   completedTaskSummary.textContent = `Completed (${completedTasks.length})`;
-  completedTaskDetails.open = false;
+  if (clearCompletedTasksButton) {
+    clearCompletedTasksButton.hidden = completedTasks.length === 0;
+  }
 
-  renderTaskGroup(pendingTaskList, pendingTasks);
+  renderTaskGroup(pendingTaskList, filteredPending);
   renderTaskGroup(completedTaskList, completedTasks);
 }
 
 function renderTaskGroup(listElement, tasks) {
   if (tasks.length === 0) {
-    appendSimpleItem(listElement, listElement === pendingTaskList ? "Add your first task to plan today." : "Completed tasks will appear here.");
+    appendSimpleItem(listElement, listElement === pendingTaskList ? "No tasks matching current filter." : "Completed tasks will appear here.");
     return;
   }
 
@@ -4604,17 +4971,41 @@ function renderTaskGroup(listElement, tasks) {
     const listItem = document.createElement("li");
     listItem.className = "task-row";
     if (task.completed) listItem.classList.add("completed");
+    if (task.priority === "urgent") listItem.classList.add("is-urgent");
+    if (task.priority === "high") listItem.classList.add("is-high");
     if (task.subjectId) listItem.style.borderLeft = `3px solid ${getSubjectColorValue(getSubjectById(task.subjectId) || "blue")}`;
 
     const checkbox = document.createElement("input");
     checkbox.className = "task-checkbox";
     checkbox.type = "checkbox";
     checkbox.checked = isTaskCompletedToday(task);
+    checkbox.setAttribute("aria-label", `Mark ${task.text} as complete`);
     checkbox.addEventListener("change", function () { toggleTask(task.id); });
+
+    const taskContent = document.createElement("span");
+    taskContent.className = "task-content";
+
+    const taskHeader = document.createElement("div");
+    taskHeader.className = "task-header-line";
 
     const taskText = document.createElement("span");
     taskText.className = "task-text";
     taskText.textContent = task.text;
+    taskHeader.appendChild(taskText);
+
+    if (task.priority && task.priority !== "normal") {
+      const priorityBadge = document.createElement("span");
+      priorityBadge.className = `task-priority-pill priority-${task.priority}`;
+      priorityBadge.textContent = task.priority === "urgent" ? "Urgent" : (task.priority === "high" ? "High" : "Low");
+      taskHeader.appendChild(priorityBadge);
+    }
+
+    if (task.durationMinutes) {
+      const durationBadge = document.createElement("span");
+      durationBadge.className = "task-duration-pill";
+      durationBadge.textContent = `${task.durationMinutes}m`;
+      taskHeader.appendChild(durationBadge);
+    }
 
     const taskMeta = document.createElement("small");
     taskMeta.className = "task-meta";
@@ -4622,7 +5013,23 @@ function renderTaskGroup(listElement, tasks) {
     if (task.date) metaParts.push(task.date);
     if (task.subjectId) metaParts.push(getSubjectName(task.subjectId));
     if (task.repeat === "daily") metaParts.push("Daily");
-    taskMeta.textContent = metaParts.join(" - ");
+    taskMeta.textContent = metaParts.join(" · ");
+
+    taskContent.appendChild(taskHeader);
+    if (taskMeta.textContent) taskContent.appendChild(taskMeta);
+
+    const actionsWrap = document.createElement("div");
+    actionsWrap.className = "task-row-actions";
+
+    if (listElement === pendingTaskList) {
+      const focusBtn = document.createElement("button");
+      focusBtn.type = "button";
+      focusBtn.className = "task-focus-button";
+      focusBtn.title = `Launch Focus Hub for ${task.text}`;
+      focusBtn.innerHTML = "<span>▶ Focus</span>";
+      focusBtn.addEventListener("click", function () { startFocusOnTask(task); });
+      actionsWrap.appendChild(focusBtn);
+    }
 
     const deleteButton = document.createElement("button");
     deleteButton.type = "button";
@@ -4631,14 +5038,11 @@ function renderTaskGroup(listElement, tasks) {
     deleteButton.title = "Delete task";
     deleteButton.setAttribute("aria-label", `Delete ${task.text}`);
     deleteButton.addEventListener("click", function () { deleteTask(task.id); });
+    actionsWrap.appendChild(deleteButton);
 
     listItem.appendChild(checkbox);
-    const taskContent = document.createElement("span");
-    taskContent.className = "task-content";
-    taskContent.appendChild(taskText);
-    if (taskMeta.textContent) taskContent.appendChild(taskMeta);
     listItem.appendChild(taskContent);
-    listItem.appendChild(deleteButton);
+    listItem.appendChild(actionsWrap);
     listElement.appendChild(listItem);
   });
 }
@@ -4708,22 +5112,38 @@ function renderCalendar() {
     calendarGrid.appendChild(spacer);
   }
 
+  const todayKey = getTodayKey();
+
   for (let day = 1; day <= daysInMonth; day += 1) {
     const dateKey = getDateKeyFromDate(new Date(appData.plannerYear, appData.plannerMonth, day));
     const button = document.createElement("button");
     button.type = "button";
     button.className = "calendar-day";
     button.classList.toggle("active", dateKey === appData.selectedPlannerDate);
-    button.classList.toggle("today", dateKey === getTodayKey());
-    button.textContent = day;
+    button.classList.toggle("today", dateKey === todayKey);
 
-    const itemsForDay = appData.plannerItems.filter(function (item) { return item.date === dateKey; });
+    const dayNumber = document.createElement("span");
+    dayNumber.className = "calendar-day-num";
+    dayNumber.textContent = day;
+    button.appendChild(dayNumber);
+
+    const tasksForDay = getTasksForDate(dateKey);
     const examsForDay = appData.exams.filter(function (exam) { return exam.date === dateKey; });
-    if (itemsForDay.length > 0 || examsForDay.length > 0) {
+    const sessionsForDay = getCompletedStudySessionsForDate(dateKey);
+    const legacyItems = appData.plannerItems.filter(function (item) { return item.date === dateKey; });
+
+    if (tasksForDay.length > 0 || examsForDay.length > 0 || sessionsForDay.length > 0 || legacyItems.length > 0) {
       const dots = document.createElement("span");
       dots.className = "calendar-dots";
-      if (itemsForDay.length > 0) dots.appendChild(createCalendarDot("Plan"));
-      if (examsForDay.length > 0) dots.appendChild(createCalendarDot("Exam"));
+      if (tasksForDay.length > 0 || legacyItems.length > 0) {
+        dots.appendChild(createCalendarDot("Tasks scheduled", "dot-task"));
+      }
+      if (examsForDay.length > 0) {
+        dots.appendChild(createCalendarDot("Exam scheduled", "dot-exam"));
+      }
+      if (sessionsForDay.length > 0) {
+        dots.appendChild(createCalendarDot("Study logged", "dot-session"));
+      }
       button.appendChild(dots);
     }
 
@@ -4737,9 +5157,9 @@ function renderCalendar() {
   }
 }
 
-function createCalendarDot(label) {
+function createCalendarDot(label, customClass) {
   const dot = document.createElement("span");
-  dot.className = "calendar-dot";
+  dot.className = `calendar-dot ${customClass || ""}`;
   dot.title = label;
   return dot;
 }
@@ -4759,75 +5179,122 @@ function formatPlannerType(type) {
 
 function addPlannerItem(event) {
   event.preventDefault();
-  const title = plannerTitleInput.value.trim();
+  const title = plannerTitleInput ? plannerTitleInput.value.trim() : "";
   if (!title) return;
 
-  appData.plannerItems.push({
-    id: createId(),
-    date: appData.selectedPlannerDate,
-    type: plannerTypeInput.value,
-    title
-  });
-
-  plannerTitleInput.value = "";
+  const newTask = createTask(title, appData.selectedPlannerDate, "", "never", "normal", 25);
+  appData.tasks.push(newTask);
+  if (plannerTitleInput) plannerTitleInput.value = "";
   saveData();
+  renderTasks();
   renderPlanner();
+  updateAllDisplays();
 }
 
 function renderPlannerItems() {
   const selectedDate = new Date(`${appData.selectedPlannerDate}T00:00:00`);
-  const itemsForDay = appData.plannerItems.filter(function (item) {
-    return item.date === appData.selectedPlannerDate;
-  });
-  const examsForDay = appData.exams.filter(function (exam) {
-    return exam.date === appData.selectedPlannerDate;
-  });
+  const tasksForDay = getTasksForDate(appData.selectedPlannerDate);
+  const examsForDay = appData.exams.filter(function (exam) { return exam.date === appData.selectedPlannerDate; });
+  const sessionsForDay = getCompletedStudySessionsForDate(appData.selectedPlannerDate);
+  const legacyItems = appData.plannerItems.filter(function (item) { return item.date === appData.selectedPlannerDate; });
 
   selectedDateLabel.textContent = selectedDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  plannerItems.innerHTML = "";
 
-  if (itemsForDay.length === 0 && examsForDay.length === 0) {
-    appendSimpleItem(plannerItems, "Nothing planned for this date yet.");
-    return;
+  const summaryEl = document.getElementById("selected-date-summary");
+  if (summaryEl) {
+    const parts = [];
+    parts.push(`${tasksForDay.length} ${tasksForDay.length === 1 ? "task" : "tasks"}`);
+    if (examsForDay.length > 0) parts.push(`${examsForDay.length} ${examsForDay.length === 1 ? "exam" : "exams"}`);
+    if (sessionsForDay.length > 0) parts.push(`${sessionsForDay.length} logged`);
+    summaryEl.textContent = parts.join(" · ");
   }
 
-  itemsForDay.forEach(function (item) {
-    const card = document.createElement("article");
-    card.className = "planner-item";
-    const title = document.createElement("strong");
-    const type = document.createElement("small");
-    const deleteButton = document.createElement("button");
+  plannerItems.innerHTML = "";
 
-    title.textContent = item.title;
-    type.textContent = formatPlannerType(item.type);
-    deleteButton.type = "button";
-    deleteButton.className = "delete-button";
-    deleteButton.textContent = "Delete";
-    deleteButton.addEventListener("click", function () { deletePlannerItem(item.id); });
+  // 1. Tasks section (Fully synced with Plan & checkboxes!)
+  const taskSection = document.createElement("div");
+  taskSection.className = "calendar-agenda-group";
+  const taskHeader = document.createElement("div");
+  taskHeader.className = "calendar-group-header";
+  taskHeader.innerHTML = `<h4>Tasks (${tasksForDay.length})</h4>`;
+  taskSection.appendChild(taskHeader);
 
-    card.appendChild(title);
-    card.appendChild(type);
-    card.appendChild(deleteButton);
-    plannerItems.appendChild(card);
-  });
+  if (tasksForDay.length === 0) {
+    const emptyTask = document.createElement("p");
+    emptyTask.className = "muted-text agenda-empty-text";
+    emptyTask.textContent = "No tasks scheduled for this day.";
+    taskSection.appendChild(emptyTask);
+  } else {
+    const taskList = document.createElement("ul");
+    taskList.className = "task-list shared-list";
+    renderTaskGroup(taskList, tasksForDay);
+    taskSection.appendChild(taskList);
+  }
+  plannerItems.appendChild(taskSection);
 
-  examsForDay.forEach(function (exam) {
-    const card = document.createElement("article");
-    card.className = "planner-item";
-    const title = document.createElement("strong");
-    const type = document.createElement("small");
-    const action = document.createElement("button");
-    title.textContent = exam.name;
-    type.textContent = `Exam - ${exam.type}`;
-    action.type = "button";
-    action.className = "text-button";
-    action.textContent = "Open Exam";
-    action.addEventListener("click", function () { openExamWorkspace(exam.id); });
-    card.appendChild(title);
-    card.appendChild(type);
-    card.appendChild(action);
-    plannerItems.appendChild(card);
-  });
+  // 2. Exams section if any
+  if (examsForDay.length > 0) {
+    const examSection = document.createElement("div");
+    examSection.className = "calendar-agenda-group";
+    examSection.innerHTML = `<div class="calendar-group-header"><h4>Exams (${examsForDay.length})</h4></div>`;
+    const examList = document.createElement("div");
+    examList.className = "calendar-agenda-sublist";
+    examsForDay.forEach(function (exam) {
+      const card = document.createElement("article");
+      card.className = "planner-item exam-item";
+      card.innerHTML = `<strong>${exam.name}</strong><small>${exam.category || "Target Exam"}</small>`;
+      const action = document.createElement("button");
+      action.type = "button";
+      action.className = "text-button";
+      action.textContent = "Open Exam";
+      action.addEventListener("click", function () { openExamWorkspace(exam.id); });
+      card.appendChild(action);
+      examList.appendChild(card);
+    });
+    examSection.appendChild(examList);
+    plannerItems.appendChild(examSection);
+  }
+
+  // 3. Study Sessions section if any
+  if (sessionsForDay.length > 0) {
+    const sessionSection = document.createElement("div");
+    sessionSection.className = "calendar-agenda-group";
+    sessionSection.innerHTML = `<div class="calendar-group-header"><h4>Study Sessions Logged (${sessionsForDay.length})</h4></div>`;
+    const sessionList = document.createElement("div");
+    sessionList.className = "calendar-agenda-sublist";
+    sessionsForDay.forEach(function (session) {
+      const card = document.createElement("article");
+      card.className = "planner-item session-log-item";
+      card.innerHTML = `<strong>${session.subjectName || getSubjectName(session.subjectId)}</strong><small>${formatShortTime(session.durationSeconds)} · ${session.mode || "Timer"}</small>`;
+      sessionList.appendChild(card);
+    });
+    sessionSection.appendChild(sessionList);
+    plannerItems.appendChild(sessionSection);
+  }
+
+  // 4. Legacy planner items if any
+  if (legacyItems.length > 0) {
+    const legacySection = document.createElement("div");
+    legacySection.className = "calendar-agenda-group";
+    legacySection.innerHTML = `<div class="calendar-group-header"><h4>Reminders &amp; Notes (${legacyItems.length})</h4></div>`;
+    const legList = document.createElement("div");
+    legList.className = "calendar-agenda-sublist";
+    legacyItems.forEach(function (item) {
+      const card = document.createElement("article");
+      card.className = "planner-item";
+      card.innerHTML = `<strong>${item.title}</strong><small>${formatPlannerType(item.type)}</small>`;
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "delete-button";
+      delBtn.textContent = "×";
+      delBtn.title = "Delete";
+      delBtn.addEventListener("click", function () { deletePlannerItem(item.id); });
+      card.appendChild(delBtn);
+      legList.appendChild(card);
+    });
+    legacySection.appendChild(legList);
+    plannerItems.appendChild(legacySection);
+  }
 }
 
 function deletePlannerItem(itemId) {
@@ -5561,12 +6028,25 @@ function renderThemes() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "theme-option";
-    button.innerHTML = `<span class="theme-swatch" style="--swatch-primary:${theme.accent};--swatch-accent:${theme.secondaryAccent}"></span><strong>${theme.name}</strong>`;
+    button.innerHTML = `
+      <div class="theme-option-header">
+        <span class="theme-radio-dot"></span>
+        <strong>${theme.name}</strong>
+      </div>
+      <span class="theme-option-desc">${theme.desc || ""}</span>
+      <div class="theme-preview-pill">
+        <span class="theme-preview-chip primary" style="background:${theme.accent}"></span>
+        <span class="theme-preview-chip secondary" style="background:${theme.secondaryAccent}"></span>
+      </div>
+    `;
     button.classList.toggle("active", appData.theme === theme.id);
     button.addEventListener("click", function () {
       appData.theme = theme.id;
       studyMateUser.preferredTheme = theme.id;
-      appData.accentColor = theme.accent;
+      try {
+        localStorage.setItem("studymate-theme", theme.id);
+      } catch (e) {}
+      appData.accentColor = null;
       applyAppearance();
       saveData();
       studyMateApi("profile", {
@@ -5591,7 +6071,7 @@ function openProfileModal() {
   profileTimezoneInput.value = studyMateUser.timezone || "Asia/Kolkata";
   if (profileStudyDayStartInput) profileStudyDayStartInput.value = studyMateUser.studyDayStartTime || "00:00";
   profileAvatarStyleInput.value = studyMateUser.avatarStyle || "initials";
-  profileAvatarColorInput.value = studyMateUser.avatarColor || "violet";
+  profileAvatarColorInput.value = studyMateUser.avatarColor || "teal";
   renderAvatarChoices();
   renderProfile();
   profileModal.hidden = false;
@@ -5626,13 +6106,21 @@ function getCurrentTheme() {
 }
 
 function applyAppearance() {
+  if (appData.theme !== "light" && appData.theme !== "dark") {
+    appData.theme = (studyMateUser.preferredTheme === "light" ? "light" : "dark");
+  }
   const theme = getCurrentTheme();
-  const accent = appData.accentColor || theme.accent;
   document.body.dataset.theme = appData.theme;
-  document.documentElement.style.setProperty("--primary", accent);
-  document.documentElement.style.setProperty("--primary-dark", accent);
-  document.documentElement.style.setProperty("--accent", theme.secondaryAccent);
-  accentInput.value = accent;
+  document.documentElement.setAttribute("data-theme", appData.theme);
+  try {
+    localStorage.setItem("studymate-theme", appData.theme);
+  } catch (e) {}
+  document.documentElement.style.removeProperty("--primary");
+  document.documentElement.style.removeProperty("--primary-dark");
+  document.documentElement.style.removeProperty("--accent");
+  if (accentInput) {
+    accentInput.value = theme.accent;
+  }
 }
 
 function saveAccentColor() {
@@ -5852,6 +6340,7 @@ async function openGroupWorkspace(circleId) {
   } catch (error) {
     console.warn(error.message);
   }
+  updateLibraryGroupTitle();
   renderStudyCircles();
 }
 
@@ -6810,11 +7299,6 @@ function formatActivityTime(dateString) {
   return formatClockTime(dateString);
 }
 
-function getInitials(text) {
-  const words = String(text || "Study Group").trim().split(/\s+/).slice(0, 2);
-  return words.map(function (word) { return word[0]; }).join("").toUpperCase() || "SG";
-}
-
 function generateInviteCode() {
   return `SM-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
@@ -6907,15 +7391,192 @@ intentionInput.addEventListener("input", function () {
   intentionCount.textContent = `${intentionInput.value.length}/180`;
 });
 taskForm.addEventListener("submit", addTask);
+if (inlineTaskForm && inlineTaskInput) {
+  inlineTaskForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const taskText = inlineTaskInput.value.trim();
+    if (!taskText) return;
+    const priority = inlineTaskPriority ? inlineTaskPriority.value : "normal";
+    const duration = inlineTaskDuration ? Number(inlineTaskDuration.value) || 25 : 25;
+    appData.tasks.push(createTask(taskText, getTodayKey(), "", "never", priority, duration));
+    inlineTaskInput.value = "";
+    saveData();
+    renderTasks();
+    updateAllDisplays();
+  });
+}
 goalForm.addEventListener("submit", saveGoal);
-goalDecreaseButton.addEventListener("click", function () { changeGoalBy(-0.25); });
-goalIncreaseButton.addEventListener("click", function () { changeGoalBy(0.25); });
+goalDecreaseButton.addEventListener("click", function () { changeGoalBy(-0.5); });
+goalIncreaseButton.addEventListener("click", function () { changeGoalBy(0.5); });
+
+if (clearCompletedTasksButton) {
+  clearCompletedTasksButton.addEventListener("click", clearCompletedTasks);
+}
+
+taskFilterChips.forEach(function (chip) {
+  chip.addEventListener("click", function () {
+    appData.selectedTaskFilter = chip.dataset.taskFilter || "all";
+    saveData();
+    renderTasks();
+  });
+});
+
+if (taskSubjectFilter) {
+  taskSubjectFilter.addEventListener("change", function () {
+    appData.selectedTaskSubjectFilter = taskSubjectFilter.value;
+    saveData();
+    renderTasks();
+  });
+}
+
+if (timerPresetsBar) {
+  timerPresetsBar.querySelectorAll(".preset-chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      if (appData.activeSession) return;
+      const preset = chip.dataset.preset;
+      const targetIdx = timerModes.findIndex(function (m) { return m.id === preset; });
+      if (targetIdx >= 0) {
+        appData.timerModeIndex = targetIdx;
+      }
+      saveData();
+      updateSessionPage();
+    });
+  });
+}
+
+if (chimeToggleBtn) {
+  chimeToggleBtn.addEventListener("click", function () {
+    appData.chimeEnabled = appData.chimeEnabled === false;
+    saveData();
+    updateSessionPage();
+    if (appData.chimeEnabled && typeof playCompletionChime === "function") {
+      playCompletionChime();
+    }
+  });
+}
+
+if (taskHudCheckbox) {
+  taskHudCheckbox.addEventListener("change", function () {
+    if (!appData.activeSession) return;
+    const isChecked = taskHudCheckbox.checked;
+    appData.activeSession.isTaskCompleted = isChecked;
+    const currentGoal = appData.activeSession.goal || "";
+    let matchingTask = appData.tasks.find(function (t) {
+      return (appData.activeSession.taskId && t.id === appData.activeSession.taskId)
+        || (t.text && t.text.toLowerCase().trim() === currentGoal.toLowerCase().trim());
+    });
+    if (matchingTask) {
+      if (matchingTask.repeat === "daily") {
+        const today = getTodayKey();
+        matchingTask.completedDates = Array.isArray(matchingTask.completedDates) ? matchingTask.completedDates : [];
+        if (isChecked && !matchingTask.completedDates.includes(today)) matchingTask.completedDates.push(today);
+        if (!isChecked) matchingTask.completedDates = matchingTask.completedDates.filter(function (d) { return d !== today; });
+        matchingTask.completed = matchingTask.completedDates.includes(today);
+      } else {
+        matchingTask.completed = isChecked;
+      }
+    } else if (isChecked && currentGoal) {
+      const newTask = createTask(currentGoal, getTodayKey(), appData.activeSession.subjectId || "", "never");
+      newTask.completed = true;
+      appData.tasks.push(newTask);
+      appData.activeSession.taskId = newTask.id;
+    }
+    saveData();
+    renderTasks();
+    updateSessionPage();
+  });
+}
+
+if (taskHudNote) {
+  let noteTimeout = null;
+  taskHudNote.addEventListener("input", function () {
+    if (!appData.activeSession) return;
+    appData.activeSession.sessionNotes = taskHudNote.value;
+    clearTimeout(noteTimeout);
+    noteTimeout = setTimeout(function () {
+      saveData();
+      if (taskHudNoteFeedback) {
+        taskHudNoteFeedback.hidden = false;
+        setTimeout(function () { taskHudNoteFeedback.hidden = true; }, 1600);
+      }
+    }, 400);
+  });
+}
+
+document.addEventListener("keydown", function (event) {
+  const activeEl = document.activeElement;
+  const isInputActive = activeEl && (
+    activeEl.tagName === "INPUT" ||
+    activeEl.tagName === "TEXTAREA" ||
+    activeEl.tagName === "SELECT" ||
+    activeEl.isContentEditable
+  );
+
+  if (event.key === "Escape") {
+    if (taskModal && !taskModal.hidden) closeTaskModal();
+    if (subjectModal && !subjectModal.hidden) closeSubjectModal();
+    if (focusDistractionModal && !focusDistractionModal.hidden) closeFocusDistractionModal();
+    return;
+  }
+
+  if (isInputActive) return;
+
+  if (event.code === "Space") {
+    const focusSection = document.getElementById("focus-hub");
+    if (focusSection && focusSection.classList.contains("active")) {
+      event.preventDefault();
+      if (appData.activeSession) {
+        toggleSessionPause();
+      } else if (!appData.pendingSessionReview) {
+        startSession();
+      }
+    }
+  } else if (event.key === "d" || event.key === "D") {
+    if (appData.activeSession) {
+      event.preventDefault();
+      openFocusDistractionModal();
+    }
+  }
+});
 openTaskModalButton.addEventListener("click", openTaskModal);
 closeTaskModalButton.addEventListener("click", closeTaskModal);
 taskModal.addEventListener("click", handleTaskModalBackdrop);
 plannerPrev.addEventListener("click", function () { changePlannerMonth(-1); });
 plannerNext.addEventListener("click", function () { changePlannerMonth(1); });
 plannerForm.addEventListener("submit", addPlannerItem);
+
+const calendarQuickTaskForm = document.getElementById("calendar-quick-task-form");
+if (calendarQuickTaskForm) {
+  calendarQuickTaskForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const input = document.getElementById("calendar-quick-task-input");
+    const priInput = document.getElementById("calendar-quick-task-priority");
+    if (!input) return;
+    const title = input.value.trim();
+    if (!title) return;
+    const priority = priInput ? priInput.value : "normal";
+    const targetDate = appData.selectedPlannerDate || getTodayKey();
+    const newTask = createTask(title, targetDate, "", "never", priority, 25);
+    appData.tasks.push(newTask);
+    input.value = "";
+    saveData();
+    renderTasks();
+    renderPlanner();
+    updateAllDisplays();
+  });
+}
+
+const calendarJumpToday = document.getElementById("calendar-jump-today");
+if (calendarJumpToday) {
+  calendarJumpToday.addEventListener("click", function () {
+    const today = new Date();
+    appData.plannerYear = today.getFullYear();
+    appData.plannerMonth = today.getMonth();
+    appData.selectedPlannerDate = getTodayKey();
+    saveData();
+    renderPlanner();
+  });
+}
 openExamModalButton.addEventListener("click", function () { openExamModal(); });
 closeExamModalButton.addEventListener("click", closeExamModal);
 examBackToPresets.addEventListener("click", showExamPresetStep);
@@ -6973,7 +7634,7 @@ onboardingProfileForm.addEventListener("submit", async function (event) {
     timezone: onboardingTimezone.value.trim() || "Asia/Kolkata",
     bio: onboardingBio.value.trim(),
     avatarStyle: onboardingAvatarStyle.value,
-    avatarColor: onboardingAvatarColor.value || studyMateUser.avatarColor || "violet",
+    avatarColor: onboardingAvatarColor.value || studyMateUser.avatarColor || "teal",
     onboardingCompleted: true
   });
   onboardingModal.hidden = true;
@@ -7114,6 +7775,1924 @@ if (settingsTabs) {
   });
 }
 
+// --- Focus: Ambient Sound Engine ---
+let ambientAudioCtx = null;
+let ambientSourceNode = null;
+let ambientGainNode = null;
+let ambientIsPlaying = false;
+let ambientIntervals = [];
+
+function clearAmbientIntervals() {
+  ambientIntervals.forEach(function (id) { clearInterval(id); });
+  ambientIntervals = [];
+}
+
+function playCompletionChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = ambientAudioCtx || new AudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+
+    // Sweet, soft 3-note ascending chime: C5 (523Hz), E5 (659Hz), G5 (784Hz)
+    const notes = [523.25, 659.25, 783.99];
+    notes.forEach(function (freq, index) {
+      const startTime = ctx.currentTime + index * 0.16;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, startTime);
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.18, startTime + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.85);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(startTime);
+      osc.stop(startTime + 0.9);
+    });
+  } catch (err) {
+    console.warn("Chime error:", err);
+  }
+}
+
+function initAmbientSoundEngine() {
+  const toggleBtn = document.getElementById("ambient-toggle-btn");
+  const soundSelect = document.getElementById("ambient-sound-select");
+  const volumeSlider = document.getElementById("ambient-volume");
+  const btnIcon = document.getElementById("ambient-btn-icon");
+  const btnLabel = document.getElementById("ambient-btn-label");
+
+  if (!toggleBtn || !soundSelect) return;
+
+  function getAudioContext() {
+    if (!ambientAudioCtx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) ambientAudioCtx = new AudioCtx();
+    }
+    if (ambientAudioCtx && ambientAudioCtx.state === "suspended") {
+      ambientAudioCtx.resume();
+    }
+    return ambientAudioCtx;
+  }
+
+  function stopAmbientSound() {
+    clearAmbientIntervals();
+    if (ambientSourceNode) {
+      try {
+        if (typeof ambientSourceNode.stop === "function") ambientSourceNode.stop();
+        if (typeof ambientSourceNode.disconnect === "function") ambientSourceNode.disconnect();
+      } catch (e) {}
+      ambientSourceNode = null;
+    }
+    ambientIsPlaying = false;
+    if (btnIcon) btnIcon.textContent = "▶";
+    if (btnLabel) btnLabel.textContent = "Ambient";
+    toggleBtn.classList.remove("playing");
+  }
+
+  function createBrownNoiseBuffer(ctx, durationSeconds) {
+    const bufferSize = ctx.sampleRate * durationSeconds;
+    const buffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
+    for (let channel = 0; channel < 2; channel++) {
+      const data = buffer.getChannelData(channel);
+      let lastOut = 0.0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = Math.random() * 2 - 1;
+        lastOut = (lastOut + (0.02 * white)) / 1.02;
+        data[i] = lastOut * 3.5;
+      }
+    }
+    return buffer;
+  }
+
+  function startAmbientSound() {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    stopAmbientSound();
+
+    let currentSound = soundSelect.value || "rain";
+    if (currentSound === "cafe") currentSound = "chords";
+    if (currentSound === "white") currentSound = "brown";
+
+    const vol = volumeSlider ? Number(volumeSlider.value) : 0.3;
+    ambientGainNode = ctx.createGain();
+    ambientGainNode.gain.setValueAtTime(vol, ctx.currentTime);
+    ambientGainNode.connect(ctx.destination);
+
+    if (currentSound === "chords") {
+      // Warm, lush polyphonic Lo-Fi study chords pad
+      const chords = [
+        [130.81, 196.00, 246.94, 329.63], // Cmaj7
+        [110.00, 164.81, 220.00, 261.63], // Am7
+        [87.31, 130.81, 174.61, 220.00],  // Fmaj7
+        [98.00, 146.83, 196.00, 246.94]   // G6
+      ];
+      let chordIndex = 0;
+      const activeVoices = [];
+
+      function playNextChord() {
+        const chordNotes = chords[chordIndex % chords.length];
+        chordIndex++;
+        const chordGain = ctx.createGain();
+        chordGain.gain.setValueAtTime(0, ctx.currentTime);
+        chordGain.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 1.6);
+        chordGain.gain.setValueAtTime(0.28, ctx.currentTime + 4.2);
+        chordGain.gain.linearRampToValueAtTime(0.001, ctx.currentTime + 6.0);
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(460, ctx.currentTime);
+
+        const oscs = chordNotes.map(function (freq, i) {
+          const osc = ctx.createOscillator();
+          osc.type = i === 0 ? "sine" : "triangle";
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          osc.detune.setValueAtTime((Math.random() - 0.5) * 8, ctx.currentTime);
+          osc.connect(filter);
+          osc.start();
+          return osc;
+        });
+
+        filter.connect(chordGain);
+        chordGain.connect(ambientGainNode);
+
+        const voiceObj = { oscs: oscs, gain: chordGain, filter: filter };
+        activeVoices.push(voiceObj);
+
+        setTimeout(function () {
+          oscs.forEach(function (o) { try { o.stop(); o.disconnect(); } catch (e) {} });
+          try { chordGain.disconnect(); filter.disconnect(); } catch (e) {}
+          const idx = activeVoices.indexOf(voiceObj);
+          if (idx !== -1) activeVoices.splice(idx, 1);
+        }, 6200);
+      }
+
+      playNextChord();
+      const chordInterval = setInterval(playNextChord, 5200);
+      ambientIntervals.push(chordInterval);
+
+      ambientSourceNode = {
+        stop: function () {
+          activeVoices.forEach(function (v) {
+            v.oscs.forEach(function (o) { try { o.stop(); o.disconnect(); } catch (e) {} });
+            try { v.gain.disconnect(); } catch (e) {}
+          });
+        },
+        disconnect: function () {
+          try { ambientGainNode.disconnect(); } catch (e) {}
+        }
+      };
+
+    } else if (currentSound === "binaural") {
+      // 432Hz Calm Alpha Wave (432Hz + 442Hz = 10Hz Alpha beat) + 216Hz warm drone
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const sub = ctx.createOscillator();
+      const merger = ctx.createChannelMerger(2);
+
+      osc1.frequency.setValueAtTime(432, ctx.currentTime);
+      osc2.frequency.setValueAtTime(442, ctx.currentTime);
+      sub.frequency.setValueAtTime(216, ctx.currentTime);
+
+      osc1.type = "sine";
+      osc2.type = "sine";
+      sub.type = "sine";
+
+      const subGain = ctx.createGain();
+      subGain.gain.setValueAtTime(0.35, ctx.currentTime);
+      sub.connect(subGain);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(520, ctx.currentTime);
+
+      osc1.connect(merger, 0, 0);
+      osc2.connect(merger, 0, 1);
+      subGain.connect(merger, 0, 0);
+      subGain.connect(merger, 0, 1);
+
+      merger.connect(filter);
+      filter.connect(ambientGainNode);
+
+      osc1.start();
+      osc2.start();
+      sub.start();
+
+      ambientSourceNode = {
+        stop: function () {
+          try { osc1.stop(); osc2.stop(); sub.stop(); } catch (e) {}
+        },
+        disconnect: function () {
+          try { osc1.disconnect(); osc2.disconnect(); sub.disconnect(); merger.disconnect(); } catch (e) {}
+        }
+      };
+
+    } else if (currentSound === "rain") {
+      // Soft window rain: smooth continuous brown noise + gentle organic droplet impulses
+      const rainBuffer = createBrownNoiseBuffer(ctx, 6);
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = rainBuffer;
+      noiseSource.loop = true;
+
+      const hpFilter = ctx.createBiquadFilter();
+      hpFilter.type = "highpass";
+      hpFilter.frequency.setValueAtTime(160, ctx.currentTime);
+
+      const lpFilter = ctx.createBiquadFilter();
+      lpFilter.type = "lowpass";
+      lpFilter.frequency.setValueAtTime(920, ctx.currentTime);
+
+      noiseSource.connect(hpFilter);
+      hpFilter.connect(lpFilter);
+      lpFilter.connect(ambientGainNode);
+      noiseSource.start();
+
+      // Soft raindrop taps
+      const dropInterval = setInterval(function () {
+        if (!ambientIsPlaying) return;
+        const dropFreq = 750 + Math.random() * 600;
+        const dropOsc = ctx.createOscillator();
+        const dropGain = ctx.createGain();
+        dropOsc.type = "sine";
+        dropOsc.frequency.setValueAtTime(dropFreq, ctx.currentTime);
+        dropGain.gain.setValueAtTime(0.04, ctx.currentTime);
+        dropGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.035);
+        dropOsc.connect(dropGain);
+        dropGain.connect(ambientGainNode);
+        dropOsc.start();
+        dropOsc.stop(ctx.currentTime + 0.04);
+      }, 160);
+      ambientIntervals.push(dropInterval);
+
+      ambientSourceNode = {
+        stop: function () { try { noiseSource.stop(); } catch (e) {} },
+        disconnect: function () { try { noiseSource.disconnect(); hpFilter.disconnect(); lpFilter.disconnect(); } catch (e) {} }
+      };
+
+    } else if (currentSound === "waves") {
+      // Gentle ocean waves: brown noise swept by slow 0.08Hz tide LFO
+      const waveBuffer = createBrownNoiseBuffer(ctx, 8);
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = waveBuffer;
+      noiseSource.loop = true;
+
+      const waveFilter = ctx.createBiquadFilter();
+      waveFilter.type = "lowpass";
+      waveFilter.frequency.setValueAtTime(350, ctx.currentTime);
+
+      const waveGain = ctx.createGain();
+      waveGain.gain.setValueAtTime(0.5, ctx.currentTime);
+
+      const lfo = ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.08, ctx.currentTime); // ~12.5s cycle
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.setValueAtTime(260, ctx.currentTime);
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(waveFilter.frequency);
+
+      noiseSource.connect(waveFilter);
+      waveFilter.connect(waveGain);
+      waveGain.connect(ambientGainNode);
+
+      lfo.start();
+      noiseSource.start();
+
+      ambientSourceNode = {
+        stop: function () { try { noiseSource.stop(); lfo.stop(); } catch (e) {} },
+        disconnect: function () { try { noiseSource.disconnect(); lfo.disconnect(); waveFilter.disconnect(); waveGain.disconnect(); } catch (e) {} }
+      };
+
+    } else if (currentSound === "forest") {
+      // Forest breeze + soft pentatonic wind bells
+      const breezeBuffer = createBrownNoiseBuffer(ctx, 6);
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = breezeBuffer;
+      noiseSource.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.frequency.setValueAtTime(580, ctx.currentTime);
+      filter.Q.setValueAtTime(0.9, ctx.currentTime);
+
+      noiseSource.connect(filter);
+      filter.connect(ambientGainNode);
+      noiseSource.start();
+
+      // Soft wind chime tones
+      const bells = [659.25, 783.99, 880.00, 987.77, 1174.66, 1318.51];
+      const bellInterval = setInterval(function () {
+        if (!ambientIsPlaying) return;
+        if (Math.random() < 0.45) return;
+        const bellFreq = bells[Math.floor(Math.random() * bells.length)];
+        const bellOsc = ctx.createOscillator();
+        const bGain = ctx.createGain();
+        bellOsc.type = "sine";
+        bellOsc.frequency.setValueAtTime(bellFreq, ctx.currentTime);
+        bGain.gain.setValueAtTime(0.04, ctx.currentTime);
+        bGain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.4);
+        bellOsc.connect(bGain);
+        bGain.connect(ambientGainNode);
+        bellOsc.start();
+        bellOsc.stop(ctx.currentTime + 1.45);
+      }, 2600);
+      ambientIntervals.push(bellInterval);
+
+      ambientSourceNode = {
+        stop: function () { try { noiseSource.stop(); } catch (e) {} },
+        disconnect: function () { try { noiseSource.disconnect(); filter.disconnect(); } catch (e) {} }
+      };
+
+    } else {
+      // "brown": Deep focus Brown noise for deep work
+      const brownBuffer = createBrownNoiseBuffer(ctx, 6);
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = brownBuffer;
+      noiseSource.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(480, ctx.currentTime);
+
+      noiseSource.connect(filter);
+      filter.connect(ambientGainNode);
+      noiseSource.start();
+
+      ambientSourceNode = {
+        stop: function () { try { noiseSource.stop(); } catch (e) {} },
+        disconnect: function () { try { noiseSource.disconnect(); filter.disconnect(); } catch (e) {} }
+      };
+    }
+
+    ambientIsPlaying = true;
+    if (btnIcon) btnIcon.textContent = "⏸";
+    if (btnLabel) btnLabel.textContent = "Playing";
+    toggleBtn.classList.add("playing");
+  }
+
+  toggleBtn.addEventListener("click", function () {
+    if (ambientIsPlaying) {
+      stopAmbientSound();
+    } else {
+      startAmbientSound();
+    }
+  });
+
+  soundSelect.addEventListener("change", function () {
+    if (ambientIsPlaying) {
+      startAmbientSound();
+    }
+  });
+
+  if (volumeSlider) {
+    volumeSlider.addEventListener("input", function () {
+      if (ambientGainNode && ambientAudioCtx) {
+        ambientGainNode.gain.setValueAtTime(Number(volumeSlider.value), ambientAudioCtx.currentTime);
+      }
+    });
+  }
+}
+
+// ==========================================================================
+// COZY VIRTUAL LIBRARY & REAL-TIME VC LOUNGE CLIENT ENGINE
+// ==========================================================================
+
+let libraryWs = null;
+let libraryPeerId = null;
+let libraryRoomState = null;
+let libraryAmbientAudioCtx = null;
+let libraryAmbientGainNode = null;
+let libraryAmbientSource = null;
+let libraryAmbientPlaying = false;
+let localMediaStream = null;
+let localAudioAnalyser = null;
+let localAudioInterval = null;
+let isScreenSharing = false;
+let screenMediaStream = null;
+let quietStudyModeActive = false;
+let isCallJoined = false;
+const peerConnections = new Map();
+
+const rtcConfig = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" }
+  ]
+};
+
+function connectLibraryWs() {
+  if (libraryWs && (libraryWs.readyState === WebSocket.OPEN || libraryWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${wsProtocol}//${window.location.host}/ws/library`;
+
+  try {
+    libraryWs = new WebSocket(wsUrl);
+
+    libraryWs.addEventListener("open", function () {
+      const user = window.STUDYMATE_USER || { id: 1, displayName: "Mahenoor" };
+      libraryWs.send(JSON.stringify({
+        type: "join:library",
+        user: {
+          id: user.id,
+          displayName: user.displayName || user.username || "Mahenoor",
+          avatarStyle: user.avatarStyle || "initials",
+          avatarColor: user.avatarColor || "teal",
+          avatarUrl: user.avatarUrl || null
+        }
+      }));
+    });
+
+    libraryWs.addEventListener("message", function (event) {
+      try {
+        const data = JSON.parse(event.data);
+        handleLibraryWsMessage(data);
+      } catch (err) {
+        console.warn("Error parsing library WS message:", err);
+      }
+    });
+
+    libraryWs.addEventListener("close", function () {
+      setTimeout(function () {
+        const cozySection = document.getElementById("cozy-library");
+        if (cozySection && cozySection.classList.contains("active")) {
+          connectLibraryWs();
+        }
+      }, 3000);
+    });
+  } catch (e) {
+    console.warn("WebSocket connection failure:", e);
+  }
+}
+
+function handleLibraryWsMessage(data) {
+  if (!data) return;
+
+  switch (data.type) {
+    case "init:room_state": {
+      libraryPeerId = data.peerId;
+      libraryRoomState = data.room;
+      renderAllLibraryComponents();
+      break;
+    }
+
+    case "desk:updated": {
+      if (libraryRoomState && Array.isArray(libraryRoomState.desks)) {
+        const idx = libraryRoomState.desks.findIndex(function (d) { return d.id === data.deskId; });
+        if (idx >= 0) {
+          libraryRoomState.desks[idx] = data.desk;
+        }
+        renderLibraryDesks();
+      }
+      break;
+    }
+
+    case "desk:cheer_received": {
+      triggerFloatingCheer(data.targetDeskId, data.reaction, data.fromName);
+      break;
+    }
+
+    case "timer:updated":
+    case "timer:cycle_switched": {
+      if (libraryRoomState) {
+        libraryRoomState.syncTimer = data.syncTimer;
+        renderLibraryTimer();
+
+        // Handle Quiet Study Mode auto-mute on cycle switch
+        if (quietStudyModeActive && isCallJoined && localMediaStream) {
+          const isFocus = data.syncTimer.mode === "focus";
+          const audioTrack = localMediaStream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = !isFocus;
+            updateMicUI(!isFocus);
+            if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+              libraryWs.send(JSON.stringify({
+                type: "vc:media_state",
+                hasAudio: !isFocus
+              }));
+            }
+          }
+        }
+      }
+      break;
+    }
+
+    case "room:atmosphere_changed": {
+      if (libraryRoomState) {
+        libraryRoomState.atmosphere = data.atmosphere;
+        renderAtmosphere(data.atmosphere);
+      }
+      break;
+    }
+
+    case "chat:new_message": {
+      if (libraryRoomState) {
+        if (!Array.isArray(libraryRoomState.messages)) libraryRoomState.messages = [];
+        libraryRoomState.messages.push(data.message);
+        appendChatMessage(data.message);
+      }
+      break;
+    }
+
+    case "sticky:added": {
+      if (libraryRoomState) {
+        if (!Array.isArray(libraryRoomState.stickyNotes)) libraryRoomState.stickyNotes = [];
+        libraryRoomState.stickyNotes.unshift(data.note);
+        renderStickyNotes();
+      }
+      break;
+    }
+
+    case "sticky:deleted": {
+      if (libraryRoomState && Array.isArray(libraryRoomState.stickyNotes)) {
+        libraryRoomState.stickyNotes = libraryRoomState.stickyNotes.filter(function (n) { return n.id !== data.noteId; });
+        renderStickyNotes();
+      }
+      break;
+    }
+
+    // --- WebRTC Call Signaling ---
+    case "vc:existing_peers": {
+      if (isCallJoined && Array.isArray(data.peers)) {
+        data.peers.forEach(function (peer) {
+          if (peer.peerId !== libraryPeerId) {
+            createPeerConnection(peer.peerId, true);
+          }
+        });
+        updateVCParticipantCount(data.peers.length + 1);
+      }
+      break;
+    }
+
+    case "vc:participant_joined": {
+      if (isCallJoined && data.participant && data.participant.peerId !== libraryPeerId) {
+        createPeerConnection(data.participant.peerId, false);
+      }
+      break;
+    }
+
+    case "vc:participant_left": {
+      closePeerConnection(data.peerId);
+      break;
+    }
+
+    case "vc:media_state_changed": {
+      updateRemotePeerState(data.peerId, data.participant);
+      break;
+    }
+
+    case "signal:offer": {
+      handleRemoteOffer(data.fromPeerId, data.offer);
+      break;
+    }
+
+    case "signal:answer": {
+      handleRemoteAnswer(data.fromPeerId, data.answer);
+      break;
+    }
+
+    case "signal:ice_candidate": {
+      handleRemoteIceCandidate(data.fromPeerId, data.candidate);
+      break;
+    }
+  }
+}
+
+function updateLibraryGroupTitle() {
+  const titleEl = document.getElementById("library-group-title");
+  if (!titleEl) return;
+  const activeGroup = (appData.studyCircles && appData.studyCircles.find(function(c) { return c.id === appData.selectedCircleId; })) || (appData.studyCircles && appData.studyCircles[0]);
+  const groupName = activeGroup ? activeGroup.name : "Deep Work Club";
+  titleEl.textContent = `${groupName} — Library`;
+}
+
+function renderAllLibraryComponents() {
+  if (!libraryRoomState) return;
+  updateLibraryGroupTitle();
+  renderLibraryDesks();
+  renderLibraryTimer();
+  renderAtmosphere(libraryRoomState.atmosphere || "rainy");
+  renderAllChatMessages();
+  renderStickyNotes();
+  if (Array.isArray(libraryRoomState.vcParticipants)) {
+    updateVCParticipantCount(libraryRoomState.vcParticipants.length);
+  }
+}
+
+function getSweaterColor(avatarColor) {
+  const map = {
+    teal: "#0D9488",
+    blue: "#1D4ED8",
+    amber: "#B45309",
+    rose: "#BE123C",
+    purple: "#7C3AED",
+    forest: "#15803D",
+    indigo: "#4338CA",
+    crimson: "#991B1B"
+  };
+  return map[avatarColor] || "#1E3A8A";
+}
+
+function createSpatialDeskStation(desk, currentUserId) {
+  const station = document.createElement("div");
+  station.id = `desk-card-${desk.id}`;
+
+  const isOccupied = !!desk.occupiedBy;
+  const isMyDesk = isOccupied && desk.occupiedBy.userId === currentUserId && !desk.occupiedBy.isBuddy;
+
+  station.className = `spatial-desk-station ${isOccupied ? "occupied" : "empty"} ${isMyDesk ? "my-desk" : ""}`;
+
+  if (isOccupied) {
+    const mins = Math.floor((desk.occupiedBy.timerSeconds || 1500) / 60);
+    const posture = desk.occupiedBy.posture || "reading";
+    const postureEmoji = posture === "typing" ? "💻" : (posture === "writing" ? "✍️" : (posture === "coffee" ? "☕" : "📖"));
+    const sweaterColor = getSweaterColor(desk.occupiedBy.avatarColor);
+    const firstName = (desk.occupiedBy.displayName || "Member").split(" ")[0];
+    const isLampOn = desk.occupiedBy.lampOn !== false;
+    const initials = getInitials(desk.occupiedBy.displayName || "Student");
+
+    station.innerHTML = `
+      <!-- Desk Wooden Surface & Props -->
+      <div class="desk-wooden-table">
+        <!-- Banker's Lamp with Warm Radial Glow -->
+        <div class="desk-banker-lamp ${isLampOn ? "lit" : ""}" title="${isLampOn ? "Banker's lamp on" : "Banker's lamp off"}">
+          <div class="lamp-brass-stem"></div>
+          <div class="lamp-emerald-shade"></div>
+          <div class="lamp-radial-glow"></div>
+        </div>
+
+        <!-- Seated Circular Character Avatar -->
+        <div class="desk-seated-avatar-wrap" onclick="${isMyDesk ? `openDeskModal(${desk.id})` : `togglePeerPopover(${desk.id})`}" title="${isMyDesk ? 'Edit my goal / seat' : 'View ' + escapeHtml(desk.occupiedBy.displayName)}">
+          <div class="seated-circle-avatar" style="background-color: ${sweaterColor};">
+            ${desk.occupiedBy.avatarUrl ? `<img src="${escapeHtml(desk.occupiedBy.avatarUrl)}" alt="${escapeHtml(desk.occupiedBy.displayName)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : `<span>${escapeHtml(initials)}</span>`}
+          </div>
+        </div>
+
+        <!-- Props Cluster -->
+        <div class="table-props-cluster">
+          ${posture === "typing" ? `
+            <div class="prop-laptop" title="Laptop">
+              <div class="prop-laptop-screen"></div>
+            </div>
+          ` : `
+            <div class="prop-book" title="Open Book"></div>
+          `}
+          <div class="prop-coffee-cup" title="Coffee Cup"></div>
+        </div>
+      </div>
+
+      <!-- Minimalist Underneath Caption: FirstName • Live Timer ● -->
+      <div class="desk-minimal-caption" onclick="${isMyDesk ? `openDeskModal(${desk.id})` : `togglePeerPopover(${desk.id})`}">
+        <span class="caption-name">${escapeHtml(firstName)}</span>
+        <span class="caption-divider">•</span>
+        <span class="caption-timer">${mins}m</span>
+        <span class="caption-pulse-dot" title="Active Study Session"></span>
+      </div>
+
+      <!-- Floating Paper Note Tooltip on Hover / Click -->
+      <div class="desk-paper-tooltip" id="peer-popover-${desk.id}">
+        <div class="tooltip-subject">${escapeHtml(desk.occupiedBy.subject || "Focus Study")}</div>
+        <div class="tooltip-activity">${postureEmoji} ${escapeHtml(posture.charAt(0).toUpperCase() + posture.slice(1))} ${desk.occupiedBy.goal ? `• “${escapeHtml(desk.occupiedBy.goal)}”` : ""}</div>
+        <div class="tooltip-cheer-row">
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '☕');" title="Send Coffee">☕</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '👏');" title="Send Clap">👏</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '✨');" title="Send Encouragement">✨</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '💡');" title="Send Bright Idea">💡</button>
+        </div>
+      </div>
+    `;
+  } else {
+    station.innerHTML = `
+      <!-- Empty Desk with Subtle Ghosted + Sit Button -->
+      <div class="desk-wooden-table" onclick="openDeskModal(${desk.id})" title="Click to sit at Desk ${desk.id}">
+        <!-- Lamp Off -->
+        <div class="desk-banker-lamp" title="Reading lamp off">
+          <div class="lamp-brass-stem"></div>
+          <div class="lamp-emerald-shade"></div>
+        </div>
+
+        <button type="button" class="empty-sit-ghost-btn" onclick="openDeskModal(${desk.id}); event.stopPropagation();">
+          <span>+ Sit</span>
+        </button>
+
+        <!-- Desk Book Prop -->
+        <div class="table-props-cluster">
+          <div class="prop-book" title="Open Book"></div>
+        </div>
+      </div>
+
+      <!-- Minimalist Underneath Caption for Empty Desk -->
+      <div class="desk-minimal-caption">
+        <span style="opacity:0.6;">Desk ${desk.id}</span>
+        <span class="caption-divider" style="opacity:0.4;">•</span>
+        <span style="opacity:0.6; font-style:italic;">Open</span>
+      </div>
+    `;
+  }
+
+  return station;
+}
+
+function renderLibraryDesks() {
+  const slot1 = document.getElementById("slot-zone-1");
+  const slot2 = document.getElementById("slot-zone-2");
+  const slot3 = document.getElementById("slot-zone-3");
+  const slot4 = document.getElementById("slot-zone-4");
+  const dockLeaveBtn = document.getElementById("dock-leave-seat-btn");
+
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  let takenCount = 0;
+  let myDesk = null;
+
+  if (slot1) slot1.innerHTML = "";
+  if (slot2) slot2.innerHTML = "";
+  if (slot3) slot3.innerHTML = "";
+  if (slot4) slot4.innerHTML = "";
+
+  libraryRoomState.desks.forEach(function (desk, index) {
+    if (desk.occupiedBy) {
+      takenCount++;
+      if (desk.occupiedBy.userId === currentUserId && !desk.occupiedBy.isBuddy) {
+        myDesk = desk;
+      }
+    }
+
+    const station = createSpatialDeskStation(desk, currentUserId);
+
+    // Distribute into 4 spatial physical zones:
+    // Zone 1: Window Nook (Desks 1-2)
+    // Zone 2: Fireplace Alcove (Desks 3-4)
+    // Zone 3: Central Reading Table (Desks 5-6)
+    // Zone 4: Quiet Corner (Desks 7-8)
+    if (index < 2 && slot1) {
+      slot1.appendChild(station);
+    } else if (index < 4 && slot2) {
+      slot2.appendChild(station);
+    } else if (index < 6 && slot3) {
+      slot3.appendChild(station);
+    } else if (slot4) {
+      slot4.appendChild(station);
+    }
+  });
+
+  // Update Leave Seat button in bottom dock
+  if (dockLeaveBtn) {
+    dockLeaveBtn.hidden = !myDesk;
+    if (myDesk) {
+      dockLeaveBtn.onclick = function() {
+        leaveDesk(myDesk.id);
+      };
+    }
+  }
+}
+
+function togglePeerPopover(deskId) {
+  const popover = document.getElementById(`peer-popover-${deskId}`);
+  if (!popover) return;
+  const isHidden = popover.hidden;
+  closeAllPeerPopovers();
+  popover.hidden = !isHidden;
+}
+
+function closeAllPeerPopovers() {
+  document.querySelectorAll(".peer-card-popover").forEach(function (p) {
+    p.hidden = true;
+  });
+}
+
+function setMyDeskPosture(posture) {
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  const myDesk = libraryRoomState?.desks?.find(function (d) {
+    return d.occupiedBy && d.occupiedBy.userId === currentUserId && !d.occupiedBy.isBuddy;
+  });
+
+  if (!myDesk) return;
+
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "desk:posture",
+      deskId: myDesk.id,
+      posture
+    }));
+  }
+
+  // Optimistic update
+  if (myDesk.occupiedBy) {
+    myDesk.occupiedBy.posture = posture;
+    renderLibraryDesks();
+  }
+}
+
+function toggleMyDeskLamp() {
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  const myDesk = libraryRoomState?.desks?.find(function (d) {
+    return d.occupiedBy && d.occupiedBy.userId === currentUserId && !d.occupiedBy.isBuddy;
+  });
+
+  if (!myDesk || !myDesk.occupiedBy) return;
+
+  const newLampState = !myDesk.occupiedBy.lampOn;
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "desk:update_progress",
+      deskId: myDesk.id,
+      lampOn: newLampState
+    }));
+  }
+
+  myDesk.occupiedBy.lampOn = newLampState;
+  renderLibraryDesks();
+}
+
+function renderLibraryTimer() {
+  const digits = document.getElementById("sync-timer-digits");
+  const modeLabel = document.getElementById("sync-timer-mode-label");
+  const pill = document.querySelector(".sync-pomodoro-pill");
+  const toggleBtn = document.getElementById("sync-timer-toggle-btn");
+  if (!digits || !libraryRoomState || !libraryRoomState.syncTimer) return;
+
+  const timer = libraryRoomState.syncTimer;
+  const rem = Math.max(0, timer.remainingSeconds || 0);
+  const mins = Math.floor(rem / 60);
+  const secs = rem % 60;
+
+  digits.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+  if (modeLabel) {
+    modeLabel.textContent = timer.mode === "break" ? "Break" : "Focus";
+  }
+  const dot = document.getElementById("sync-timer-dot");
+  if (dot) {
+    dot.style.background = timer.mode === "break" ? "#38BDF8" : "#22C55E";
+    dot.style.boxShadow = timer.mode === "break" ? "0 0 6px #38BDF8" : "0 0 6px #22C55E";
+  }
+  if (pill) {
+    pill.classList.toggle("break", timer.mode === "break");
+  }
+  if (toggleBtn) {
+    toggleBtn.textContent = timer.status === "running" ? "⏸️" : "▶️";
+  }
+}
+
+function renderAtmosphere(atmosphere) {
+  const nameLabel = document.getElementById("atmosphere-name");
+  const icon = document.getElementById("atmosphere-icon");
+  const rainOverlay = document.getElementById("window-rain-overlay");
+  const lightOverlay = document.getElementById("window-light-overlay");
+
+  const atmospheres = {
+    rainy: { name: "Rainy Window", icon: "🌧️", rain: true, light: "rgba(30, 50, 40, 0.6)" },
+    candlelight: { name: "Warm Candlelight", icon: "🕯️", rain: false, light: "rgba(80, 50, 20, 0.4)" },
+    sunny: { name: "Sunny Courtyard", icon: "☀️", rain: false, light: "rgba(70, 90, 60, 0.5)" },
+    midnight: { name: "Midnight Deep Work", icon: "🌙", rain: false, light: "rgba(10, 15, 25, 0.85)" }
+  };
+
+  const current = atmospheres[atmosphere] || atmospheres.rainy;
+  if (nameLabel) nameLabel.textContent = current.name;
+  if (icon) icon.textContent = current.icon;
+  if (rainOverlay) rainOverlay.style.display = current.rain ? "block" : "none";
+  if (lightOverlay) lightOverlay.style.background = current.light;
+}
+
+function openDeskModal(deskId) {
+  const modal = document.getElementById("desk-action-modal");
+  const deskInput = document.getElementById("desk-modal-target-id");
+  const subjectInput = document.getElementById("desk-modal-subject");
+  const goalInput = document.getElementById("desk-modal-goal");
+  const lampInput = document.getElementById("desk-modal-lamp");
+  const leaveBtn = document.getElementById("desk-modal-leave-btn");
+  const submitBtn = document.getElementById("desk-modal-submit-btn");
+
+  if (!modal || !deskInput) return;
+
+  deskInput.value = deskId;
+
+  // Check if desk is already occupied by current user
+  const desk = libraryRoomState?.desks?.find(function (d) { return d.id === Number(deskId); });
+  const isMine = desk?.occupiedBy?.userId === (window.STUDYMATE_USER?.id || 1) && !desk?.occupiedBy?.isBuddy;
+
+  if (isMine && desk.occupiedBy) {
+    if (subjectInput) subjectInput.value = desk.occupiedBy.subject || "";
+    if (goalInput) goalInput.value = desk.occupiedBy.goal || "";
+    if (lampInput) lampInput.checked = desk.occupiedBy.lampOn !== false;
+    const postureRadio = modal.querySelector(`input[name="modal-desk-posture"][value="${desk.occupiedBy.posture || 'reading'}"]`);
+    if (postureRadio) postureRadio.checked = true;
+
+    if (leaveBtn) {
+      leaveBtn.hidden = false;
+      leaveBtn.onclick = function () { leaveDesk(deskId); modal.hidden = true; };
+    }
+    if (submitBtn) submitBtn.textContent = "Update Desk Goal";
+  } else {
+    // Pre-fill from active local session if any
+    const activeGoal = appData.activeSession?.goal || "";
+    const activeSubj = appData.subjects.find(function (s) { return s.id === appData.activeSession?.subjectId; })?.name || "";
+    if (subjectInput) subjectInput.value = activeSubj || "";
+    if (goalInput) goalInput.value = activeGoal || "";
+    if (lampInput) lampInput.checked = true;
+    const defaultRadio = modal.querySelector('input[name="modal-desk-posture"][value="reading"]');
+    if (defaultRadio) defaultRadio.checked = true;
+
+    if (leaveBtn) leaveBtn.hidden = true;
+    if (submitBtn) submitBtn.textContent = "Sit at Desk";
+  }
+
+  modal.hidden = false;
+}
+
+function closeDeskModal() {
+  const modal = document.getElementById("desk-action-modal");
+  if (modal) modal.hidden = true;
+}
+
+function leaveDesk(deskId) {
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "desk:leave",
+      deskId: Number(deskId)
+    }));
+  }
+}
+
+function sendDeskCheer(targetDeskId, reaction) {
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "desk:cheer",
+      targetDeskId: Number(targetDeskId),
+      reaction: reaction || "☕"
+    }));
+  }
+}
+
+function triggerFloatingCheer(targetDeskId, reaction, fromName) {
+  const card = document.getElementById(`desk-card-${targetDeskId}`);
+  if (!card) return;
+
+  const cheer = document.createElement("div");
+  cheer.className = "floating-cheer";
+  cheer.textContent = reaction || "☕";
+  card.appendChild(cheer);
+
+  setTimeout(function () {
+    cheer.remove();
+  }, 1900);
+}
+
+function appendChatMessage(msg) {
+  const container = document.getElementById("library-chat-messages");
+  if (!container || !msg) return;
+
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  const isMine = msg.senderName === (window.STUDYMATE_USER?.displayName || "Mahenoor");
+
+  const bubble = document.createElement("div");
+  bubble.className = `chat-bubble ${isMine ? "mine" : ""}`;
+
+  const time = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+
+  bubble.innerHTML = `
+    <div class="chat-bubble-header">
+      <span class="chat-sender">${escapeHtml(msg.senderName || "Student")}</span>
+      <span class="chat-time">${time}</span>
+    </div>
+    <div class="chat-content">${escapeHtml(msg.content)}</div>
+  `;
+
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+
+  const drawer = document.getElementById("library-slide-drawer");
+  const unreadBadge = document.getElementById("drawer-unread-badge");
+  if (drawer && drawer.hidden && unreadBadge && !isMine) {
+    unreadBadge.hidden = false;
+  }
+}
+
+function renderAllChatMessages() {
+  const container = document.getElementById("library-chat-messages");
+  if (!container || !libraryRoomState || !Array.isArray(libraryRoomState.messages)) return;
+  container.innerHTML = "";
+  libraryRoomState.messages.forEach(appendChatMessage);
+}
+
+function renderStickyNotes() {
+  const corkboard = document.getElementById("sticky-corkboard");
+  const count = document.getElementById("sticky-count");
+  if (!corkboard || !libraryRoomState || !Array.isArray(libraryRoomState.stickyNotes)) return;
+
+  corkboard.innerHTML = "";
+  if (count) count.textContent = String(libraryRoomState.stickyNotes.length);
+
+  libraryRoomState.stickyNotes.forEach(function (note) {
+    const card = document.createElement("div");
+    card.className = `sticky-card ${note.color || "amber"}`;
+    card.innerHTML = `
+      <div class="sticky-header">
+        <span>${escapeHtml(note.author || "Member")}</span>
+        <button type="button" class="btn-del-note" title="Remove note" onclick="deleteStickyNote('${note.id}')">×</button>
+      </div>
+      <div>${escapeHtml(note.content)}</div>
+    `;
+    corkboard.appendChild(card);
+  });
+}
+
+function deleteStickyNote(noteId) {
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "sticky:delete",
+      noteId
+    }));
+  }
+}
+
+// --- WebRTC Voice & Video Call Engine ---
+
+async function joinVC() {
+  if (isCallJoined) return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(function () {
+      // Fallback to audio-only if video fails
+      return navigator.mediaDevices.getUserMedia({ audio: true });
+    });
+
+    localMediaStream = stream;
+    isCallJoined = true;
+
+    const localVideo = document.getElementById("vc-local-video");
+    const fallback = document.getElementById("vc-local-avatar-fallback");
+    const localName = document.getElementById("vc-local-name");
+    const micBadge = document.getElementById("vc-local-mic-badge");
+
+    if (localVideo) {
+      localVideo.srcObject = stream;
+      localVideo.play().catch(function () {});
+    }
+
+    const hasVideo = stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled;
+    if (fallback) fallback.style.display = hasVideo ? "none" : "flex";
+    if (localName) localName.textContent = `${window.STUDYMATE_USER?.displayName || "You"} (Local)`;
+    if (micBadge) {
+      micBadge.textContent = "Live";
+      micBadge.classList.add("live");
+    }
+
+    setupAudioAnalyser(stream);
+
+    // Notify server
+    if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+      libraryWs.send(JSON.stringify({
+        type: "vc:join",
+        hasVideo,
+        hasAudio: true
+      }));
+    }
+
+    updateVCButtonStates(true);
+    switchLibraryView("vc");
+  } catch (err) {
+    console.warn("Unable to capture media devices:", err);
+    // Continue in listen-only presence mode
+    isCallJoined = true;
+    updateVCButtonStates(true);
+    switchLibraryView("vc");
+
+    if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+      libraryWs.send(JSON.stringify({
+        type: "vc:join",
+        hasVideo: false,
+        hasAudio: false
+      }));
+    }
+  }
+}
+
+function leaveVC() {
+  if (!isCallJoined) return;
+
+  if (localMediaStream) {
+    localMediaStream.getTracks().forEach(function (track) { track.stop(); });
+    localMediaStream = null;
+  }
+  if (screenMediaStream) {
+    screenMediaStream.getTracks().forEach(function (track) { track.stop(); });
+    screenMediaStream = null;
+    isScreenSharing = false;
+  }
+
+  clearInterval(localAudioInterval);
+
+  peerConnections.forEach(function (pc) { pc.close(); });
+  peerConnections.clear();
+
+  const remoteContainer = document.getElementById("vc-remote-container");
+  if (remoteContainer) {
+    remoteContainer.innerHTML = `
+      <div class="vc-empty-peers" id="vc-empty-peers">
+        <div class="empty-peers-graphic">🎧</div>
+        <h4>No other members on call yet</h4>
+        <p class="muted-text">Invite group members or study buddies to turn on their cams and mic.</p>
+      </div>
+    `;
+  }
+
+  const localVideo = document.getElementById("vc-local-video");
+  const fallback = document.getElementById("vc-local-avatar-fallback");
+  if (localVideo) localVideo.srcObject = null;
+  if (fallback) fallback.style.display = "flex";
+
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({ type: "vc:leave" }));
+  }
+
+  isCallJoined = false;
+  updateVCButtonStates(false);
+  switchLibraryView("desks");
+}
+
+function toggleMic() {
+  if (!localMediaStream) return;
+  const audioTrack = localMediaStream.getAudioTracks()[0];
+  if (!audioTrack) return;
+
+  audioTrack.enabled = !audioTrack.enabled;
+  updateMicUI(audioTrack.enabled);
+
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "vc:media_state",
+      hasAudio: audioTrack.enabled
+    }));
+  }
+}
+
+function updateMicUI(enabled) {
+  const micLabel = document.getElementById("vc-mic-label");
+  const micBadge = document.getElementById("vc-local-mic-badge");
+  const micBtn = document.getElementById("vc-toggle-mic");
+
+  if (micLabel) micLabel.textContent = enabled ? "Mute" : "Unmute";
+  if (micBtn) micBtn.classList.toggle("active", enabled);
+  if (micBadge) {
+    micBadge.textContent = enabled ? "Live" : "Muted";
+    micBadge.classList.toggle("live", enabled);
+  }
+}
+
+function toggleCam() {
+  if (!localMediaStream) return;
+  const videoTrack = localMediaStream.getVideoTracks()[0];
+  const fallback = document.getElementById("vc-local-avatar-fallback");
+  const camLabel = document.getElementById("vc-cam-label");
+  const camBtn = document.getElementById("vc-toggle-cam");
+
+  if (videoTrack) {
+    videoTrack.enabled = !videoTrack.enabled;
+    const isLive = videoTrack.enabled;
+    if (fallback) fallback.style.display = isLive ? "none" : "flex";
+    if (camLabel) camLabel.textContent = isLive ? "Stop Video" : "Start Video";
+    if (camBtn) camBtn.classList.toggle("active", isLive);
+
+    if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+      libraryWs.send(JSON.stringify({
+        type: "vc:media_state",
+        hasVideo: isLive
+      }));
+    }
+  }
+}
+
+async function toggleScreenShare() {
+  const screenBtn = document.getElementById("vc-toggle-screen");
+  const screenLabel = document.getElementById("vc-screen-label");
+
+  if (!isScreenSharing) {
+    try {
+      screenMediaStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      isScreenSharing = true;
+      if (screenLabel) screenLabel.textContent = "Stop Share";
+      if (screenBtn) screenBtn.classList.add("active");
+
+      const screenTrack = screenMediaStream.getVideoTracks()[0];
+
+      // Replace track on all peer connections
+      peerConnections.forEach(function (pc) {
+        const senders = pc.getSenders();
+        const videoSender = senders.find(function (s) { return s.track && s.track.kind === "video"; });
+        if (videoSender) {
+          videoSender.replaceTrack(screenTrack);
+        }
+      });
+
+      screenTrack.onended = function () {
+        stopScreenShare();
+      };
+
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "vc:media_state",
+          isScreenSharing: true
+        }));
+      }
+    } catch (e) {
+      console.warn("Screen share canceled or failed:", e);
+    }
+  } else {
+    stopScreenShare();
+  }
+}
+
+function stopScreenShare() {
+  if (screenMediaStream) {
+    screenMediaStream.getTracks().forEach(function (t) { t.stop(); });
+    screenMediaStream = null;
+  }
+  isScreenSharing = false;
+
+  const screenBtn = document.getElementById("vc-toggle-screen");
+  const screenLabel = document.getElementById("vc-screen-label");
+  if (screenLabel) screenLabel.textContent = "Share Screen";
+  if (screenBtn) screenBtn.classList.remove("active");
+
+  // Restore camera video track
+  if (localMediaStream) {
+    const camTrack = localMediaStream.getVideoTracks()[0];
+    if (camTrack) {
+      peerConnections.forEach(function (pc) {
+        const senders = pc.getSenders();
+        const videoSender = senders.find(function (s) { return s.track && s.track.kind === "video"; });
+        if (videoSender) {
+          videoSender.replaceTrack(camTrack);
+        }
+      });
+    }
+  }
+
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    libraryWs.send(JSON.stringify({
+      type: "vc:media_state",
+      isScreenSharing: false
+    }));
+  }
+}
+
+function toggleQuietStudyMode() {
+  quietStudyModeActive = !quietStudyModeActive;
+  const label = document.getElementById("vc-quiet-label");
+  const btn = document.getElementById("vc-toggle-quiet-mode");
+
+  if (label) label.textContent = quietStudyModeActive ? "Quiet Mode: On" : "Quiet Mode: Off";
+  if (btn) btn.classList.toggle("active", quietStudyModeActive);
+
+  // If active and focus session running, mute immediately
+  if (quietStudyModeActive && localMediaStream) {
+    const isFocus = libraryRoomState?.syncTimer?.mode === "focus";
+    if (isFocus) {
+      const audioTrack = localMediaStream.getAudioTracks()[0];
+      if (audioTrack && audioTrack.enabled) {
+        audioTrack.enabled = false;
+        updateMicUI(false);
+      }
+    }
+  }
+}
+
+function updateVCButtonStates(joined) {
+  const quickBtn = document.getElementById("quick-join-vc-btn");
+  const quickLabel = document.getElementById("quick-vc-btn-label");
+  if (quickLabel) quickLabel.textContent = joined ? "Leave Call" : "Join Study Call";
+  if (quickBtn) {
+    quickBtn.classList.toggle("delete-button", joined);
+    quickBtn.onclick = joined ? leaveVC : joinVC;
+  }
+}
+
+function setupAudioAnalyser(stream) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 64;
+    source.connect(analyser);
+    localAudioAnalyser = analyser;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const meter = document.getElementById("vc-local-audio-meter");
+    let wasSpeaking = false;
+
+    clearInterval(localAudioInterval);
+    localAudioInterval = setInterval(function () {
+      analyser.getByteFrequencyData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+      const avg = sum / dataArray.length;
+      const isSpeaking = avg > 28;
+
+      if (meter) meter.classList.toggle("active", isSpeaking);
+
+      if (isSpeaking !== wasSpeaking) {
+        wasSpeaking = isSpeaking;
+        if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+          libraryWs.send(JSON.stringify({
+            type: "vc:media_state",
+            isSpeaking
+          }));
+        }
+      }
+    }, 150);
+  } catch (err) {
+    console.warn("Audio analyser setup error:", err);
+  }
+}
+
+function createPeerConnection(remotePeerId, isInitiator) {
+  if (peerConnections.has(remotePeerId)) {
+    return peerConnections.get(remotePeerId);
+  }
+
+  const pc = new RTCPeerConnection(rtcConfig);
+  peerConnections.set(remotePeerId, pc);
+
+  if (localMediaStream) {
+    localMediaStream.getTracks().forEach(function (track) {
+      pc.addTrack(track, localMediaStream);
+    });
+  }
+
+  pc.onicecandidate = function (event) {
+    if (event.candidate && libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+      libraryWs.send(JSON.stringify({
+        type: "signal:ice_candidate",
+        targetPeerId: remotePeerId,
+        candidate: event.candidate
+      }));
+    }
+  };
+
+  pc.ontrack = function (event) {
+    ensureRemotePeerTile(remotePeerId, event.streams[0]);
+  };
+
+  if (isInitiator) {
+    pc.createOffer()
+      .then(function (offer) { return pc.setLocalDescription(offer); })
+      .then(function () {
+        if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+          libraryWs.send(JSON.stringify({
+            type: "signal:offer",
+            targetPeerId: remotePeerId,
+            offer: pc.localDescription
+          }));
+        }
+      })
+      .catch(function (err) {
+        console.warn("Offer error:", err);
+      });
+  }
+
+  return pc;
+}
+
+function handleRemoteOffer(fromPeerId, offer) {
+  const pc = createPeerConnection(fromPeerId, false);
+  pc.setRemoteDescription(new RTCSessionDescription(offer))
+    .then(function () { return pc.createAnswer(); })
+    .then(function (answer) { return pc.setLocalDescription(answer); })
+    .then(function () {
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "signal:answer",
+          targetPeerId: fromPeerId,
+          answer: pc.localDescription
+        }));
+      }
+    })
+    .catch(function (err) {
+      console.warn("Answer error:", err);
+    });
+}
+
+function handleRemoteAnswer(fromPeerId, answer) {
+  const pc = peerConnections.get(fromPeerId);
+  if (pc) {
+    pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(function (err) {
+      console.warn("Set remote description error:", err);
+    });
+  }
+}
+
+function handleRemoteIceCandidate(fromPeerId, candidate) {
+  const pc = peerConnections.get(fromPeerId);
+  if (pc) {
+    pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(function (err) {
+      console.warn("Add ICE candidate error:", err);
+    });
+  }
+}
+
+function ensureRemotePeerTile(peerId, stream) {
+  const container = document.getElementById("vc-remote-container");
+  const emptyPeers = document.getElementById("vc-empty-peers");
+  if (!container) return;
+  if (emptyPeers) emptyPeers.style.display = "none";
+
+  let tile = document.getElementById("vc-peer-tile-" + peerId);
+  if (!tile) {
+    tile = document.createElement("div");
+    tile.className = "vc-tile remote-tile";
+    tile.id = "vc-peer-tile-" + peerId;
+
+    const video = document.createElement("video");
+    video.autoplay = true;
+    video.playsInline = true;
+    if (stream) video.srcObject = stream;
+
+    const footer = document.createElement("div");
+    footer.className = "vc-tile-footer";
+
+    const participant = libraryRoomState?.vcParticipants?.find(function (p) { return p.peerId === peerId; });
+    const name = participant ? participant.displayName : "Study Partner";
+
+    footer.innerHTML = `
+      <span class="participant-name">${escapeHtml(name)}</span>
+      <div class="tile-indicators">
+        <span class="tile-badge mic-status live" id="mic-badge-${peerId}">Live</span>
+      </div>
+    `;
+
+    tile.appendChild(video);
+    tile.appendChild(footer);
+    container.appendChild(tile);
+  } else if (stream) {
+    const video = tile.querySelector("video");
+    if (video) video.srcObject = stream;
+  }
+}
+
+function updateRemotePeerState(peerId, participant) {
+  const tile = document.getElementById("vc-peer-tile-" + peerId);
+  if (!tile || !participant) return;
+
+  tile.classList.toggle("speaking", !!participant.isSpeaking);
+  const badge = document.getElementById("mic-badge-" + peerId);
+  if (badge) {
+    badge.textContent = participant.hasAudio ? "Live" : "Muted";
+    badge.classList.toggle("live", !!participant.hasAudio);
+  }
+}
+
+function closePeerConnection(peerId) {
+  const pc = peerConnections.get(peerId);
+  if (pc) {
+    pc.close();
+    peerConnections.delete(peerId);
+  }
+  const tile = document.getElementById("vc-peer-tile-" + peerId);
+  if (tile) tile.remove();
+
+  const container = document.getElementById("vc-remote-container");
+  if (container && container.querySelectorAll(".remote-tile").length === 0) {
+    const emptyPeers = document.getElementById("vc-empty-peers");
+    if (emptyPeers) emptyPeers.style.display = "block";
+  }
+}
+
+function updateVCParticipantCount(count) {
+  const badge = document.getElementById("vc-live-count");
+  if (badge) {
+    badge.textContent = String(count);
+    badge.hidden = count <= 0;
+  }
+}
+
+function switchLibraryView(view) {
+  const roomView = document.getElementById("cozy-library-room");
+  const vcView = document.getElementById("library-vc-viewport");
+  const desksBtn = document.getElementById("btn-view-desks");
+  const vcBtn = document.getElementById("btn-view-vc");
+
+  if (view === "vc") {
+    if (roomView) {
+      roomView.classList.remove("active");
+      roomView.hidden = true;
+    }
+    if (vcView) {
+      vcView.hidden = false;
+    }
+    if (desksBtn) desksBtn.classList.remove("active");
+    if (vcBtn) vcBtn.classList.add("active");
+
+    if (!isCallJoined) {
+      joinVC();
+    }
+  } else {
+    if (roomView) {
+      roomView.classList.add("active");
+      roomView.hidden = false;
+    }
+    if (vcView) {
+      vcView.hidden = true;
+    }
+    if (desksBtn) desksBtn.classList.add("active");
+    if (vcBtn) vcBtn.classList.remove("active");
+  }
+}
+
+// --- Cozy Ambient Sound Generator ---
+
+function startLibraryAmbient(type) {
+  stopLibraryAmbient();
+  if (type === "off") return;
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!libraryAmbientAudioCtx) libraryAmbientAudioCtx = new AudioCtx();
+    if (libraryAmbientAudioCtx.state === "suspended") libraryAmbientAudioCtx.resume();
+
+    const volSlider = document.getElementById("library-sound-vol");
+    const vol = volSlider ? Number(volSlider.value) : 0.35;
+
+    libraryAmbientGainNode = libraryAmbientAudioCtx.createGain();
+    libraryAmbientGainNode.gain.setValueAtTime(vol, libraryAmbientAudioCtx.currentTime);
+    libraryAmbientGainNode.connect(libraryAmbientAudioCtx.destination);
+
+    const bufferSize = libraryAmbientAudioCtx.sampleRate * 3;
+    const buffer = libraryAmbientAudioCtx.createBuffer(1, bufferSize, libraryAmbientAudioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let lastOut = 0.0;
+
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      if (type === "hearth") {
+        lastOut = (lastOut + 0.02 * white) / 1.02;
+        data[i] = lastOut * 3.5 + (Math.random() > 0.998 ? (Math.random() - 0.5) * 0.8 : 0);
+      } else if (type === "rain") {
+        lastOut = (lastOut + 0.04 * white) / 1.04;
+        data[i] = lastOut * 2.2;
+      } else if (type === "cafe") {
+        lastOut = (lastOut + 0.015 * white) / 1.015;
+        data[i] = lastOut * 2.5;
+      } else {
+        lastOut = (lastOut + 0.03 * white) / 1.03;
+        data[i] = lastOut * 1.5;
+      }
+    }
+
+    const source = libraryAmbientAudioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    const filter = libraryAmbientAudioCtx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.setValueAtTime(type === "rain" ? 850 : (type === "hearth" ? 420 : 600), libraryAmbientAudioCtx.currentTime);
+
+    source.connect(filter);
+    filter.connect(libraryAmbientGainNode);
+    source.start(0);
+
+    libraryAmbientSource = source;
+    libraryAmbientPlaying = true;
+
+    const toggleBtn = document.getElementById("library-sound-toggle");
+    if (toggleBtn) {
+      toggleBtn.textContent = "Pause";
+      toggleBtn.classList.add("playing");
+    }
+  } catch (err) {
+    console.warn("Library ambient error:", err);
+  }
+}
+
+function stopLibraryAmbient() {
+  if (libraryAmbientSource) {
+    try {
+      libraryAmbientSource.stop();
+      libraryAmbientSource.disconnect();
+    } catch (e) {}
+    libraryAmbientSource = null;
+  }
+  libraryAmbientPlaying = false;
+  const toggleBtn = document.getElementById("library-sound-toggle");
+  if (toggleBtn) {
+    toggleBtn.textContent = "Play";
+    toggleBtn.classList.remove("playing");
+  }
+}
+
+// Global hook called when user opens the Cozy Library tab
+function initCozyLibrary() {
+  updateLibraryGroupTitle();
+  connectLibraryWs();
+}
+
+function initCozyLibraryUI() {
+  // Navigation & View switcher
+  const btnDesks = document.getElementById("btn-view-desks");
+  const btnVC = document.getElementById("btn-view-vc");
+  if (btnDesks) btnDesks.addEventListener("click", function () { switchLibraryView("desks"); });
+  if (btnVC) btnVC.addEventListener("click", function () { switchLibraryView("vc"); });
+
+  // Fullscreen button
+  const fullscreenBtn = document.getElementById("btn-library-fullscreen");
+  if (fullscreenBtn) {
+    fullscreenBtn.addEventListener("click", function () {
+      const section = document.getElementById("cozy-library");
+      if (!document.fullscreenElement) {
+        if (section && section.requestFullscreen) {
+          section.requestFullscreen().catch(function (err) {
+            console.warn("Fullscreen request error:", err);
+          });
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(function (err) {
+            console.warn("Fullscreen exit error:", err);
+          });
+        }
+      }
+    });
+  }
+
+  // Quick join button
+  const quickJoinBtn = document.getElementById("quick-join-vc-btn");
+  if (quickJoinBtn) quickJoinBtn.addEventListener("click", joinVC);
+
+  // Group workspace Cozy Library jump button
+  const groupCozyBtn = document.getElementById("group-cozy-library-button");
+  if (groupCozyBtn) {
+    groupCozyBtn.addEventListener("click", function () {
+      updateLibraryGroupTitle();
+      showSection("cozy-library");
+    });
+  }
+
+  // Atmosphere switcher toggle
+  const atmoToggle = document.getElementById("library-atmosphere-toggle");
+  if (atmoToggle) {
+    atmoToggle.addEventListener("click", function () {
+      const order = ["rainy", "candlelight", "sunny", "midnight"];
+      const current = libraryRoomState?.atmosphere || "rainy";
+      const next = order[(order.indexOf(current) + 1) % order.length];
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "room:atmosphere",
+          atmosphere: next
+        }));
+      }
+    });
+  }
+
+  // Room Timer controls
+  const timerToggleBtn = document.getElementById("sync-timer-toggle-btn");
+  if (timerToggleBtn) {
+    timerToggleBtn.addEventListener("click", function () {
+      const isRunning = libraryRoomState?.syncTimer?.status === "running";
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "room:timer_action",
+          action: isRunning ? "pause" : "start"
+        }));
+      }
+    });
+  }
+
+  const syncToLocalBtn = document.getElementById("sync-to-my-timer-btn");
+  if (syncToLocalBtn) {
+    syncToLocalBtn.addEventListener("click", function () {
+      if (libraryRoomState && libraryRoomState.syncTimer) {
+        // Sync local timer to room timer
+        const roomSecs = libraryRoomState.syncTimer.remainingSeconds || 1500;
+        appData.timerSeconds = roomSecs;
+        saveData();
+        updateSessionPage();
+        updateAllDisplays();
+        showToast("Synced your local focus timer with the library room timer!");
+      }
+    });
+  }
+
+  // Soundscape selector
+  const soundSelect = document.getElementById("library-sound-select");
+  const soundToggle = document.getElementById("library-sound-toggle");
+  const soundVol = document.getElementById("library-sound-vol");
+
+  if (soundToggle) {
+    soundToggle.addEventListener("click", function () {
+      if (libraryAmbientPlaying) {
+        stopLibraryAmbient();
+      } else {
+        const type = soundSelect ? soundSelect.value : "rain";
+        startLibraryAmbient(type);
+      }
+    });
+  }
+
+  if (soundSelect) {
+    soundSelect.addEventListener("change", function () {
+      if (libraryAmbientPlaying) {
+        startLibraryAmbient(soundSelect.value);
+      }
+    });
+  }
+
+  if (soundVol) {
+    soundVol.addEventListener("input", function () {
+      if (libraryAmbientGainNode && libraryAmbientAudioCtx) {
+        libraryAmbientGainNode.gain.setValueAtTime(Number(soundVol.value), libraryAmbientAudioCtx.currentTime);
+      }
+    });
+  }
+
+  // Media Controls in Bottom Dock
+  const toggleMicBtn = document.getElementById("vc-toggle-mic");
+  const toggleCamBtn = document.getElementById("vc-toggle-cam");
+  const toggleScreenBtn = document.getElementById("vc-toggle-screen");
+  const toggleQuietBtn = document.getElementById("vc-toggle-quiet-mode");
+  const leaveCallBtn = document.getElementById("vc-leave-call-btn");
+
+  if (toggleMicBtn) toggleMicBtn.addEventListener("click", toggleMic);
+  if (toggleCamBtn) toggleCamBtn.addEventListener("click", toggleCam);
+  if (toggleScreenBtn) toggleScreenBtn.addEventListener("click", toggleScreenShare);
+  if (toggleQuietBtn) toggleQuietBtn.addEventListener("click", toggleQuietStudyMode);
+  if (leaveCallBtn) leaveCallBtn.addEventListener("click", leaveVC);
+
+  // Leave Seat Button in Bottom Dock
+  const dockLeaveBtn = document.getElementById("dock-leave-seat-btn");
+  if (dockLeaveBtn) {
+    dockLeaveBtn.addEventListener("click", function () {
+      const currentUserId = window.STUDYMATE_USER?.id || 1;
+      const myDesk = libraryRoomState?.desks?.find(function (d) {
+        return d.occupiedBy && d.occupiedBy.userId === currentUserId && !d.occupiedBy.isBuddy;
+      });
+      if (myDesk) {
+        leaveDesk(myDesk.id);
+      }
+    });
+  }
+
+  // Collaboration Slide-Out Drawer (Chat & Notes)
+  const drawer = document.getElementById("library-slide-drawer");
+  const drawerToggle = document.getElementById("library-drawer-toggle");
+  const closeDrawerBtn = document.getElementById("close-library-drawer");
+  const unreadBadge = document.getElementById("drawer-unread-badge");
+
+  function toggleDrawer(show) {
+    if (!drawer) return;
+    const shouldShow = typeof show === "boolean" ? show : drawer.hidden;
+    drawer.hidden = !shouldShow;
+    if (shouldShow && unreadBadge) {
+      unreadBadge.hidden = true;
+    }
+  }
+
+  if (drawerToggle) {
+    drawerToggle.addEventListener("click", function () {
+      toggleDrawer();
+    });
+  }
+
+  if (closeDrawerBtn) {
+    closeDrawerBtn.addEventListener("click", function () {
+      toggleDrawer(false);
+    });
+  }
+
+  // Drawer Tabs (Chat vs Notes)
+  document.querySelectorAll(".drawer-tabs .collab-tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      document.querySelectorAll(".drawer-tabs .collab-tab").forEach(function (t) { t.classList.remove("active"); });
+      tab.classList.add("active");
+      const target = tab.dataset.collabTab;
+      const chatPane = document.getElementById("collab-pane-chat");
+      const stickyPane = document.getElementById("collab-pane-sticky");
+      if (chatPane) chatPane.hidden = target !== "chat";
+      if (stickyPane) stickyPane.hidden = target !== "sticky";
+    });
+  });
+
+  // Chat Form
+  const chatForm = document.getElementById("library-chat-form");
+  const chatInput = document.getElementById("library-chat-input");
+  if (chatForm && chatInput) {
+    chatForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const text = chatInput.value.trim();
+      if (!text) return;
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "chat:message",
+          content: text
+        }));
+      }
+      chatInput.value = "";
+    });
+  }
+
+  // Quick Cheers
+  document.querySelectorAll(".quick-reactions-strip .reaction-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const reaction = btn.dataset.reaction || "☕";
+      const targetDesk = libraryRoomState?.desks?.find(function (d) { return d.occupiedBy; })?.id || 1;
+      sendDeskCheer(targetDesk, reaction);
+    });
+  });
+
+  // Sticky Notes Form
+  const stickyForm = document.getElementById("new-sticky-form");
+  const stickyContent = document.getElementById("new-sticky-content");
+  if (stickyForm && stickyContent) {
+    stickyForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const text = stickyContent.value.trim();
+      if (!text) return;
+      const colorInput = stickyForm.querySelector('input[name="sticky-color"]:checked');
+      const color = colorInput ? colorInput.value : "amber";
+
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "sticky:add",
+          content: text,
+          color
+        }));
+      }
+      stickyContent.value = "";
+    });
+  }
+
+  // Desk Action Modal
+  const deskModal = document.getElementById("desk-action-modal");
+  const deskForm = document.getElementById("desk-action-form");
+  const closeDeskModalBtn = document.getElementById("close-desk-modal");
+
+  if (closeDeskModalBtn) closeDeskModalBtn.addEventListener("click", closeDeskModal);
+  if (deskModal) {
+    deskModal.addEventListener("click", function (e) {
+      if (e.target === deskModal) closeDeskModal();
+    });
+  }
+
+  if (deskForm) {
+    deskForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      const deskId = document.getElementById("desk-modal-target-id")?.value;
+      const subjectInput = document.getElementById("desk-modal-subject");
+      const goalInput = document.getElementById("desk-modal-goal");
+      const lampInput = document.getElementById("desk-modal-lamp");
+
+      if (!deskId) return;
+
+      const subjectName = subjectInput?.value?.trim() || "Focus Study";
+      const goal = goalInput?.value?.trim() || "";
+      const lampOn = lampInput ? lampInput.checked : true;
+
+      const postureInput = deskForm.querySelector('input[name="modal-desk-posture"]:checked');
+      const posture = postureInput ? postureInput.value : "reading";
+
+      findOrCreateSubject(subjectName);
+
+      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+        libraryWs.send(JSON.stringify({
+          type: "desk:take",
+          deskId: Number(deskId),
+          subject: subjectName,
+          goal,
+          timerSeconds: appData.activeSession ? appData.activeSession.elapsedSeconds : (appData.timerSeconds || 1500),
+          lampOn,
+          posture
+        }));
+      }
+
+      closeDeskModal();
+    });
+  }
+
+  // Close peer popovers when clicking outside
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".desk-minimal-caption") && !e.target.closest(".desk-paper-tooltip") && !e.target.closest(".desk-seated-avatar-wrap")) {
+      closeAllPeerPopovers();
+    }
+  });
+}
+
+// Window global helper functions for inline desk events
+window.openDeskModal = openDeskModal;
+window.leaveDesk = leaveDesk;
+window.sendDeskCheer = sendDeskCheer;
+window.deleteStickyNote = deleteStickyNote;
+window.togglePeerPopover = togglePeerPopover;
+window.closeAllPeerPopovers = closeAllPeerPopovers;
+window.setMyDeskPosture = setMyDeskPosture;
+window.toggleMyDeskLamp = toggleMyDeskLamp;
+
 async function initializeApp() {
   await loadData();
   await loadGroups();
@@ -7124,6 +9703,8 @@ async function initializeApp() {
   renderDistractions();
   renderStudyCircles();
   updateAllDisplays();
+  initAmbientSoundEngine();
+  initCozyLibraryUI();
   showSettingsSection("profile");
   maybeShowOnboarding();
 }

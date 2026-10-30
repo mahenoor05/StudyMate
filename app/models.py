@@ -23,7 +23,7 @@ class User(UserMixin, db.Model):
     study_day_start_time = db.Column(db.String(5), default="00:00", nullable=False)
     # Deprecated compatibility fields. DailyGoal, Exam, and Subject are the normal sources of truth.
     preferred_study_goal = db.Column(db.Float, nullable=True)
-    preferred_theme = db.Column(db.String(40), default="system", nullable=False)
+    preferred_theme = db.Column(db.String(40), default="dark", nullable=False)
     profile_visibility = db.Column(db.String(30), default="private", nullable=False)
     group_visibility = db.Column(db.String(30), default="members", nullable=False)
     leaderboard_visibility = db.Column(db.String(30), default="public", nullable=False)
