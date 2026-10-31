@@ -27,6 +27,14 @@
     })();
   </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/vendor/three/build/three.module.js",
+        "three/addons/": "/vendor/three/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body data-theme="dark">
   <div class="app-loader" id="app-loader" aria-live="polite">
@@ -172,10 +180,11 @@
       </button>
 
       <p class="nav-group">Community</p>
-      <button class="nav-link" type="button" data-section="cozy-library" title="Cozy Library & VC">
+      <button class="nav-link" type="button" data-section="cozy-library" id="nav-common-library" title="Common Library & VC">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><path d="M9 7h6M9 11h6"></path></svg>
-        <span>Cozy Library</span>
+        <span>Common Library</span>
       </button>
+      <div id="sidebar-group-library-item"></div>
       <button class="nav-link" type="button" data-section="study-circle" title="Groups">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><circle cx="17" cy="9" r="3"></circle><path d="M3 20c.8-3 2.6-5 5-5s4.2 2 5 5"></path><path d="M13 19c.8-2.4 2.3-4 4-4 2.1 0 3.5 1.6 4 4"></path></svg>
         <span>Groups</span>
@@ -863,7 +872,7 @@
             <div class="group-meta-row" id="group-workspace-meta"></div>
           </div>
           <div class="workspace-actions">
-            <button type="button" class="primary-button" id="group-cozy-library-button" title="Join Cozy Library Room">📖 Cozy Library</button>
+            <button type="button" class="primary-button" id="group-cozy-library-button" title="Enter Group Study Library">📖 Group Library</button>
             <button type="button" class="secondary-button" id="group-invite-button">Invite</button>
             <button type="button" class="secondary-button" id="group-settings-button">Settings</button>
           </div>
@@ -998,6 +1007,15 @@
               <option value="private">Private group</option>
               <option value="public" disabled>Public later</option>
             </select>
+            <label for="group-library-capacity-input">Library Seating Capacity</label>
+            <select id="group-library-capacity-input">
+              <option value="auto" selected>Auto (Scales with members)</option>
+              <option value="4">4 Desks per floor</option>
+              <option value="8">8 Desks per floor</option>
+              <option value="12">12 Desks per floor</option>
+              <option value="16">16 Desks per floor</option>
+              <option value="20">20 Desks per floor</option>
+            </select>
             <button type="submit" id="save-group-button">Create Group</button>
             <button type="button" class="delete-button" id="delete-group-button" hidden>Delete Group</button>
           </form>
@@ -1125,13 +1143,40 @@
 
     <!-- Cozy Study Library & Real-Time VC Lounge -->
     <section class="app-section" id="cozy-library">
-      <!-- 1. Header & Navigation Cleanup -->
+      <!-- 1. Clean Top Bar -->
       <div class="library-top-bar" id="library-top-bar">
         <div class="library-title-area">
-          <h2 class="library-clean-title" id="library-group-title">Deep Work Club — Library</h2>
+          <h2 class="library-clean-title" id="library-group-title">Common Library</h2>
+          <!-- Floor & Hall Switcher (Sequential Unlocking per Library Context) -->
+          <div class="library-floor-switcher" id="library-floor-switcher" aria-label="Library Floors and Halls">
+            <button type="button" class="floor-pill-btn active" data-floor-id="ground" id="floor-btn-ground" title="Main Reading Hall - Ground Floor">Ground Floor</button>
+            <button type="button" class="floor-pill-btn" data-floor-id="mezzanine" id="floor-btn-mezzanine" style="display: none;" title="Upper Mezzanine - 2nd Floor (Unlocks when Ground Floor is 80% full)">2nd Floor</button>
+            <button type="button" class="floor-pill-btn" data-floor-id="archive" id="floor-btn-archive" style="display: none;" title="West Archive Wing (Unlocks when 2nd Floor is 80% full)">Archive Wing</button>
+            <span class="library-capacity-indicator" id="library-capacity-indicator">Ground · 2/20</span>
+            <button type="button" class="library-sim-fill-btn" id="library-sim-fill-btn" onclick="toggleSimulateFullLibrary()" title="Step-by-step floor capacity fill to unlock 2nd Floor then Archive Wing">+ Fill Floor</button>
+          </div>
+
+          <!-- 3D Camera Angle Switcher -->
+          <div class="library-camera-presets" id="library-camera-presets" aria-label="3D Room Camera Angles">
+            <button type="button" class="cam-preset-btn active" data-cam-preset="overview" title="Full 3D Cutaway Overview">Overview</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="window" title="Zoom to Window Nook (Desks 1-5)">Window Nook</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="fireside" title="Zoom to Hearthside Alcove (Desks 6-10)">Fireside</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="archive" title="Zoom to Main Archive (Desks 11-15)">Archive</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="corner" title="Zoom to Quiet Corner (Desks 16-20)">Quiet Corner</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="lounge" title="Sit & Relax at Break Lounge Coffee Table">☕ Break Lounge</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="topdown" title="Bird's-Eye Top View of All Unlocked Floors">Top View</button>
+          </div>
         </div>
 
         <div class="library-top-actions">
+          <!-- Atmosphere Mood Cycle Button -->
+          <button type="button" class="library-atmo-btn" id="library-atmosphere-toggle" title="Cycle 3D Lighting Mood (Daylight · Golden Hour · Cozy Night)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span id="atmosphere-name">Cozy Night</span>
+          </button>
+
           <!-- Unified Pill Switcher -->
           <div class="library-pill-switcher" role="tablist" aria-label="Library view switcher">
             <button type="button" class="pill-btn active" id="btn-view-desks" data-library-view="desks">
@@ -1152,100 +1197,27 @@
         </div>
       </div>
 
-      <!-- Main In-Canvas Stage Viewport (Desks vs VC in the Exact Same Viewport) -->
+      <!-- Main In-Canvas Stage Viewport (3D Room vs VC in the Exact Same Viewport) -->
       <div class="cozy-library-stage" id="cozy-library-stage">
-        <!-- VIEW 1: 3D Spatial Library Room with Physical Zones -->
+        <!-- VIEW 1: Interactive 3D WebGL Cutaway Library Diorama -->
         <div class="cozy-spatial-room active" id="cozy-library-room">
-          <!-- Back Wall: Arched Rainy Window, Grand Bookshelves, Fireplace -->
-          <div class="room-backwall">
-            <!-- Left Bookshelf -->
-            <div class="wall-bookcase left-case">
-              <div class="case-cornice"></div>
-              <div class="case-ladder">
-                <span class="ladder-rung"></span><span class="ladder-rung"></span><span class="ladder-rung"></span>
-              </div>
-              <div class="case-books">
-                <span class="b-tome c-wine h-tall"></span>
-                <span class="b-tome c-navy h-med"></span>
-                <span class="b-tome c-gold h-short"></span>
-                <span class="b-tome c-forest h-tall"></span>
-                <span class="b-tome c-amber h-med"></span>
-              </div>
-            </div>
+          <!-- WebGL Canvas Container -->
+          <div class="cozy-3d-canvas-wrap" id="cozy-library-3d-canvas-wrap" aria-label="Interactive 3D Cozy Study Library"></div>
 
-            <!-- Center Arched Rainy Window overlooking Courtyard -->
-            <div class="wall-window-alcove">
-              <div class="arched-rain-window" id="spatial-window">
-                <div class="window-gothic-arch"></div>
-                <div class="window-panes">
-                  <div class="rain-overlay" id="window-rain-overlay"></div>
-                  <div class="window-light" id="window-light-overlay"></div>
-                </div>
-                <div class="window-mullion-v"></div>
-                <div class="window-mullion-h"></div>
-                <span class="window-ivy">🌿</span>
-              </div>
-            </div>
+          <!-- 3D-Projected Floating Name Tags, Sit Buttons & Study Note Popovers -->
+          <div class="cozy-3d-labels-layer" id="cozy-library-3d-labels"></div>
 
-            <!-- Right Bookshelf -->
-            <div class="wall-bookcase right-case">
-              <div class="case-cornice"></div>
-              <div class="case-books">
-                <span class="b-tome c-navy h-tall"></span>
-                <span class="b-tome c-forest h-med"></span>
-                <span class="b-tome c-amber h-tall"></span>
-                <span class="b-tome c-wine h-short"></span>
-                <span class="b-tome c-gold h-tall"></span>
-              </div>
-            </div>
-
-            <!-- Cozy Fireplace Alcove -->
-            <div class="wall-fireplace-nook" title="Warm Stone Hearth">
-              <div class="fireplace-mantel">
-                <span class="mantel-item">🕯️</span>
-                <span class="mantel-item">🌿</span>
-              </div>
-              <div class="fireplace-hearth">
-                <div class="fire-flames">
-                  <span class="fire-flame f1"></span>
-                  <span class="fire-flame f2"></span>
-                  <span class="fire-flame f3"></span>
-                </div>
-                <span class="fire-logs">🪵</span>
-              </div>
-            </div>
+          <!-- Subtle 3D Navigation Hint -->
+          <div class="cozy-3d-controls-hint" aria-hidden="true">
+            <span>Drag to orbit · Scroll to zoom · Click any desk to sit</span>
           </div>
 
-          <!-- Floor Plane: Hardwood Perspective Floor with 4 Spatial Zones -->
-          <div class="room-floor-plane" id="room-floor-plane">
-            <div class="floor-wood-grain"></div>
-            <div class="floor-persian-rug">
-              <div class="rug-pattern"></div>
-            </div>
-
-            <!-- Spatial Zone 1 (Back-Left): Window Nook (scaled to 0.9x) -->
-            <div class="room-zone zone-window-nook" id="zone-window-nook">
-              <div class="zone-label-subtle">Window Nook</div>
-              <div class="zone-desks-slot" id="slot-zone-1"></div>
-            </div>
-
-            <!-- Spatial Zone 2 (Back-Right): Fireplace Alcove (scaled to 0.9x) -->
-            <div class="room-zone zone-fireplace-alcove" id="zone-fireplace-alcove">
-              <div class="zone-label-subtle">Fireplace Alcove</div>
-              <div class="zone-desks-slot" id="slot-zone-2"></div>
-            </div>
-
-            <!-- Spatial Zone 3 (Mid-ground): Central Communal Table (scale 1.0x) -->
-            <div class="room-zone zone-communal-center" id="zone-communal-center">
-              <div class="zone-label-subtle">Central Reading Table</div>
-              <div class="zone-desks-slot" id="slot-zone-3"></div>
-            </div>
-
-            <!-- Spatial Zone 4 (Foreground): Quiet Corner Desk (scale 1.05x) -->
-            <div class="room-zone zone-foreground-quiet" id="zone-foreground-quiet">
-              <div class="zone-label-subtle">Quiet Corner</div>
-              <div class="zone-desks-slot" id="slot-zone-4"></div>
-            </div>
+          <!-- Preserved hidden DOM slots for legacy script hooks -->
+          <div hidden aria-hidden="true">
+            <div id="slot-zone-1"></div>
+            <div id="slot-zone-2"></div>
+            <div id="slot-zone-3"></div>
+            <div id="slot-zone-4"></div>
           </div>
         </div>
 
@@ -1260,7 +1232,7 @@
                 <span class="avatar-status-text">Camera Off</span>
               </div>
               <div class="vc-tile-footer">
-                <span class="participant-name" id="vc-local-name">You (Local)</span>
+                <span class="participant-name" id="vc-local-name">You</span>
                 <div class="tile-indicators">
                   <span class="audio-wave-meter" id="vc-local-audio-meter" title="Audio Level">
                     <span class="bar bar-1"></span><span class="bar bar-2"></span><span class="bar bar-3"></span>
@@ -1273,9 +1245,16 @@
             <!-- Remote Peer Tiles Container -->
             <div class="vc-remote-container" id="vc-remote-container">
               <div class="vc-empty-peers" id="vc-empty-peers">
-                <div class="empty-peers-graphic">🎧</div>
-                <h4>No one else on call yet</h4>
-                <p class="muted-text">Friends and group members who turn on their mic/cam will appear here.</p>
+                <div class="empty-peers-graphic">
+                  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </div>
+                <h4>Waiting for study partners</h4>
+                <p class="muted-text">Group members who join the Study Call will stream live audio and video here.</p>
               </div>
             </div>
           </div>
@@ -1290,48 +1269,144 @@
           </div>
         </div>
 
-        <!-- 5. Integrated Bottom Glass Dock -->
+        <!-- 5. Integrated Bottom Floating Dock with Natural Vector SVG Controls -->
         <div class="library-bottom-dock" id="library-glass-dock">
           <!-- Soundscape Controls -->
           <div class="dock-soundscape-group">
-            <span class="dock-label-icon">🎧</span>
+            <span class="dock-label-icon" aria-hidden="true" title="Ambient Soundscape">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+              </svg>
+            </span>
             <select id="library-sound-select" class="dock-sound-select" aria-label="Select Ambient Sound">
-              <option value="rain">🌧️ Rain</option>
-              <option value="hearth">🔥 Hearth</option>
-              <option value="pages">📖 Pages</option>
-              <option value="cafe">☕ Cafe</option>
-              <option value="off">Off</option>
+              <option value="rain">Rain on Glass</option>
+              <option value="hearth">Crackling Hearth</option>
+              <option value="lofi">Warm Lofi Chords</option>
+              <option value="pages">Library Ambience</option>
+              <option value="off">Muted</option>
             </select>
             <input type="range" id="library-sound-vol" class="dock-vol-slider" min="0" max="1" step="0.05" value="0.35" title="Ambient volume" aria-label="Ambient volume">
-            <button type="button" class="dock-icon-btn" id="library-sound-toggle" title="Play / Mute Soundscape">▶️</button>
+            <button type="button" class="dock-icon-btn" id="library-sound-toggle" title="Play / Pause Soundscape" aria-label="Play or pause soundscape">
+              <svg id="sound-svg-play" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
+              </svg>
+              <svg id="sound-svg-pause" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none" hidden>
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+            </button>
           </div>
 
-          <!-- Synchronized Room Timer -->
-          <div class="dock-timer-group">
+          <!-- Personal Study Posture Switcher (Vector SVG Icons) -->
+          <div class="dock-posture-group" id="dock-posture-group" title="Your 3D Character Study Posture">
+            <button type="button" class="dock-posture-btn active" data-posture="reading" title="Reading Book">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+            </button>
+            <button type="button" class="dock-posture-btn" data-posture="typing" title="Working on Laptop">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="12" rx="2" ry="2"></rect>
+                <line x1="2" y1="20" x2="22" y2="20"></line>
+              </svg>
+            </button>
+            <button type="button" class="dock-posture-btn" data-posture="writing" title="Writing Notes">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                <path d="M2 2l7.586 7.586"></path>
+              </svg>
+            </button>
+            <button type="button" class="dock-posture-btn" data-posture="coffee" title="Coffee Break">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                <line x1="6" y1="1" x2="6" y2="4"></line>
+                <line x1="10" y1="1" x2="10" y2="4"></line>
+                <line x1="14" y1="1" x2="14" y2="4"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Bidirectional StudyMate Focus Timer -->
+          <div class="dock-timer-group" id="dock-timer-group">
             <span class="dock-timer-dot" id="sync-timer-dot"></span>
-            <span class="dock-timer-mode" id="sync-timer-mode-label">Focus</span>
+            <div class="dock-timer-meta">
+              <span class="dock-timer-mode" id="sync-timer-mode-label">Focus</span>
+              <span class="dock-timer-subject" id="sync-timer-subject-label">General Study</span>
+            </div>
             <strong class="dock-timer-digits tabular-nums" id="sync-timer-digits">25:00</strong>
-            <button type="button" class="dock-icon-btn" id="sync-timer-toggle-btn" title="Pause / Resume Room Timer">⏸️</button>
+            <button type="button" class="dock-icon-btn" id="sync-timer-toggle-btn" title="Start / Pause StudyMate Focus Timer" aria-label="Start or pause focus timer">
+              <svg id="timer-svg-play" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
+              </svg>
+              <svg id="timer-svg-pause" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none" hidden>
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+            </button>
+            <button type="button" class="dock-icon-btn" id="sync-timer-finish-btn" title="Complete & Log Focus Session" aria-label="Complete focus session" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
           </div>
 
-          <!-- Media Controls (Mic, Cam, Screen) -->
+          <!-- Natural Hardware Media Controls (Mic, Camera, Screen Share) -->
           <div class="dock-media-group">
-            <button type="button" class="dock-icon-btn" id="vc-toggle-mic" title="Toggle Microphone">
-              <span id="vc-mic-icon">🎤</span>
+            <button type="button" class="dock-hardware-btn is-muted" id="vc-toggle-mic" title="Toggle Microphone" aria-label="Toggle Microphone">
+              <!-- Mic On SVG -->
+              <svg id="vc-mic-svg-on" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <!-- Mic Off / Muted SVG -->
+              <svg id="vc-mic-svg-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <span class="hardware-btn-label" id="vc-mic-label">Mic</span>
             </button>
-            <button type="button" class="dock-icon-btn" id="vc-toggle-cam" title="Toggle Camera">
-              <span id="vc-cam-icon">📹</span>
+
+            <button type="button" class="dock-hardware-btn is-muted" id="vc-toggle-cam" title="Toggle Camera" aria-label="Toggle Camera">
+              <!-- Camera On SVG -->
+              <svg id="vc-cam-svg-on" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+              <!-- Camera Off SVG -->
+              <svg id="vc-cam-svg-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+              <span class="hardware-btn-label" id="vc-cam-label">Cam</span>
             </button>
-            <button type="button" class="dock-icon-btn" id="vc-toggle-screen" title="Share Screen">
-              <span id="vc-screen-icon">🖥️</span>
+
+            <button type="button" class="dock-hardware-btn" id="vc-toggle-screen" title="Share Screen" aria-label="Share Screen">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span class="hardware-btn-label" id="vc-screen-label">Share</span>
             </button>
           </div>
 
-          <!-- Collaboration Drawer Toggle -->
+          <!-- Collaboration Drawer Toggle & Leave Seat -->
           <div class="dock-action-group">
-            <button type="button" class="dock-pill-btn" id="library-drawer-toggle" title="Open Room Chat & Notes">
-              <span>💬 Chat & Notes</span>
-              <span class="dock-badge" id="drawer-unread-badge" hidden>•</span>
+            <button type="button" class="dock-pill-btn" id="library-drawer-toggle" title="Open Room Chat & Pinned Notes">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>Chat & Notes</span>
+              <span class="dock-badge" id="drawer-unread-badge" hidden></span>
             </button>
             <button type="button" class="dock-pill-btn delete-style" id="dock-leave-seat-btn" hidden title="Stand up and leave desk">
               <span>Leave Seat</span>
@@ -1339,14 +1414,19 @@
           </div>
         </div>
 
-        <!-- Slide-Out Glass Drawer: Chat & Sticky Notes -->
+        <!-- Slide-Out Drawer: Chat & Sticky Notes -->
         <aside class="library-slide-drawer" id="library-slide-drawer" hidden>
           <div class="drawer-header">
             <div class="drawer-tabs">
               <button type="button" class="collab-tab active" data-collab-tab="chat">Room Chat</button>
               <button type="button" class="collab-tab" data-collab-tab="sticky">Notes (<span id="sticky-count">2</span>)</button>
             </div>
-            <button type="button" class="drawer-close-btn" id="close-library-drawer" aria-label="Close Drawer">✕</button>
+            <button type="button" class="drawer-close-btn" id="close-library-drawer" aria-label="Close Drawer">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
           </div>
 
           <!-- Chat Pane -->
@@ -1356,15 +1436,14 @@
             </div>
             <!-- Quick Cheers -->
             <div class="quick-reactions-strip">
-              <span class="reaction-label">Cheer:</span>
-              <button type="button" class="reaction-btn" data-reaction="☕" title="Send Coffee">☕</button>
-              <button type="button" class="reaction-btn" data-reaction="👏" title="Send Clap">👏</button>
-              <button type="button" class="reaction-btn" data-reaction="🔥" title="Send Fire">🔥</button>
-              <button type="button" class="reaction-btn" data-reaction="⭐" title="Send Star">⭐</button>
-              <button type="button" class="reaction-btn" data-reaction="📚" title="Send Books">📚</button>
+              <span class="reaction-label">Encourage:</span>
+              <button type="button" class="reaction-btn" data-reaction="Coffee" title="Send Coffee">Coffee</button>
+              <button type="button" class="reaction-btn" data-reaction="Applause" title="Send Applause">Applaud</button>
+              <button type="button" class="reaction-btn" data-reaction="Focus" title="Send Focus Boost">Focus</button>
+              <button type="button" class="reaction-btn" data-reaction="Keep Going" title="Send Encouragement">Keep Going</button>
             </div>
             <form class="library-chat-form" id="library-chat-form">
-              <input type="text" id="library-chat-input" placeholder="Type to room members..." maxlength="280" autocomplete="off" required>
+              <input type="text" id="library-chat-input" placeholder="Write to the study room..." maxlength="280" autocomplete="off" required>
               <button type="submit" id="library-chat-submit">Send</button>
             </form>
           </div>
@@ -1375,7 +1454,7 @@
               <!-- Sticky note cards rendered here -->
             </div>
             <form class="new-sticky-form" id="new-sticky-form">
-              <textarea id="new-sticky-content" rows="2" placeholder="Pin a formula, link, or goal..." maxlength="200" required></textarea>
+              <textarea id="new-sticky-content" rows="2" placeholder="Pin a formula, resource, or session target..." maxlength="200" required></textarea>
               <div class="sticky-form-footer">
                 <div class="sticky-color-picker">
                   <label><input type="radio" name="sticky-color" value="amber" checked><span class="color-dot amber"></span></label>
@@ -1383,52 +1462,53 @@
                   <label><input type="radio" name="sticky-color" value="blue"><span class="color-dot blue"></span></label>
                   <label><input type="radio" name="sticky-color" value="rose"><span class="color-dot rose"></span></label>
                 </div>
-                <button type="submit" class="secondary-button compact-btn">Pin</button>
+                <button type="submit" class="secondary-button compact-btn">Pin Note</button>
               </div>
             </form>
           </div>
         </aside>
       </div>
 
-      <!-- Desk Action Modal (Take Desk / Set Goal) -->
+      <!-- Desk Action Modal (Take Desk / Set Goal & Auto-Sync Focus Timer) -->
       <div class="modal-backdrop" id="desk-action-modal" hidden>
         <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="desk-action-title">
           <div class="section-mini-header">
             <h3 id="desk-action-title">Take Study Desk</h3>
-            <button type="button" class="icon-button" id="close-desk-modal" aria-label="Close">x</button>
+            <button type="button" class="icon-button" id="close-desk-modal" aria-label="Close">×</button>
           </div>
           <form class="stacked-form" id="desk-action-form">
             <input type="hidden" id="desk-modal-target-id" value="">
-            <label for="desk-modal-subject">Subject</label>
-            <input id="desk-modal-subject" type="text" list="subject-datalist" placeholder="e.g. Calculus, Physics, Literature" required>
+            <label for="desk-modal-subject">Subject (syncs with Focus tab)</label>
+            <input id="desk-modal-subject" type="text" list="subject-datalist" placeholder="e.g. Calculus, Organic Chemistry, Literature" required>
             <label for="desk-modal-goal">Session Goal / Target</label>
-            <input id="desk-modal-goal" type="text" placeholder="e.g. Chapter 4 problem set 1-15" maxlength="120">
-            <label for="desk-modal-lamp">Desk Reading Lamp</label>
+            <input id="desk-modal-goal" type="text" placeholder="e.g. Complete Chapter 4 problem set" maxlength="120">
+            <label for="desk-modal-lamp">Desk Banker's Lamp</label>
             <div class="checkbox-row">
               <input type="checkbox" id="desk-modal-lamp" checked>
-              <span>Illuminate reading lamp</span>
+              <span>Illuminate 3D brass reading lamp</span>
             </div>
-            <label>Study Activity</label>
+            <label>3D Character Study Posture</label>
             <div class="modal-posture-selector">
               <label class="modal-posture-card">
                 <input type="radio" name="modal-desk-posture" value="reading" checked>
-                <span>📖 Reading</span>
+                <span>Reading</span>
               </label>
               <label class="modal-posture-card">
                 <input type="radio" name="modal-desk-posture" value="typing">
-                <span>💻 Typing</span>
+                <span>Laptop</span>
               </label>
               <label class="modal-posture-card">
                 <input type="radio" name="modal-desk-posture" value="writing">
-                <span>✍️ Writing</span>
+                <span>Writing</span>
               </label>
               <label class="modal-posture-card">
                 <input type="radio" name="modal-desk-posture" value="coffee">
-                <span>☕ Coffee</span>
+                <span>Break</span>
               </label>
             </div>
             <div class="button-row">
-              <button type="submit" id="desk-modal-submit-btn">Sit at Desk</button>
+              <button type="submit" id="desk-modal-submit-btn">Sit & Start Focus</button>
+              <button type="button" class="secondary-button" id="desk-modal-reserve-btn" hidden>Reserve Desk</button>
               <button type="button" class="secondary-button" id="desk-modal-leave-btn" hidden>Leave Desk</button>
             </div>
           </form>
@@ -1678,6 +1758,7 @@
       lastLoginAt: {{ (current_user.last_login_at.isoformat() if current_user.last_login_at else None)|tojson }}
     };
   </script>
+  <script type="module" src="{{ url_for('static', filename='js/cozyLibrary3D.js') }}"></script>
   <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

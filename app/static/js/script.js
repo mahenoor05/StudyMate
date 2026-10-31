@@ -2214,14 +2214,28 @@ function maybeShowOnboarding() {
   showOnboardingStep(1);
 }
 
+function syncLibrarySidebarHighlight(activeSectionId) {
+  const secId = activeSectionId || (document.querySelector(".content-section.active")?.id) || "";
+  const isCozyLib = secId === "cozy-library";
+  const isGroupContext = Boolean(currentLibraryRoomId && currentLibraryRoomId.startsWith("group:"));
+
+  document.querySelectorAll(".nav-link").forEach(function (button) {
+    if (button.id === "nav-common-library") {
+      button.classList.toggle("active", isCozyLib && !isGroupContext);
+    } else if (button.id === "nav-group-library-btn") {
+      button.classList.toggle("active", isCozyLib && isGroupContext);
+    } else {
+      button.classList.toggle("active", !isCozyLib && button.dataset.section === secId);
+    }
+  });
+}
+
 function showSection(sectionId) {
   sections.forEach(function (section) {
     section.classList.toggle("active", section.id === sectionId);
   });
 
-  navButtons.forEach(function (button) {
-    button.classList.toggle("active", button.dataset.section === sectionId);
-  });
+  syncLibrarySidebarHighlight(sectionId);
 
   if (sectionId === "cozy-library" && typeof initCozyLibrary === "function") {
     initCozyLibrary();
@@ -2823,6 +2837,10 @@ function updateSessionPage() {
     } else {
       sessionTaskHud.hidden = true;
     }
+  }
+
+  if (typeof renderLibraryTimer === "function") {
+    renderLibraryTimer();
   }
 }
 
@@ -4351,12 +4369,22 @@ function formatGoalResult(result) {
 }
 
 async function startSession() {
-  if (appData.activeSession || appData.pendingSessionReview) return;
+  if (appData.activeSession) {
+    if (appData.sessionState === "paused" || appData.activeSession.state === "paused") {
+      toggleSessionPause();
+    }
+    return;
+  }
 
-  appData.customFocusMinutes = Math.max(1, Number(customFocusInput.value) || appData.customFocusMinutes);
-  appData.customBreakMinutes = Math.max(0, Number(customBreakInput.value) || 0);
-  appData.selectedSubjectId = sessionSubjectSelect.value || appData.selectedSubjectId;
-  appData.currentSessionDraft.goal = sessionGoalInput.value.trim();
+  if (appData.pendingSessionReview) {
+    appData.pendingSessionReview = null;
+  }
+
+  appData.customFocusMinutes = Math.max(1, Number(customFocusInput ? customFocusInput.value : 0) || appData.customFocusMinutes || 25);
+  appData.customBreakMinutes = Math.max(0, Number(customBreakInput ? customBreakInput.value : 0) || appData.customBreakMinutes || 5);
+  appData.selectedSubjectId = (sessionSubjectSelect && sessionSubjectSelect.value) || appData.selectedSubjectId || (appData.subjects && appData.subjects[0] ? appData.subjects[0].id : "general");
+  appData.currentSessionDraft = appData.currentSessionDraft || {};
+  appData.currentSessionDraft.goal = (sessionGoalInput && sessionGoalInput.value) ? sessionGoalInput.value.trim() : (appData.currentSessionDraft.goal || "");
 
   if (databaseLoaded) {
     try {
@@ -4414,6 +4442,13 @@ function tickStudySession() {
   updateHome();
   renderRecentSessions();
   updateBrowserTimerTitle();
+
+  if (typeof renderLibraryTimer === "function") {
+    renderLibraryTimer();
+  }
+  if (typeof syncMyDeskWithActiveFocusSession === "function") {
+    syncMyDeskWithActiveFocusSession();
+  }
 
   if (appData.activeSession.focusSeconds && getSessionElapsedSeconds() >= appData.activeSession.focusSeconds) {
     if (appData.activeSession.phase === "focus") {
@@ -5086,11 +5121,12 @@ function startOrContinueFromHome() {
     return;
   }
 
-  appData.selectedSubjectId = homeSubjectSelect.value || appData.selectedSubjectId;
+  appData.selectedSubjectId = (homeSubjectSelect && homeSubjectSelect.value) || appData.selectedSubjectId;
   appData.timerModeIndex = timerModes.findIndex(function (mode) { return mode.id === "stopwatch"; });
   if (appData.timerModeIndex < 0) appData.timerModeIndex = 0;
-  sessionSubjectSelect.value = appData.selectedSubjectId;
+  if (sessionSubjectSelect) sessionSubjectSelect.value = appData.selectedSubjectId;
   startSession();
+  showSection("focus-hub");
 }
 
 function renderPlanner() {
@@ -7324,6 +7360,10 @@ window.addEventListener("load", function () {
 
 navButtons.forEach(function (button) {
   button.addEventListener("click", function () {
+    if (button.id === "nav-common-library") {
+      openCommonLibrary();
+      return;
+    }
     showSection(button.dataset.section);
   });
 });
@@ -8159,7 +8199,8 @@ function initAmbientSoundEngine() {
 // ==========================================================================
 
 let libraryWs = null;
-let libraryPeerId = null;
+let libraryBroadcastChannel = null;
+let libraryPeerId = "peer-" + Math.random().toString(36).slice(2, 10);
 let libraryRoomState = null;
 let libraryAmbientAudioCtx = null;
 let libraryAmbientGainNode = null;
@@ -8173,6 +8214,7 @@ let screenMediaStream = null;
 let quietStudyModeActive = false;
 let isCallJoined = false;
 const peerConnections = new Map();
+const pendingIceCandidates = new Map();
 
 const rtcConfig = {
   iceServers: [
@@ -8181,7 +8223,98 @@ const rtcConfig = {
   ]
 };
 
+function sendLibraryRealtimeEvent(payload) {
+  if (!payload) return;
+  const enriched = Object.assign({ fromPeerId: libraryPeerId }, payload);
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    try {
+      libraryWs.send(JSON.stringify(enriched));
+    } catch (err) {
+      console.warn("Library WS send error:", err);
+    }
+  }
+  if (libraryBroadcastChannel) {
+    try {
+      libraryBroadcastChannel.postMessage(enriched);
+    } catch (err) {
+      console.warn("BroadcastChannel post error:", err);
+    }
+  }
+}
+
+function initLibraryBroadcastChannel() {
+  if (libraryBroadcastChannel || typeof BroadcastChannel === "undefined") return;
+  try {
+    libraryBroadcastChannel = new BroadcastChannel("studymate_library_realtime");
+    libraryBroadcastChannel.onmessage = function (event) {
+      const data = event.data;
+      if (!data || data.fromPeerId === libraryPeerId) return;
+
+      // Mirror cross-tab WebRTC & desk events when testing across multiple tabs/windows
+      if (data.type === "signal:offer" || data.type === "offer") {
+        if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
+          handleRemoteOffer(data.fromPeerId, data.offer, data.user);
+        }
+      } else if (data.type === "signal:answer" || data.type === "answer") {
+        if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
+          handleRemoteAnswer(data.fromPeerId, data.answer);
+        }
+      } else if (data.type === "signal:ice_candidate" || data.type === "ice-candidate") {
+        if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
+          handleRemoteIceCandidate(data.fromPeerId, data.candidate);
+        }
+      }
+    };
+  } catch (err) {
+    console.warn("BroadcastChannel init error:", err);
+  }
+}
+
+function enforceSingleSeatRuleOnState() {
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+  const seenUsers = new Set();
+  // Traverse desks so each real user or peerId can only occupy at most one desk
+  for (let i = 0; i < libraryRoomState.desks.length; i++) {
+    const d = libraryRoomState.desks[i];
+    if (d && d.occupiedBy && !d.occupiedBy.isBuddy) {
+      const key = d.occupiedBy.peerId
+        ? `peer:${d.occupiedBy.peerId}`
+        : `user:${d.occupiedBy.userId}`;
+      if (seenUsers.has(key)) {
+        d.occupiedBy = null;
+      } else {
+        seenUsers.add(key);
+      }
+    }
+  }
+}
+
+function isDeskMine(desk) {
+  if (!desk || !desk.occupiedBy || desk.occupiedBy.isBuddy) return false;
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  if (desk.occupiedBy.peerId && libraryPeerId) {
+    return desk.occupiedBy.peerId === libraryPeerId || String(desk.occupiedBy.userId) === String(currentUserId);
+  }
+  return String(desk.occupiedBy.userId) === String(currentUserId);
+}
+
+function vacateMyExistingDesks(exceptDeskId) {
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+  libraryRoomState.desks.forEach(function (d) {
+    if (d.occupiedBy && isDeskMine(d) && Number(d.id) !== Number(exceptDeskId)) {
+      const vacatedId = d.id;
+      d.occupiedBy = null;
+      sendLibraryRealtimeEvent({
+        type: "desk:leave",
+        deskId: Number(vacatedId)
+      });
+    }
+  });
+}
+
 function connectLibraryWs() {
+  initLibraryBroadcastChannel();
+
   if (libraryWs && (libraryWs.readyState === WebSocket.OPEN || libraryWs.readyState === WebSocket.CONNECTING)) {
     return;
   }
@@ -8196,6 +8329,7 @@ function connectLibraryWs() {
       const user = window.STUDYMATE_USER || { id: 1, displayName: "Mahenoor" };
       libraryWs.send(JSON.stringify({
         type: "join:library",
+        roomId: currentLibraryRoomId,
         user: {
           id: user.id,
           displayName: user.displayName || user.username || "Mahenoor",
@@ -8233,19 +8367,53 @@ function handleLibraryWsMessage(data) {
 
   switch (data.type) {
     case "init:room_state": {
-      libraryPeerId = data.peerId;
+      if (data.peerId) libraryPeerId = data.peerId;
       libraryRoomState = data.room;
+      enforceSingleSeatRuleOnState();
       renderAllLibraryComponents();
       break;
     }
 
     case "desk:updated": {
-      if (libraryRoomState && Array.isArray(libraryRoomState.desks)) {
-        const idx = libraryRoomState.desks.findIndex(function (d) { return d.id === data.deskId; });
-        if (idx >= 0) {
-          libraryRoomState.desks[idx] = data.desk;
+      if (libraryRoomState) {
+        if (Array.isArray(data.desks)) {
+          libraryRoomState.desks = data.desks;
+        } else if (Array.isArray(libraryRoomState.desks)) {
+          // If this update seats a user on data.deskId, clear that same user from any other desk
+          if (data.desk && data.desk.occupiedBy && !data.desk.occupiedBy.isBuddy) {
+            const incomingUserId = data.desk.occupiedBy.userId;
+            const incomingPeerId = data.desk.occupiedBy.peerId;
+            libraryRoomState.desks.forEach(function (d) {
+              if (
+                d.id !== data.deskId &&
+                d.occupiedBy &&
+                !d.occupiedBy.isBuddy &&
+                ((incomingPeerId && d.occupiedBy.peerId === incomingPeerId) ||
+                  String(d.occupiedBy.userId) === String(incomingUserId))
+              ) {
+                d.occupiedBy = null;
+              }
+            });
+          }
+          const idx = libraryRoomState.desks.findIndex(function (d) { return d.id === data.deskId; });
+          if (idx >= 0) {
+            libraryRoomState.desks[idx] = data.desk;
+          }
         }
+        enforceSingleSeatRuleOnState();
         renderLibraryDesks();
+      }
+      break;
+    }
+
+    case "desk:occupied_error": {
+      if (libraryRoomState && Array.isArray(data.desks)) {
+        libraryRoomState.desks = data.desks;
+        enforceSingleSeatRuleOnState();
+        renderLibraryDesks();
+      }
+      if (typeof showToast === "function") {
+        showToast(data.message || "This desk is already occupied by another student.");
       }
       break;
     }
@@ -8268,12 +8436,10 @@ function handleLibraryWsMessage(data) {
           if (audioTrack) {
             audioTrack.enabled = !isFocus;
             updateMicUI(!isFocus);
-            if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-              libraryWs.send(JSON.stringify({
-                type: "vc:media_state",
-                hasAudio: !isFocus
-              }));
-            }
+            sendLibraryRealtimeEvent({
+              type: "vc:media_state",
+              hasAudio: !isFocus
+            });
           }
         }
       }
@@ -8316,65 +8482,472 @@ function handleLibraryWsMessage(data) {
 
     // --- WebRTC Call Signaling ---
     case "vc:existing_peers": {
-      if (isCallJoined && Array.isArray(data.peers)) {
-        data.peers.forEach(function (peer) {
-          if (peer.peerId !== libraryPeerId) {
-            createPeerConnection(peer.peerId, true);
-          }
-        });
-        updateVCParticipantCount(data.peers.length + 1);
+      if (Array.isArray(data.peers)) {
+        if (libraryRoomState) {
+          libraryRoomState.vcParticipants = data.peers;
+        }
+        if (isCallJoined) {
+          data.peers.forEach(function (peer) {
+            if (peer.peerId && peer.peerId !== libraryPeerId) {
+              ensureRemotePeerTile(peer.peerId, null, peer);
+              createPeerConnection(peer.peerId, true);
+              updateRemotePeerState(peer.peerId, peer);
+            }
+          });
+        }
+        updateVCParticipantCount(data.peers.length + (isCallJoined ? 1 : 0));
       }
       break;
     }
 
     case "vc:participant_joined": {
-      if (isCallJoined && data.participant && data.participant.peerId !== libraryPeerId) {
-        createPeerConnection(data.participant.peerId, false);
+      if (data.participant) {
+        if (libraryRoomState) {
+          if (!Array.isArray(libraryRoomState.vcParticipants)) libraryRoomState.vcParticipants = [];
+          const exists = libraryRoomState.vcParticipants.some(function (p) { return p.peerId === data.participant.peerId; });
+          if (!exists) libraryRoomState.vcParticipants.push(data.participant);
+        }
+        if (isCallJoined && data.participant.peerId !== libraryPeerId) {
+          ensureRemotePeerTile(data.participant.peerId, null, data.participant);
+          createPeerConnection(data.participant.peerId, false);
+          updateRemotePeerState(data.participant.peerId, data.participant);
+        }
+      }
+      break;
+    }
+
+    case "vc:participants_updated": {
+      if (Array.isArray(data.participants)) {
+        if (libraryRoomState) {
+          libraryRoomState.vcParticipants = data.participants;
+        }
+        updateVCParticipantCount(data.participants.length);
+        if (isCallJoined) {
+          data.participants.forEach(function (p) {
+            if (p.peerId && p.peerId !== libraryPeerId) {
+              ensureRemotePeerTile(p.peerId, null, p);
+              updateRemotePeerState(p.peerId, p);
+            }
+          });
+        }
       }
       break;
     }
 
     case "vc:participant_left": {
+      if (libraryRoomState && Array.isArray(libraryRoomState.vcParticipants)) {
+        libraryRoomState.vcParticipants = libraryRoomState.vcParticipants.filter(function (p) { return p.peerId !== data.peerId; });
+        updateVCParticipantCount(libraryRoomState.vcParticipants.length);
+      }
       closePeerConnection(data.peerId);
       break;
     }
 
     case "vc:media_state_changed": {
+      if (libraryRoomState && Array.isArray(libraryRoomState.vcParticipants) && data.participant) {
+        const idx = libraryRoomState.vcParticipants.findIndex(function (p) { return p.peerId === data.peerId; });
+        if (idx >= 0) libraryRoomState.vcParticipants[idx] = data.participant;
+      }
       updateRemotePeerState(data.peerId, data.participant);
       break;
     }
 
-    case "signal:offer": {
-      handleRemoteOffer(data.fromPeerId, data.offer);
+    case "signal:offer":
+    case "offer": {
+      handleRemoteOffer(data.fromPeerId, data.offer, data.user);
       break;
     }
 
-    case "signal:answer": {
+    case "signal:answer":
+    case "answer": {
       handleRemoteAnswer(data.fromPeerId, data.answer);
       break;
     }
 
-    case "signal:ice_candidate": {
+    case "signal:ice_candidate":
+    case "ice-candidate": {
       handleRemoteIceCandidate(data.fromPeerId, data.candidate);
       break;
     }
   }
 }
 
+let currentLibraryRoomId = "common";
+let activeGroupLibraryCircleId = null;
+const libraryContextStateByRoom = {};
+
+function getLibraryContextState(roomId) {
+  const key = roomId || currentLibraryRoomId || "common";
+  if (!libraryContextStateByRoom[key]) {
+    libraryContextStateByRoom[key] = {
+      activeFloor: "ground",
+      simStep: 0
+    };
+  }
+  return libraryContextStateByRoom[key];
+}
+
+function syncFloorButtonsWithActiveContext() {
+  const ctx = getLibraryContextState(currentLibraryRoomId);
+  const floorId = ctx.activeFloor || "ground";
+  const floorSwitcherGroup = document.getElementById("library-floor-switcher");
+  if (floorSwitcherGroup) {
+    floorSwitcherGroup.querySelectorAll(".floor-pill-btn").forEach(function (b) {
+      const bFloor = b.dataset.floorId || b.dataset.floor || "ground";
+      b.classList.toggle("active", bFloor === floorId);
+    });
+  }
+  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.switchFloor === "function") {
+    window.cozyLibrary3D.switchFloor(floorId);
+  }
+}
+
 function updateLibraryGroupTitle() {
   const titleEl = document.getElementById("library-group-title");
-  if (!titleEl) return;
-  const activeGroup = (appData.studyCircles && appData.studyCircles.find(function(c) { return c.id === appData.selectedCircleId; })) || (appData.studyCircles && appData.studyCircles[0]);
-  const groupName = activeGroup ? activeGroup.name : "Deep Work Club";
-  titleEl.textContent = `${groupName} — Library`;
+  const sidebarGroupItem = document.getElementById("sidebar-group-library-item");
+
+  if (appData.selectedCircleId) {
+    activeGroupLibraryCircleId = appData.selectedCircleId;
+  }
+
+  const groupCircleId = (currentLibraryRoomId && currentLibraryRoomId.startsWith("group:"))
+    ? currentLibraryRoomId.slice(6)
+    : activeGroupLibraryCircleId;
+
+  const groupCircle = groupCircleId
+    ? (appData.studyCircles && appData.studyCircles.find(function(c) { return String(c.id) === String(groupCircleId); }))
+    : null;
+
+  const isViewingGroupLibrary = Boolean(currentLibraryRoomId && currentLibraryRoomId.startsWith("group:"));
+
+  if (isViewingGroupLibrary && groupCircle) {
+    const groupName = groupCircle.name || "Group";
+    if (titleEl) titleEl.textContent = `${groupName} Library`;
+  } else {
+    if (titleEl) titleEl.textContent = "Common Library";
+  }
+
+  if (sidebarGroupItem) {
+    if (groupCircle) {
+      const groupName = groupCircle.name || "Group";
+      sidebarGroupItem.innerHTML = `
+        <button class="nav-link ${isViewingGroupLibrary ? "active" : ""}" type="button" id="nav-group-library-btn" data-section="cozy-library" title="${escapeHtml(groupName)} Library">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><path d="M9 7h6M9 11h6"></path></svg>
+          <span>📖 ${escapeHtml(groupName)} Library</span>
+        </button>
+      `;
+      const btn = document.getElementById("nav-group-library-btn");
+      if (btn) {
+        btn.onclick = function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          openGroupLibrary(groupCircle.id);
+        };
+      }
+    } else {
+      sidebarGroupItem.innerHTML = "";
+    }
+  }
+
+  syncLibrarySidebarHighlight();
+}
+
+async function openCommonLibrary() {
+  currentLibraryRoomId = "common";
+  libraryRoomState = null;
+  updateLibraryGroupTitle();
+  if (typeof showSection === "function") showSection("cozy-library");
+  syncLibrarySidebarHighlight("cozy-library");
+  await fetchAndInitLibraryRoom("common");
+  syncFloorButtonsWithActiveContext();
+}
+
+async function openGroupLibrary(groupId) {
+  if (!groupId) return openCommonLibrary();
+  appData.selectedCircleId = groupId;
+  activeGroupLibraryCircleId = groupId;
+  currentLibraryRoomId = "group:" + groupId;
+  libraryRoomState = null;
+  updateLibraryGroupTitle();
+  if (typeof showSection === "function") showSection("cozy-library");
+  syncLibrarySidebarHighlight("cozy-library");
+  await fetchAndInitLibraryRoom("group:" + groupId);
+  syncFloorButtonsWithActiveContext();
+}
+
+const COMMON_LIBRARY_DESK_GRID_20 = [
+  // Zone 1: Arched Rain Window Nook (Back-Left - Desks 1-5, centered over Rug 1 at x: -3.2, z: -2.3)
+  { id: 1, zone: "window", x: -5.2, z: -3.2, rotY: 0.08, label: "Window Nook 1" },
+  { id: 2, zone: "window", x: -3.2, z: -3.2, rotY: -0.06, label: "Window Nook 2" },
+  { id: 3, zone: "window", x: -1.2, z: -3.2, rotY: 0.04, label: "Window Nook 3" },
+  { id: 4, zone: "window", x: -4.2, z: -1.4, rotY: 0.06, label: "Window Nook 4" },
+  { id: 5, zone: "window", x: -2.2, z: -1.4, rotY: -0.08, label: "Window Nook 5" },
+
+  // Zone 2: Hearth & Fireside Alcove (Back-Right - Desks 6-10, centered over Rug 2 at x: 3.2, z: -2.3)
+  { id: 6, zone: "fireplace", x: 1.2, z: -3.2, rotY: 0.06, label: "Hearthside 6" },
+  { id: 7, zone: "fireplace", x: 3.2, z: -3.2, rotY: -0.10, label: "Hearthside 7" },
+  { id: 8, zone: "fireplace", x: 5.2, z: -3.2, rotY: 0.05, label: "Hearthside 8" },
+  { id: 9, zone: "fireplace", x: 2.2, z: -1.4, rotY: 0.08, label: "Hearthside 9" },
+  { id: 10, zone: "fireplace", x: 4.2, z: -1.4, rotY: -0.06, label: "Hearthside 10" },
+
+  // Zone 3: Main Archive Reading Table (Foreground-Left - Desks 11-15, centered over Rug 3 at x: -3.2, z: 2.1)
+  { id: 11, zone: "archive", x: -5.2, z: 1.2, rotY: 0.05, label: "Main Archive 11" },
+  { id: 12, zone: "archive", x: -3.2, z: 1.2, rotY: -0.05, label: "Main Archive 12" },
+  { id: 13, zone: "archive", x: -1.2, z: 1.2, rotY: 0.06, label: "Main Archive 13" },
+  { id: 14, zone: "archive", x: -4.2, z: 3.0, rotY: 0.07, label: "Main Archive 14" },
+  { id: 15, zone: "archive", x: -2.2, z: 3.0, rotY: -0.06, label: "Main Archive 15" },
+
+  // Zone 4: Quiet Corner Study (Foreground-Right - Desks 16-20, centered over Rug 4 at x: 3.2, z: 2.1)
+  { id: 16, zone: "corner", x: 1.2, z: 1.2, rotY: 0.05, label: "Quiet Corner 16" },
+  { id: 17, zone: "corner", x: 3.2, z: 1.2, rotY: -0.08, label: "Quiet Corner 17" },
+  { id: 18, zone: "corner", x: 5.2, z: 1.2, rotY: 0.04, label: "Quiet Corner 18" },
+  { id: 19, zone: "corner", x: 2.0, z: 3.0, rotY: 0.06, label: "Quiet Corner 19" },
+  { id: 20, zone: "corner", x: 3.8, z: 3.0, rotY: -0.05, label: "Quiet Corner 20" }
+];
+window.COMMON_LIBRARY_DESK_GRID_20 = COMMON_LIBRARY_DESK_GRID_20;
+
+function ensureRoomHas36Desks(room) {
+  if (!room) return room;
+  if (!Array.isArray(room.desks)) room.desks = [];
+  const isGroup = Boolean(
+    (room.id && String(room.id).startsWith("group:")) ||
+    (currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"))
+  );
+  const existingById = new Map();
+  room.desks.forEach(function (d) {
+    if (d && d.id) {
+      if (!isGroup) {
+        d.reservedBy = null;
+      }
+      existingById.set(Number(d.id), d);
+    }
+  });
+  const fullDesks = [];
+  for (let i = 1; i <= 52; i++) {
+    if (existingById.has(i)) {
+      fullDesks.push(existingById.get(i));
+    } else {
+      const zone = i <= 5 ? "Window Nook" : (i <= 10 ? "Hearthside" : (i <= 15 ? "Main Archive" : (i <= 20 ? "Quiet Corner" : (i <= 36 ? "2nd Floor Mezzanine" : "Archive Wing"))));
+      fullDesks.push({
+        id: i,
+        label: `${zone} ${i}`,
+        occupiedBy: null,
+        reservedBy: null
+      });
+    }
+  }
+  room.desks = fullDesks;
+  return room;
+}
+
+function createDefaultLibraryRoomFallback(roomId = "common") {
+  const isGroup = typeof roomId === "string" && roomId.startsWith("group:");
+  const desks = [];
+  const deskCount = 52;
+  for (let i = 1; i <= deskCount; i++) {
+    const zone = i <= 5 ? "Window Nook" : (i <= 10 ? "Hearthside" : (i <= 15 ? "Main Archive" : (i <= 20 ? "Quiet Corner" : (i <= 36 ? "2nd Floor Mezzanine" : "Archive Wing"))));
+    desks.push({
+      id: i,
+      label: `${zone} ${i}`,
+      occupiedBy: null,
+      reservedBy: null
+    });
+  }
+  desks[0].occupiedBy = {
+    userId: 2,
+    displayName: "Elena Rostova",
+    avatarStyle: "orbit",
+    avatarColor: "blue",
+    subject: "Calculus III",
+    goal: "Stokes' Theorem problem set",
+    timerSeconds: 1140,
+    lampOn: true,
+    posture: "reading",
+    isBuddy: true
+  };
+  desks[2].occupiedBy = {
+    userId: 3,
+    displayName: "Dev Patel",
+    avatarStyle: "spark",
+    avatarColor: "amber",
+    subject: "Algorithms",
+    goal: "Graph traversals & DFS/BFS",
+    timerSeconds: 960,
+    lampOn: true,
+    posture: "typing",
+    isBuddy: true
+  };
+  if (isGroup) {
+    desks[1].reservedBy = {
+      userId: 102,
+      displayName: "Aarav Sharma",
+      avatarStyle: "spark",
+      avatarColor: "rose",
+      subject: "Quantum Mechanics"
+    };
+    desks[3].reservedBy = {
+      userId: 103,
+      displayName: "Sophia Chen",
+      avatarStyle: "orbit",
+      avatarColor: "purple",
+      subject: "Organic Chemistry"
+    };
+  }
+
+  return {
+    id: roomId,
+    name: isGroup ? "Group Library" : "Common Library",
+    atmosphere: "midnight",
+    activeFloor: "ground",
+    syncTimer: {
+      status: "running",
+      mode: "focus",
+      focusMinutes: 25,
+      breakMinutes: 5,
+      remainingSeconds: 23 * 60 + 40,
+      lastTick: Date.now()
+    },
+    desks: desks,
+    stickyNotes: [
+      {
+        id: "note-1",
+        author: "Elena R.",
+        color: "sage",
+        content: "Reminder: Review vector calculus problem set before 3pm tomorrow!",
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "note-2",
+        author: "Dev P.",
+        color: "amber",
+        content: "2 more 25m pomodoros today. Phones away, deep focus mode!",
+        createdAt: new Date().toISOString()
+      }
+    ],
+    messages: [
+      {
+        id: "msg-1",
+        senderName: "Elena Rostova",
+        senderAvatarStyle: "orbit",
+        senderAvatarColor: "blue",
+        content: "Welcome to the study library! The rain outside makes it so peaceful today.",
+        createdAt: new Date(Date.now() - 1800000).toISOString()
+      },
+      {
+        id: "msg-2",
+        senderName: "Dev Patel",
+        senderAvatarStyle: "spark",
+        senderAvatarColor: "amber",
+        content: "Starting a 25m focus sprint on algorithms. Feel free to join VC anytime!",
+        createdAt: new Date(Date.now() - 600000).toISOString()
+      }
+    ],
+    vcParticipants: []
+  };
+}
+
+async function fetchAndInitLibraryRoom(roomId) {
+  const targetRoomId = roomId || currentLibraryRoomId || "common";
+  try {
+    const res = await fetch("/api/library/room?roomId=" + encodeURIComponent(targetRoomId));
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.room) {
+        libraryRoomState = ensureRoomHas36Desks(data.room);
+        enforceSingleSeatRuleOnState();
+        renderAllLibraryComponents();
+      }
+    }
+  } catch (e) {
+    console.warn("Library room fetch error:", e);
+  }
+  if (!libraryRoomState) {
+    libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+    renderAllLibraryComponents();
+  }
+  syncCozyLibrary3DNow();
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    const user = window.STUDYMATE_USER || { id: 1, displayName: "Mahenoor" };
+    libraryWs.send(JSON.stringify({
+      type: "join:library",
+      roomId: targetRoomId,
+      user: {
+        id: user.id,
+        displayName: user.displayName || user.username || "Mahenoor",
+        avatarStyle: user.avatarStyle || "initials",
+        avatarColor: user.avatarColor || "teal",
+        avatarUrl: user.avatarUrl || null
+      }
+    }));
+  } else {
+    connectLibraryWs();
+  }
+}
+
+function claimDesk(deskId) {
+  reserveDesk(deskId);
+}
+
+function checkAutoSeatClaimedDesk() {
+  if (!currentLibraryRoomId || !String(currentLibraryRoomId).startsWith("group:")) return;
+  if (!appData.claimedDesks || !appData.claimedDesks[currentLibraryRoomId]) return;
+  const claimedDeskId = Number(appData.claimedDesks[currentLibraryRoomId]);
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  const currentUserName = window.STUDYMATE_USER?.displayName || window.STUDYMATE_USER?.username || "Mahenoor";
+  const currentSubj = appData.subjects.find(function (s) { return s.id === appData.selectedSubjectId; })?.name || "Focus Study";
+
+  const targetDesk = libraryRoomState.desks.find(function(d) { return d.id === claimedDeskId; });
+  if (targetDesk) {
+    // Ensure the reserved desk in Group Library carries the user's carved oak nameplate
+    if (!targetDesk.reservedBy) {
+      targetDesk.reservedBy = {
+        userId: currentUserId,
+        displayName: currentUserName,
+        subject: currentSubj
+      };
+    }
+  }
+
+  const myCurrentDesk = libraryRoomState.desks.find(function(d) { return isDeskMine(d); });
+  if (myCurrentDesk) return;
+
+  if (targetDesk && !targetDesk.occupiedBy) {
+    targetDesk.occupiedBy = {
+      peerId: libraryPeerId,
+      userId: currentUserId,
+      displayName: currentUserName,
+      avatarStyle: window.STUDYMATE_USER?.avatarStyle || "initials",
+      avatarColor: window.STUDYMATE_USER?.avatarColor || "teal",
+      avatarUrl: window.STUDYMATE_USER?.avatarUrl || null,
+      subject: currentSubj,
+      goal: appData.activeSession?.goal || "",
+      timerSeconds: appData.activeSession ? getSessionElapsedSeconds() : 0,
+      lampOn: true,
+      posture: "reading",
+      isBuddy: false
+    };
+    sendLibraryRealtimeEvent({
+      type: "desk:take",
+      deskId: claimedDeskId,
+      subject: currentSubj,
+      goal: appData.activeSession?.goal || "",
+      timerSeconds: appData.activeSession ? getSessionElapsedSeconds() : 0,
+      lampOn: true,
+      posture: "reading"
+    });
+  }
 }
 
 function renderAllLibraryComponents() {
   if (!libraryRoomState) return;
+  ensureRoomHas36Desks(libraryRoomState);
   updateLibraryGroupTitle();
+  checkAutoSeatClaimedDesk();
   renderLibraryDesks();
   renderLibraryTimer();
-  renderAtmosphere(libraryRoomState.atmosphere || "rainy");
+  renderAtmosphere(libraryRoomState.atmosphere || "rainy", true);
   renderAllChatMessages();
   renderStickyNotes();
   if (Array.isArray(libraryRoomState.vcParticipants)) {
@@ -8393,7 +8966,7 @@ function getSweaterColor(avatarColor) {
     indigo: "#4338CA",
     crimson: "#991B1B"
   };
-  return map[avatarColor] || "#1E3A8A";
+  return map[avatarColor] || "#0D9488";
 }
 
 function createSpatialDeskStation(desk, currentUserId) {
@@ -8401,99 +8974,145 @@ function createSpatialDeskStation(desk, currentUserId) {
   station.id = `desk-card-${desk.id}`;
 
   const isOccupied = !!desk.occupiedBy;
-  const isMyDesk = isOccupied && desk.occupiedBy.userId === currentUserId && !desk.occupiedBy.isBuddy;
+  const isMyDesk = isDeskMine(desk);
 
   station.className = `spatial-desk-station ${isOccupied ? "occupied" : "empty"} ${isMyDesk ? "my-desk" : ""}`;
 
   if (isOccupied) {
-    const mins = Math.floor((desk.occupiedBy.timerSeconds || 1500) / 60);
+    const mins = Math.max(1, Math.floor((desk.occupiedBy.timerSeconds || 1500) / 60));
     const posture = desk.occupiedBy.posture || "reading";
     const postureEmoji = posture === "typing" ? "💻" : (posture === "writing" ? "✍️" : (posture === "coffee" ? "☕" : "📖"));
     const sweaterColor = getSweaterColor(desk.occupiedBy.avatarColor);
     const firstName = (desk.occupiedBy.displayName || "Member").split(" ")[0];
     const isLampOn = desk.occupiedBy.lampOn !== false;
     const initials = getInitials(desk.occupiedBy.displayName || "Student");
+    const clickAction = isMyDesk ? `openDeskModal(${desk.id})` : `togglePeerPopover(${desk.id})`;
 
     station.innerHTML = `
-      <!-- Desk Wooden Surface & Props -->
-      <div class="desk-wooden-table">
-        <!-- Banker's Lamp with Warm Radial Glow -->
-        <div class="desk-banker-lamp ${isLampOn ? "lit" : ""}" title="${isLampOn ? "Banker's lamp on" : "Banker's lamp off"}">
+      <!-- Cute Study Chair Behind Desk -->
+      <div class="iso-study-chair" aria-hidden="true">
+        <div class="chair-backrest"></div>
+        <div class="chair-cushion"></div>
+      </div>
+
+      <!-- Seated Circular Character Avatar in Chair -->
+      <div class="desk-seated-avatar-wrap" onclick="${clickAction}; event.stopPropagation();" title="${isMyDesk ? 'Edit my study session or leave seat' : escapeHtml(desk.occupiedBy.displayName) + ' is studying here'}">
+        <div class="seated-circle-avatar" style="background-color: ${sweaterColor};">
+          ${desk.occupiedBy.avatarUrl ? `<img src="${escapeHtml(desk.occupiedBy.avatarUrl)}" alt="${escapeHtml(desk.occupiedBy.displayName)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : `<span>${escapeHtml(initials)}</span>`}
+        </div>
+      </div>
+
+      <!-- Warm Wooden Desk Surface & Props -->
+      <div class="desk-wooden-table" onclick="${clickAction}">
+        <!-- Brass Reading Lamp with Amber Radial Glow -->
+        <div class="desk-banker-lamp ${isLampOn ? "lit" : ""}" title="${isLampOn ? "Reading lamp on" : "Reading lamp off"}">
+          <div class="lamp-brass-base"></div>
           <div class="lamp-brass-stem"></div>
           <div class="lamp-emerald-shade"></div>
           <div class="lamp-radial-glow"></div>
         </div>
 
-        <!-- Seated Circular Character Avatar -->
-        <div class="desk-seated-avatar-wrap" onclick="${isMyDesk ? `openDeskModal(${desk.id})` : `togglePeerPopover(${desk.id})`}" title="${isMyDesk ? 'Edit my goal / seat' : 'View ' + escapeHtml(desk.occupiedBy.displayName)}">
-          <div class="seated-circle-avatar" style="background-color: ${sweaterColor};">
-            ${desk.occupiedBy.avatarUrl ? `<img src="${escapeHtml(desk.occupiedBy.avatarUrl)}" alt="${escapeHtml(desk.occupiedBy.displayName)}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">` : `<span>${escapeHtml(initials)}</span>`}
-          </div>
-        </div>
-
-        <!-- Props Cluster -->
+        <!-- Desk Props: Notebook/Laptop + Warm Mug -->
         <div class="table-props-cluster">
           ${posture === "typing" ? `
             <div class="prop-laptop" title="Laptop">
               <div class="prop-laptop-screen"></div>
             </div>
           ` : `
-            <div class="prop-book" title="Open Book"></div>
+            <div class="prop-notebook-open" title="Open Notebook"></div>
           `}
-          <div class="prop-coffee-cup" title="Coffee Cup"></div>
+          <div class="prop-coffee-cup" title="Warm Mug">
+            <span class="mug-steam"></span>
+          </div>
         </div>
       </div>
 
-      <!-- Minimalist Underneath Caption: FirstName • Live Timer ● -->
-      <div class="desk-minimal-caption" onclick="${isMyDesk ? `openDeskModal(${desk.id})` : `togglePeerPopover(${desk.id})`}">
+      <!-- Under the desk, show ONLY First Name and live timer (e.g. "Mahenoor • 25m") -->
+      <div class="desk-minimal-caption" onclick="${clickAction}; event.stopPropagation();">
         <span class="caption-name">${escapeHtml(firstName)}</span>
         <span class="caption-divider">•</span>
         <span class="caption-timer">${mins}m</span>
-        <span class="caption-pulse-dot" title="Active Study Session"></span>
       </div>
 
-      <!-- Floating Paper Note Tooltip on Hover / Click -->
+      <!-- Floating Paper Note Tooltip on Click -->
       <div class="desk-paper-tooltip" id="peer-popover-${desk.id}">
         <div class="tooltip-subject">${escapeHtml(desk.occupiedBy.subject || "Focus Study")}</div>
-        <div class="tooltip-activity">${postureEmoji} ${escapeHtml(posture.charAt(0).toUpperCase() + posture.slice(1))} ${desk.occupiedBy.goal ? `• “${escapeHtml(desk.occupiedBy.goal)}”` : ""}</div>
+        <div class="tooltip-activity">${postureEmoji} ${escapeHtml(posture.charAt(0).toUpperCase() + posture.slice(1))}${desk.occupiedBy.goal ? ` • “${escapeHtml(desk.occupiedBy.goal)}”` : ""}</div>
         <div class="tooltip-cheer-row">
-          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '☕');" title="Send Coffee">☕</button>
-          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '👏');" title="Send Clap">👏</button>
-          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '✨');" title="Send Encouragement">✨</button>
-          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '💡');" title="Send Bright Idea">💡</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '☕'); event.stopPropagation();" title="Send Warm Mug">☕</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '👏'); event.stopPropagation();" title="Send Clap">👏</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '✨'); event.stopPropagation();" title="Send Sparkles">✨</button>
+          <button type="button" class="tooltip-cheer-btn" onclick="sendDeskCheer(${desk.id}, '💡'); event.stopPropagation();" title="Send Idea">💡</button>
+        </div>
+      </div>
+    `;
+  } else if (desk.reservedBy && currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:")) {
+    const resFirstName = (desk.reservedBy.displayName || "Member").split(" ")[0];
+    const isMyReservation = String(desk.reservedBy.userId) === String(currentUserId);
+    station.className = `spatial-desk-station reserved-offline ${isMyReservation ? "my-desk" : ""}`;
+    station.innerHTML = `
+      <!-- Empty Study Chair for Reserved Seat -->
+      <div class="iso-study-chair" aria-hidden="true">
+        <div class="chair-backrest"></div>
+        <div class="chair-cushion"></div>
+      </div>
+
+      <!-- Wooden Desk Surface with Engraved Nameplate on the Desk -->
+      <div class="desk-wooden-table" onclick="openDeskModal(${desk.id})" title="Reserved for ${escapeHtml(desk.reservedBy.displayName)}">
+        <div class="desk-banker-lamp" title="Brass reading lamp">
+          <div class="lamp-brass-base"></div>
+          <div class="lamp-brass-stem"></div>
+          <div class="lamp-emerald-shade"></div>
+        </div>
+
+        <div class="desk-brass-plate-badge">
+          <span class="brass-rivet"></span>
+          <span class="brass-name">${escapeHtml(resFirstName)}</span>
+          <span class="brass-rivet"></span>
+        </div>
+
+        <div class="table-props-cluster">
+          <div class="prop-notebook-closed" title="Closed Leather Notebook"></div>
         </div>
       </div>
     `;
   } else {
     station.innerHTML = `
-      <!-- Empty Desk with Subtle Ghosted + Sit Button -->
-      <div class="desk-wooden-table" onclick="openDeskModal(${desk.id})" title="Click to sit at Desk ${desk.id}">
-        <!-- Lamp Off -->
-        <div class="desk-banker-lamp" title="Reading lamp off">
+      <!-- Cute Empty Study Chair -->
+      <div class="iso-study-chair" aria-hidden="true">
+        <div class="chair-backrest"></div>
+        <div class="chair-cushion"></div>
+      </div>
+
+      <!-- Warm Wooden Desk Surface with Brass Lamp, Closed Notebook & Mug -->
+      <div class="desk-wooden-table" onclick="openDeskModal(${desk.id})" title="Sit at this study desk">
+        <div class="desk-banker-lamp" title="Brass reading lamp">
+          <div class="lamp-brass-base"></div>
           <div class="lamp-brass-stem"></div>
           <div class="lamp-emerald-shade"></div>
         </div>
 
         <button type="button" class="empty-sit-ghost-btn" onclick="openDeskModal(${desk.id}); event.stopPropagation();">
-          <span>+ Sit</span>
+          <span>+ Sit here</span>
         </button>
 
-        <!-- Desk Book Prop -->
         <div class="table-props-cluster">
-          <div class="prop-book" title="Open Book"></div>
+          <div class="prop-notebook-closed" title="Notebook"></div>
+          <div class="prop-coffee-cup" title="Warm Mug"></div>
         </div>
-      </div>
-
-      <!-- Minimalist Underneath Caption for Empty Desk -->
-      <div class="desk-minimal-caption">
-        <span style="opacity:0.6;">Desk ${desk.id}</span>
-        <span class="caption-divider" style="opacity:0.4;">•</span>
-        <span style="opacity:0.6; font-style:italic;">Open</span>
       </div>
     `;
   }
 
   return station;
+}
+
+function updateDockPostureButtons(activePosture) {
+  const postureGroup = document.getElementById("dock-posture-group");
+  if (!postureGroup) return;
+  postureGroup.querySelectorAll(".dock-posture-btn").forEach(function (btn) {
+    btn.classList.toggle("active", btn.dataset.posture === activePosture);
+  });
 }
 
 function renderLibraryDesks() {
@@ -8505,48 +9124,404 @@ function renderLibraryDesks() {
 
   if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
 
+  enforceSingleSeatRuleOnState();
+
   const currentUserId = window.STUDYMATE_USER?.id || 1;
-  let takenCount = 0;
+  const isGroupLibrary = Boolean(currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"));
+  const isCommon = !isGroupLibrary;
+  const countLimit = isCommon ? 20 : Number(appData.libraryDeskCount || 16);
   let myDesk = null;
+
+  if (!isGroupLibrary) {
+    libraryRoomState.desks.forEach(function (d) {
+      d.reservedBy = null;
+    });
+  }
 
   if (slot1) slot1.innerHTML = "";
   if (slot2) slot2.innerHTML = "";
   if (slot3) slot3.innerHTML = "";
   if (slot4) slot4.innerHTML = "";
 
-  libraryRoomState.desks.forEach(function (desk, index) {
-    if (desk.occupiedBy) {
-      takenCount++;
-      if (desk.occupiedBy.userId === currentUserId && !desk.occupiedBy.isBuddy) {
-        myDesk = desk;
+  libraryRoomState.desks.forEach(function (desk) {
+    if (isDeskMine(desk)) {
+      myDesk = desk;
+      if (appData.activeSession && desk.occupiedBy) {
+        desk.occupiedBy.timerSeconds = getSessionElapsedSeconds();
       }
     }
 
-    const station = createSpatialDeskStation(desk, currentUserId);
+    if (desk.id > countLimit && !desk.occupiedBy && !desk.reservedBy) {
+      return;
+    }
 
-    // Distribute into 4 spatial physical zones:
-    // Zone 1: Window Nook (Desks 1-2)
-    // Zone 2: Fireplace Alcove (Desks 3-4)
-    // Zone 3: Central Reading Table (Desks 5-6)
-    // Zone 4: Quiet Corner (Desks 7-8)
-    if (index < 2 && slot1) {
-      slot1.appendChild(station);
-    } else if (index < 4 && slot2) {
-      slot2.appendChild(station);
-    } else if (index < 6 && slot3) {
-      slot3.appendChild(station);
-    } else if (slot4) {
-      slot4.appendChild(station);
+    if (slot1 || slot2 || slot3 || slot4) {
+      const station = createSpatialDeskStation(desk, currentUserId);
+      const desksPerZone = Math.max(4, Math.ceil(countLimit / 4));
+      const zoneIdx = Math.floor((desk.id - 1) / desksPerZone) + 1;
+
+      if (zoneIdx === 1 && slot1) {
+        slot1.appendChild(station);
+      } else if (zoneIdx === 2 && slot2) {
+        slot2.appendChild(station);
+      } else if (zoneIdx === 3 && slot3) {
+        slot3.appendChild(station);
+      } else if (slot4) {
+        slot4.appendChild(station);
+      }
     }
   });
 
+  // Update capacity and sequential floor unlocks first so 3D engine knows which floors are unlocked
+  updateLibraryFloorCapacityUI();
+
+  // Sync the interactive 3D Cozy Library WebGL engine
+  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.syncDesks === "function") {
+    if (typeof window.cozyLibrary3D.setDeskCountLimit === "function") {
+      window.cozyLibrary3D.setDeskCountLimit(countLimit);
+    }
+    window.cozyLibrary3D.syncDesks(libraryRoomState.desks, currentUserId, isGroupLibrary);
+  }
+
+  if (myDesk && myDesk.occupiedBy) {
+    updateDockPostureButtons(myDesk.occupiedBy.posture || "reading");
+  }
+
   // Update Leave Seat button in bottom dock
   if (dockLeaveBtn) {
-    dockLeaveBtn.hidden = !myDesk;
-    if (myDesk) {
+    dockLeaveBtn.hidden = !myDesk && !window.isAtBreakLounge;
+    if (myDesk || window.isAtBreakLounge) {
       dockLeaveBtn.onclick = function() {
-        leaveDesk(myDesk.id);
+        if (window.isAtBreakLounge) {
+          window.isAtBreakLounge = false;
+          window.currentBreakLoungeUser = null;
+          renderLibraryDesks();
+          if (typeof showToast === "function") showToast("Left the Break Lounge.");
+        }
+        if (myDesk) {
+          leaveDesk(myDesk.id);
+        }
       };
+    }
+  }
+}
+
+function updateLibraryFloorCapacityUI() {
+  const isCommon = currentLibraryRoomId === "common" || !currentLibraryRoomId;
+  const groundLimit = isCommon ? 20 : Number(appData.libraryDeskCount || 16);
+  const mezzLimit = 16; // Desks 21-36 (4 per rug across 4 rugs)
+  const archLimit = 16; // Desks 37-52 (4 per rug across 4 rugs)
+
+  const ctx = getLibraryContextState(currentLibraryRoomId);
+  const simStep = ctx.simStep || 0;
+
+  const desks = (libraryRoomState && Array.isArray(libraryRoomState.desks)) ? libraryRoomState.desks : [];
+
+  const groundOccupied = desks
+    .filter(function (d) { return d.id >= 1 && d.id <= groundLimit && Boolean(d.occupiedBy || d.reservedBy); })
+    .length;
+  const mezzOccupied = desks
+    .filter(function (d) { return d.id >= 21 && d.id <= 36 && Boolean(d.occupiedBy || d.reservedBy); })
+    .length;
+  const archOccupied = desks
+    .filter(function (d) { return d.id >= 37 && d.id <= 52 && Boolean(d.occupiedBy || d.reservedBy); })
+    .length;
+
+  const groundRatio = groundOccupied / Math.max(1, groundLimit);
+  const mezzRatio = mezzOccupied / Math.max(1, mezzLimit);
+
+  // Sequential floor unlocking:
+  // 1) Ground Floor >= 80% unlocks 2nd Floor (Mezzanine)
+  // 2) 2nd Floor >= 80% unlocks Archive Wing
+  const isMezzUnlocked = groundRatio >= 0.80 || simStep >= 1;
+  const isArchUnlocked = isMezzUnlocked && (mezzRatio >= 0.80 || simStep >= 2);
+
+  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.setUnlockedFloors === "function") {
+    window.cozyLibrary3D.setUnlockedFloors({
+      ground: true,
+      mezzanine: isMezzUnlocked,
+      archive: isArchUnlocked
+    });
+  }
+
+  const btnMezzanine = document.getElementById("floor-btn-mezzanine");
+  const btnArchive = document.getElementById("floor-btn-archive");
+  const indicator = document.getElementById("library-capacity-indicator");
+  const simBtn = document.getElementById("library-sim-fill-btn");
+
+  if (btnMezzanine) btnMezzanine.style.display = isMezzUnlocked ? "inline-flex" : "none";
+  if (btnArchive) btnArchive.style.display = isArchUnlocked ? "inline-flex" : "none";
+
+  if (indicator) {
+    if (isArchUnlocked) {
+      indicator.textContent = `All 3 Floors Unlocked · Ground (${groundOccupied}/${groundLimit}) · 2nd (${mezzOccupied}/${mezzLimit}) · Archive (${archOccupied}/${archLimit})`;
+      indicator.classList.add("unlocked");
+    } else if (isMezzUnlocked) {
+      indicator.textContent = `2nd Floor Unlocked ✨ · Ground (${groundOccupied}/${groundLimit}) · 2nd Floor (${mezzOccupied}/${mezzLimit})`;
+      indicator.classList.add("unlocked");
+    } else {
+      const pct = Math.round(groundRatio * 100);
+      indicator.textContent = `Ground Floor (${groundOccupied}/${groundLimit} · ${pct}%)`;
+      indicator.classList.remove("unlocked");
+    }
+  }
+
+  if (simBtn) {
+    simBtn.classList.toggle("sim-active", simStep > 0);
+    if (simStep === 0) {
+      simBtn.textContent = "+ Fill Floor";
+      simBtn.title = "Fill Ground Floor (85%) to unlock 2nd Floor";
+    } else if (simStep === 1) {
+      simBtn.textContent = "+ Fill 2nd Floor";
+      simBtn.title = "Fill 2nd Floor (85%) to unlock Archive Wing";
+    } else {
+      simBtn.textContent = "Reset Floors";
+      simBtn.title = "Reset simulated floor occupancy";
+    }
+  }
+
+  // If the currently active floor for this library context is no longer unlocked, fall back safely
+  const floorSwitcher = document.getElementById("library-floor-switcher");
+  if (floorSwitcher) {
+    const activeFloor = ctx.activeFloor || "ground";
+    if ((activeFloor === "archive" && !isArchUnlocked) || (activeFloor === "mezzanine" && !isMezzUnlocked)) {
+      const fallbackFloor = isMezzUnlocked ? "mezzanine" : "ground";
+      ctx.activeFloor = fallbackFloor;
+      floorSwitcher.querySelectorAll(".floor-pill-btn").forEach(function (b) {
+        b.classList.toggle("active", (b.dataset.floorId || "ground") === fallbackFloor);
+      });
+      if (window.cozyLibrary3D && typeof window.cozyLibrary3D.switchFloor === "function") {
+        window.cozyLibrary3D.switchFloor(fallbackFloor);
+      }
+    }
+  }
+}
+
+function toggleSimulateFullLibrary() {
+  if (!libraryRoomState) return;
+  ensureRoomHas36Desks(libraryRoomState);
+
+  const ctx = getLibraryContextState(currentLibraryRoomId);
+  ctx.simStep = ((ctx.simStep || 0) + 1) % 3;
+
+  const isCommon = currentLibraryRoomId === "common" || !currentLibraryRoomId;
+  const groundLimit = isCommon ? 20 : Number(appData.libraryDeskCount || 16);
+
+  const samplePartners = [
+    { name: "Marcus Thorne", subject: "Theoretical Physics", goal: "Quantum Mechanics pset", color: "indigo" },
+    { name: "Aria Patel", subject: "Organic Chemistry", goal: "Synthesis pathways", color: "rose" },
+    { name: "Sophia Müller", subject: "Neuroscience", goal: "Synaptic plasticity review", color: "teal" },
+    { name: "Liam O'Connor", subject: "Pure Mathematics", goal: "Topology proofs", color: "amber" },
+    { name: "Mei-Ling Zhou", subject: "Biochemistry", goal: "Enzyme kinetics", color: "emerald" },
+    { name: "Julian Santos", subject: "Microeconomics", goal: "Game theory models", color: "cyan" },
+    { name: "Chloe Bennett", subject: "Literature", goal: "Romantic poetry essay", color: "purple" },
+    { name: "Devon Vance", subject: "Data Structures", goal: "Graph algorithms", color: "blue" },
+    { name: "Ananya Sharma", subject: "Cell Biology", goal: "Signal transduction", color: "orange" },
+    { name: "Nico Rossi", subject: "World History", goal: "Renaissance archives", color: "slate" },
+    { name: "Zara Al-Mansoor", subject: "Civil Law", goal: "Constitutional precedents", color: "teal" },
+    { name: "Ethan Wright", subject: "Fluid Dynamics", goal: "Navier-Stokes solutions", color: "indigo" },
+    { name: "Kavita Rao", subject: "Molecular Genetics", goal: "CRISPR gene editing notes", color: "rose" },
+    { name: "Oliver Kim", subject: "Astrophysics", goal: "Stellar nucleosynthesis", color: "amber" },
+    { name: "Priya Nair", subject: "Cognitive Science", goal: "Memory consolidation study", color: "emerald" },
+    { name: "Siddharth Sen", subject: "Linear Algebra", goal: "Eigenvector decomposition", color: "blue" },
+    { name: "Elena Rostova", subject: "Classical Music Theory", goal: "Counterpoint analysis", color: "purple" },
+    { name: "Lucas Vance", subject: "Constitutional Law", goal: "Case brief annotations", color: "amber" },
+    { name: "Nadia Kowalski", subject: "Astrodynamics", goal: "Orbital transfer equations", color: "teal" },
+    { name: "Haruto Takahashi", subject: "Machine Learning", goal: "Transformer attention proof", color: "indigo" }
+  ];
+
+  if (ctx.simStep === 1) {
+    // Step 1: Fill Ground Floor to >= 85% so 2nd Floor (Upper Mezzanine) unlocks
+    const targetGroundFill = Math.ceil(groundLimit * 0.85);
+    let filled = 0;
+    libraryRoomState.desks.forEach(function (desk) {
+      if (desk.id >= 1 && desk.id <= groundLimit && filled < targetGroundFill) {
+        if (!isDeskMine(desk) && !desk.occupiedBy) {
+          const partner = samplePartners[filled % samplePartners.length];
+          desk.occupiedBy = {
+            userId: 900 + desk.id,
+            displayName: partner.name,
+            avatarColor: partner.color,
+            subject: partner.subject,
+            goal: partner.goal,
+            lampOn: true,
+            posture: ["reading", "writing", "typing", "coffee"][filled % 4],
+            timerSeconds: 1500 + filled * 120,
+            isSimulated: true
+          };
+          filled++;
+        } else if (desk.occupiedBy || isDeskMine(desk)) {
+          filled++;
+        }
+      }
+    });
+    // Seat 4 scholars across the newly unlocked 2nd Floor (Desks 21, 25, 29, 33) so it feels alive right away
+    [21, 25, 29, 33].forEach(function (dId, idx) {
+      const d = libraryRoomState.desks.find(function (x) { return x.id === dId; });
+      if (d && !d.occupiedBy) {
+        const partner = samplePartners[(12 + idx) % samplePartners.length];
+        d.occupiedBy = {
+          userId: 900 + dId,
+          displayName: partner.name,
+          avatarColor: partner.color,
+          subject: partner.subject,
+          goal: partner.goal,
+          lampOn: true,
+          posture: ["reading", "typing", "writing", "reading"][idx % 4],
+          timerSeconds: 1840 + idx * 300,
+          isSimulated: true
+        };
+      }
+    });
+  } else if (ctx.simStep === 2) {
+    // Step 2: Fill 2nd Floor (Desks 21-36) to >= 85% (14 of 16 desks) so Archive Wing unlocks
+    let mezzFilled = 0;
+    libraryRoomState.desks.forEach(function (desk) {
+      if (desk.id >= 21 && desk.id <= 36 && mezzFilled < 14) {
+        if (!isDeskMine(desk) && !desk.occupiedBy) {
+          const partner = samplePartners[(desk.id + mezzFilled) % samplePartners.length];
+          desk.occupiedBy = {
+            userId: 900 + desk.id,
+            displayName: partner.name,
+            avatarColor: partner.color,
+            subject: partner.subject,
+            goal: partner.goal,
+            lampOn: true,
+            posture: ["reading", "writing", "typing"][mezzFilled % 3],
+            timerSeconds: 1320 + mezzFilled * 180,
+            isSimulated: true
+          };
+          mezzFilled++;
+        } else if (desk.occupiedBy || isDeskMine(desk)) {
+          mezzFilled++;
+        }
+      }
+    });
+    // Seat 4 scholars across the newly unlocked Archive Wing (Desks 37, 41, 45, 49)
+    [37, 41, 45, 49].forEach(function (dId, idx) {
+      const d = libraryRoomState.desks.find(function (x) { return x.id === dId; });
+      if (d && !d.occupiedBy) {
+        const partner = samplePartners[(15 + idx) % samplePartners.length];
+        d.occupiedBy = {
+          userId: 900 + dId,
+          displayName: partner.name,
+          avatarColor: partner.color,
+          subject: partner.subject,
+          goal: partner.goal,
+          lampOn: true,
+          posture: ["reading", "writing", "typing", "reading"][idx % 4],
+          timerSeconds: 2100 + idx * 240,
+          isSimulated: true
+        };
+      }
+    });
+  } else {
+    // Step 0: Reset simulated scholars back to default
+    libraryRoomState.desks.forEach(function (d) {
+      if (!isDeskMine(d) && d.occupiedBy && d.occupiedBy.isSimulated) {
+        d.occupiedBy = null;
+      }
+    });
+  }
+
+  renderLibraryDesks();
+  renderLibraryTimer();
+  updateLibraryFloorCapacityUI();
+
+  if (typeof showToast === "function") {
+    if (ctx.simStep === 1) {
+      showToast("✨ Ground Floor reached 85% capacity! 2nd Floor (Upper Mezzanine) is now unlocked.");
+    } else if (ctx.simStep === 2) {
+      showToast("🏛️ 2nd Floor reached 85% capacity! West Archive Wing is now unlocked.");
+    } else {
+      showToast("Library floor occupancy reset.");
+    }
+  }
+}
+window.toggleSimulateFullLibrary = toggleSimulateFullLibrary;
+window.updateLibraryFloorCapacityUI = updateLibraryFloorCapacityUI;
+
+function sitAtBreakLounge() {
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  const currentUserName = window.STUDYMATE_USER?.displayName || window.STUDYMATE_USER?.username || "Mahenoor";
+  const currentUserColor = window.STUDYMATE_USER?.avatarColor || "teal";
+
+  const myDesk = libraryRoomState?.desks?.find(function (d) { return isDeskMine(d); });
+
+  if (window.isAtBreakLounge) {
+    // Toggle off break lounge and return to reading posture
+    window.isAtBreakLounge = false;
+    window.currentBreakLoungeUser = null;
+    if (myDesk && myDesk.occupiedBy) {
+      myDesk.occupiedBy.posture = "reading";
+      updateDockPostureButtons("reading");
+      sendLibraryRealtimeEvent({
+        type: "desk:posture",
+        deskId: myDesk.id,
+        posture: "reading"
+      });
+    }
+    renderLibraryDesks();
+    if (typeof showToast === "function") {
+      showToast("Finished your coffee break and returned to study mode! 📖");
+    }
+    return;
+  }
+
+  window.isAtBreakLounge = true;
+  window.currentBreakLoungeUser = {
+    userId: currentUserId,
+    displayName: currentUserName,
+    avatarColor: currentUserColor
+  };
+
+  if (myDesk && myDesk.occupiedBy) {
+    myDesk.occupiedBy.posture = "coffee";
+    updateDockPostureButtons("coffee");
+    sendLibraryRealtimeEvent({
+      type: "desk:posture",
+      deskId: myDesk.id,
+      posture: "coffee"
+    });
+  } else {
+    updateDockPostureButtons("coffee");
+  }
+
+  // Highlight Break Lounge camera pill & glide camera to Break Lounge
+  const camPresetsGroup = document.getElementById("library-camera-presets");
+  if (camPresetsGroup) {
+    camPresetsGroup.querySelectorAll(".cam-preset-btn").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.camPreset === "lounge");
+    });
+  }
+  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.setCameraPreset === "function") {
+    window.cozyLibrary3D.setCameraPreset("lounge");
+  }
+
+  renderLibraryDesks();
+  if (typeof showToast === "function") {
+    showToast("☕ Taking a cozy break at the Oak Coffee Table Lounge! Click again anytime to return to study.");
+  }
+}
+window.sitAtBreakLounge = sitAtBreakLounge;
+
+function syncMyDeskWithActiveFocusSession() {
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+  const myDesk = libraryRoomState.desks.find(function (d) { return isDeskMine(d); });
+  if (!myDesk || !myDesk.occupiedBy) return;
+
+  if (appData.activeSession) {
+    const elapsed = getSessionElapsedSeconds();
+    myDesk.occupiedBy.timerSeconds = elapsed;
+    const activeSubj = getActiveSessionSubject();
+    if (activeSubj && activeSubj.name) {
+      myDesk.occupiedBy.subject = activeSubj.name;
+    }
+    if (appData.activeSession.goal) {
+      myDesk.occupiedBy.goal = appData.activeSession.goal;
+    }
+    if (window.cozyLibrary3D && typeof window.cozyLibrary3D.updateDeskTimerBadge === "function") {
+      window.cozyLibrary3D.updateDeskTimerBadge(myDesk.id, elapsed);
     }
   }
 }
@@ -8554,56 +9529,83 @@ function renderLibraryDesks() {
 function togglePeerPopover(deskId) {
   const popover = document.getElementById(`peer-popover-${deskId}`);
   if (!popover) return;
-  const isHidden = popover.hidden;
+  const isOpen = popover.classList.contains("popover-open");
   closeAllPeerPopovers();
-  popover.hidden = !isHidden;
+  if (!isOpen) {
+    popover.classList.add("popover-open");
+  }
 }
 
 function closeAllPeerPopovers() {
-  document.querySelectorAll(".peer-card-popover").forEach(function (p) {
-    p.hidden = true;
+  document.querySelectorAll(".desk-paper-tooltip.popover-open").forEach(function (p) {
+    p.classList.remove("popover-open");
   });
 }
 
 function setMyDeskPosture(posture) {
-  const currentUserId = window.STUDYMATE_USER?.id || 1;
-  const myDesk = libraryRoomState?.desks?.find(function (d) {
-    return d.occupiedBy && d.occupiedBy.userId === currentUserId && !d.occupiedBy.isBuddy;
-  });
+  updateDockPostureButtons(posture);
 
-  if (!myDesk) return;
-
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({
-      type: "desk:posture",
-      deskId: myDesk.id,
-      posture
-    }));
+  if (posture === "coffee") {
+    window.isAtBreakLounge = true;
+    window.currentBreakLoungeUser = {
+      userId: window.STUDYMATE_USER?.id || 1,
+      displayName: window.STUDYMATE_USER?.displayName || window.STUDYMATE_USER?.username || "Mahenoor",
+      avatarColor: window.STUDYMATE_USER?.avatarColor || "teal"
+    };
+  } else {
+    window.isAtBreakLounge = false;
+    window.currentBreakLoungeUser = null;
   }
 
-  // Optimistic update
+  const myDesk = libraryRoomState?.desks?.find(function (d) {
+    return isDeskMine(d);
+  });
+
+  if (!myDesk) {
+    if (posture === "coffee") {
+      if (window.cozyLibrary3D && typeof window.cozyLibrary3D.setCameraPreset === "function") {
+        window.cozyLibrary3D.setCameraPreset("lounge");
+      }
+      renderLibraryDesks();
+      if (typeof showToast === "function") {
+        showToast("☕ Relaxing at the Break Lounge coffee table!");
+      }
+      return;
+    }
+    if (typeof showToast === "function") {
+      showToast("Sit at any empty desk first to set your study posture!");
+    }
+    return;
+  }
+
+  sendLibraryRealtimeEvent({
+    type: "desk:posture",
+    deskId: myDesk.id,
+    posture
+  });
+
   if (myDesk.occupiedBy) {
     myDesk.occupiedBy.posture = posture;
     renderLibraryDesks();
   }
+  if (posture === "coffee" && typeof showToast === "function") {
+    showToast("☕ Moved to the Break Lounge for a warm coffee break!");
+  }
 }
 
 function toggleMyDeskLamp() {
-  const currentUserId = window.STUDYMATE_USER?.id || 1;
   const myDesk = libraryRoomState?.desks?.find(function (d) {
-    return d.occupiedBy && d.occupiedBy.userId === currentUserId && !d.occupiedBy.isBuddy;
+    return isDeskMine(d);
   });
 
   if (!myDesk || !myDesk.occupiedBy) return;
 
   const newLampState = !myDesk.occupiedBy.lampOn;
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({
-      type: "desk:update_progress",
-      deskId: myDesk.id,
-      lampOn: newLampState
-    }));
-  }
+  sendLibraryRealtimeEvent({
+    type: "desk:update_progress",
+    deskId: myDesk.id,
+    lampOn: newLampState
+  });
 
   myDesk.occupiedBy.lampOn = newLampState;
   renderLibraryDesks();
@@ -8612,54 +9614,128 @@ function toggleMyDeskLamp() {
 function renderLibraryTimer() {
   const digits = document.getElementById("sync-timer-digits");
   const modeLabel = document.getElementById("sync-timer-mode-label");
+  const subjectLabel = document.getElementById("sync-timer-subject-label");
   const pill = document.querySelector(".sync-pomodoro-pill");
+  const playSvg = document.getElementById("timer-svg-play");
+  const pauseSvg = document.getElementById("timer-svg-pause");
+  const finishBtn = document.getElementById("sync-timer-finish-btn");
   const toggleBtn = document.getElementById("sync-timer-toggle-btn");
-  if (!digits || !libraryRoomState || !libraryRoomState.syncTimer) return;
+  const dot = document.getElementById("sync-timer-dot");
 
-  const timer = libraryRoomState.syncTimer;
-  const rem = Math.max(0, timer.remainingSeconds || 0);
-  const mins = Math.floor(rem / 60);
-  const secs = rem % 60;
+  if (!digits) return;
+
+  // Prefer live StudyMate Focus session when active or paused
+  if (appData && appData.activeSession) {
+    const elapsed = getSessionElapsedSeconds();
+    const focusSeconds = Number(appData.activeSession.focusSeconds || 0);
+    const displaySeconds = focusSeconds > 0 ? Math.max(focusSeconds - elapsed, 0) : elapsed;
+    const mins = Math.floor(displaySeconds / 60);
+    const secs = displaySeconds % 60;
+
+    digits.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+
+    const isBreak = appData.activeSession.phase === "break";
+    const isPaused = appData.sessionState === "paused";
+
+    if (modeLabel) {
+      modeLabel.textContent = isPaused ? "Paused" : (isBreak ? "Break" : "Focus");
+    }
+    if (subjectLabel) {
+      const subj = getActiveSessionSubject();
+      subjectLabel.textContent = subj ? subj.name : "Study Session";
+    }
+    if (dot) {
+      dot.style.background = isPaused ? "#F59E0B" : (isBreak ? "#38BDF8" : "#22C55E");
+      dot.style.boxShadow = isPaused ? "0 0 6px #F59E0B" : (isBreak ? "0 0 6px #38BDF8" : "0 0 6px #22C55E");
+    }
+    if (pill) {
+      pill.classList.toggle("break", isBreak);
+    }
+    if (playSvg) playSvg.hidden = !isPaused;
+    if (pauseSvg) pauseSvg.hidden = isPaused;
+    if (toggleBtn) toggleBtn.classList.toggle("active", !isPaused);
+    if (finishBtn) finishBtn.hidden = false;
+    return;
+  }
+
+  // Fallback when no personal Focus session is running yet
+  const selectedMode = getSelectedTimerMode ? getSelectedTimerMode() : { id: "pomodoro", focusMinutes: 25 };
+  const focusMins = selectedMode.id === "custom" ? (appData.customFocusMinutes || 25) : (selectedMode.focusMinutes || 25);
+  const defaultSecs = focusMins * 60;
+  const mins = Math.floor(defaultSecs / 60);
+  const secs = defaultSecs % 60;
 
   digits.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 
   if (modeLabel) {
-    modeLabel.textContent = timer.mode === "break" ? "Break" : "Focus";
+    modeLabel.textContent = "Focus";
   }
-  const dot = document.getElementById("sync-timer-dot");
+  if (subjectLabel) {
+    const myDesk = libraryRoomState?.desks?.find(function (d) { return isDeskMine(d); });
+    const subjName = myDesk?.occupiedBy?.subject || (typeof getSelectedSubject === "function" ? getSelectedSubject()?.name : "Ready");
+    subjectLabel.textContent = subjName || "Ready";
+  }
   if (dot) {
-    dot.style.background = timer.mode === "break" ? "#38BDF8" : "#22C55E";
-    dot.style.boxShadow = timer.mode === "break" ? "0 0 6px #38BDF8" : "0 0 6px #22C55E";
+    dot.style.background = "#22C55E";
+    dot.style.boxShadow = "0 0 6px #22C55E";
   }
   if (pill) {
-    pill.classList.toggle("break", timer.mode === "break");
+    pill.classList.remove("break");
   }
-  if (toggleBtn) {
-    toggleBtn.textContent = timer.status === "running" ? "⏸️" : "▶️";
+  if (playSvg) playSvg.hidden = false;
+  if (pauseSvg) pauseSvg.hidden = true;
+  if (toggleBtn) toggleBtn.classList.remove("active");
+  if (finishBtn) finishBtn.hidden = true;
+}
+
+function applyTheme(themeName) {
+  const engine = window.cozyLibrary3D;
+  if (engine && typeof engine.applyTheme === "function") {
+    engine.applyTheme(themeName);
   }
 }
 
-function renderAtmosphere(atmosphere) {
+function renderAtmosphere(atmosphere, shouldApplyTheme = true) {
   const nameLabel = document.getElementById("atmosphere-name");
-  const icon = document.getElementById("atmosphere-icon");
-  const rainOverlay = document.getElementById("window-rain-overlay");
-  const lightOverlay = document.getElementById("window-light-overlay");
 
   const atmospheres = {
-    rainy: { name: "Rainy Window", icon: "🌧️", rain: true, light: "rgba(30, 50, 40, 0.6)" },
-    candlelight: { name: "Warm Candlelight", icon: "🕯️", rain: false, light: "rgba(80, 50, 20, 0.4)" },
-    sunny: { name: "Sunny Courtyard", icon: "☀️", rain: false, light: "rgba(70, 90, 60, 0.5)" },
-    midnight: { name: "Midnight Deep Work", icon: "🌙", rain: false, light: "rgba(10, 15, 25, 0.85)" }
+    cloudy: { name: "Daylight" },
+    daylight: { name: "Daylight" },
+    sunny: { name: "Golden Hour" },
+    rainy: { name: "Cozy Night" },
+    midnight: { name: "Cozy Night" },
+    candlelight: { name: "Cozy Night" },
+    "Daylight": { name: "Daylight" },
+    "Cloudy Afternoon": { name: "Daylight" },
+    "Golden Hour": { name: "Golden Hour" },
+    "Autumn Rain": { name: "Cozy Night" },
+    "Autumn Fall": { name: "Cozy Night" },
+    "Rainy Night": { name: "Cozy Night" },
+    "Cozy Night": { name: "Cozy Night" },
+    "Midnight Study": { name: "Cozy Night" }
   };
 
-  const current = atmospheres[atmosphere] || atmospheres.rainy;
+  const current = atmospheres[atmosphere] || atmospheres.midnight;
   if (nameLabel) nameLabel.textContent = current.name;
-  if (icon) icon.textContent = current.icon;
-  if (rainOverlay) rainOverlay.style.display = current.rain ? "block" : "none";
-  if (lightOverlay) lightOverlay.style.background = current.light;
+
+  if (shouldApplyTheme) {
+    applyTheme(current.name);
+  }
 }
 
 function openDeskModal(deskId) {
+  const desk = libraryRoomState?.desks?.find(function (d) { return d.id === Number(deskId); });
+  const isMine = isDeskMine(desk);
+
+  // Strict single-seat & occupied desk protection: prevent occupying another user's desk
+  if (desk && desk.occupiedBy && !isMine) {
+    togglePeerPopover(desk.id);
+    if (typeof showToast === "function") {
+      showToast(`${desk.occupiedBy.displayName || "Another student"} is already studying at this desk.`);
+    }
+    return;
+  }
+
   const modal = document.getElementById("desk-action-modal");
   const deskInput = document.getElementById("desk-modal-target-id");
   const subjectInput = document.getElementById("desk-modal-subject");
@@ -8672,9 +9748,7 @@ function openDeskModal(deskId) {
 
   deskInput.value = deskId;
 
-  // Check if desk is already occupied by current user
-  const desk = libraryRoomState?.desks?.find(function (d) { return d.id === Number(deskId); });
-  const isMine = desk?.occupiedBy?.userId === (window.STUDYMATE_USER?.id || 1) && !desk?.occupiedBy?.isBuddy;
+  const anyMyDesk = libraryRoomState?.desks?.find(function (d) { return isDeskMine(d); });
 
   if (isMine && desk.occupiedBy) {
     if (subjectInput) subjectInput.value = desk.occupiedBy.subject || "";
@@ -8685,24 +9759,123 @@ function openDeskModal(deskId) {
 
     if (leaveBtn) {
       leaveBtn.hidden = false;
+      leaveBtn.textContent = "Leave Desk";
       leaveBtn.onclick = function () { leaveDesk(deskId); modal.hidden = true; };
     }
-    if (submitBtn) submitBtn.textContent = "Update Desk Goal";
+    if (submitBtn) submitBtn.textContent = "Update Desk & Focus";
   } else {
-    // Pre-fill from active local session if any
-    const activeGoal = appData.activeSession?.goal || "";
-    const activeSubj = appData.subjects.find(function (s) { return s.id === appData.activeSession?.subjectId; })?.name || "";
+    const activeGoal = appData.activeSession?.goal || appData.currentSessionDraft?.goal || "";
+    const activeSubj = appData.subjects.find(function (s) { return s.id === (appData.activeSession?.subjectId || appData.selectedSubjectId); })?.name || "";
     if (subjectInput) subjectInput.value = activeSubj || "";
     if (goalInput) goalInput.value = activeGoal || "";
     if (lampInput) lampInput.checked = true;
     const defaultRadio = modal.querySelector('input[name="modal-desk-posture"][value="reading"]');
     if (defaultRadio) defaultRadio.checked = true;
 
-    if (leaveBtn) leaveBtn.hidden = true;
-    if (submitBtn) submitBtn.textContent = "Sit at Desk";
+    if (leaveBtn) {
+      if (anyMyDesk) {
+        leaveBtn.hidden = false;
+        leaveBtn.textContent = `Leave Current Desk (${anyMyDesk.label || 'Desk ' + anyMyDesk.id})`;
+        leaveBtn.onclick = function () { leaveDesk(anyMyDesk.id); modal.hidden = true; };
+      } else {
+        leaveBtn.hidden = true;
+      }
+    }
+    if (submitBtn) submitBtn.textContent = anyMyDesk ? "Switch to this Desk" : "Sit & Start Focus";
+  }
+
+  const claimBtn = document.getElementById("desk-modal-claim-btn");
+  if (claimBtn) {
+    claimBtn.hidden = true;
+  }
+
+  const reserveBtn = document.getElementById("desk-modal-reserve-btn");
+  if (reserveBtn) {
+    const isGroupLibrary = Boolean(currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"));
+    if (!isGroupLibrary) {
+      // No reservation feature in Common Library
+      reserveBtn.hidden = true;
+    } else {
+      const currentUserId = window.STUDYMATE_USER?.id || 1;
+      const isMyReservation = desk && desk.reservedBy && String(desk.reservedBy.userId) === String(currentUserId);
+      if (isMyReservation) {
+        reserveBtn.hidden = false;
+        reserveBtn.textContent = "Remove Desk Reservation";
+        reserveBtn.onclick = function () { unreserveDesk(deskId); };
+      } else if (desk && !desk.reservedBy) {
+        reserveBtn.hidden = false;
+        reserveBtn.textContent = "Reserve Desk";
+        reserveBtn.onclick = function () { reserveDesk(deskId); };
+      } else {
+        reserveBtn.hidden = true;
+      }
+    }
   }
 
   modal.hidden = false;
+}
+
+function reserveDesk(deskId) {
+  if (!currentLibraryRoomId || !String(currentLibraryRoomId).startsWith("group:")) return;
+  const targetId = Number(deskId);
+  if (!appData.claimedDesks) appData.claimedDesks = {};
+  appData.claimedDesks[currentLibraryRoomId] = targetId;
+  saveData();
+
+  const currentUserId = window.STUDYMATE_USER?.id || 1;
+  const currentUserName = window.STUDYMATE_USER?.displayName || window.STUDYMATE_USER?.username || "Mahenoor";
+  const currentSubj = appData.subjects.find(function (s) { return s.id === appData.selectedSubjectId; })?.name || "Focus Study";
+
+  sendLibraryRealtimeEvent({
+    type: "desk:reserve",
+    deskId: targetId,
+    subject: currentSubj
+  });
+
+  if (libraryRoomState && Array.isArray(libraryRoomState.desks)) {
+    libraryRoomState.desks.forEach(function (d) {
+      if (d.reservedBy && String(d.reservedBy.userId) === String(currentUserId) && d.id !== targetId) {
+        d.reservedBy = null;
+      }
+    });
+    const d = libraryRoomState.desks.find(function (x) { return x.id === targetId; });
+    if (d) {
+      d.reservedBy = {
+        userId: currentUserId,
+        displayName: currentUserName,
+        subject: currentSubj
+      };
+    }
+    renderLibraryDesks();
+  }
+  if (typeof showToast === "function") {
+    showToast("Desk reserved! Your engraved nameplate is now on the desk.");
+  }
+  closeDeskModal();
+}
+
+function unreserveDesk(deskId) {
+  if (!currentLibraryRoomId || !String(currentLibraryRoomId).startsWith("group:")) return;
+  const targetId = Number(deskId);
+  if (appData.claimedDesks && Number(appData.claimedDesks[currentLibraryRoomId]) === targetId) {
+    delete appData.claimedDesks[currentLibraryRoomId];
+    saveData();
+  }
+  sendLibraryRealtimeEvent({
+    type: "desk:unreserve",
+    deskId: targetId
+  });
+  if (libraryRoomState && Array.isArray(libraryRoomState.desks)) {
+    const d = libraryRoomState.desks.find(function (x) { return x.id === targetId; });
+    if (d) {
+      d.reservedBy = null;
+      renderLibraryDesks();
+    }
+  }
+  if (typeof showToast === "function") {
+    showToast("Desk reservation removed.");
+  }
+  closeDeskModal();
 }
 
 function closeDeskModal() {
@@ -8711,11 +9884,34 @@ function closeDeskModal() {
 }
 
 function leaveDesk(deskId) {
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({
-      type: "desk:leave",
-      deskId: Number(deskId)
-    }));
+  let targetId = deskId ? Number(deskId) : null;
+  if (!targetId && libraryRoomState?.desks) {
+    const mine = libraryRoomState.desks.find(function (d) { return isDeskMine(d); });
+    if (mine) targetId = mine.id;
+  }
+  if (!targetId) return;
+
+  sendLibraryRealtimeEvent({
+    type: "desk:leave",
+    deskId: targetId
+  });
+
+  if (libraryRoomState && Array.isArray(libraryRoomState.desks)) {
+    libraryRoomState.desks.forEach(function (d) {
+      if (d.id === targetId || isDeskMine(d)) {
+        d.occupiedBy = null;
+      }
+    });
+    renderLibraryDesks();
+    renderLibraryTimer();
+    if (window.cozyLibrary3D && typeof window.cozyLibrary3D.syncDesks === "function") {
+      const isGroupLibrary = Boolean(currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"));
+      window.cozyLibrary3D.syncDesks(libraryRoomState.desks, window.STUDYMATE_USER?.id || 1, isGroupLibrary);
+    }
+  }
+  closeDeskModal();
+  if (typeof showToast === "function") {
+    showToast("You stood up and left your study desk.");
   }
 }
 
@@ -8726,6 +9922,8 @@ function sendDeskCheer(targetDeskId, reaction) {
       targetDeskId: Number(targetDeskId),
       reaction: reaction || "☕"
     }));
+  } else {
+    triggerFloatingCheer(Number(targetDeskId), reaction || "☕", window.STUDYMATE_USER?.displayName || "You");
   }
 }
 
@@ -8747,7 +9945,6 @@ function appendChatMessage(msg) {
   const container = document.getElementById("library-chat-messages");
   if (!container || !msg) return;
 
-  const currentUserId = window.STUDYMATE_USER?.id || 1;
   const isMine = msg.senderName === (window.STUDYMATE_USER?.displayName || "Mahenoor");
 
   const bubble = document.createElement("div");
@@ -8803,11 +10000,13 @@ function renderStickyNotes() {
 }
 
 function deleteStickyNote(noteId) {
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({
-      type: "sticky:delete",
-      noteId
-    }));
+  sendLibraryRealtimeEvent({
+    type: "sticky:delete",
+    noteId
+  });
+  if (libraryRoomState && Array.isArray(libraryRoomState.stickyNotes)) {
+    libraryRoomState.stickyNotes = libraryRoomState.stickyNotes.filter(function (n) { return n.id !== noteId; });
+    renderStickyNotes();
   }
 }
 
@@ -8818,7 +10017,6 @@ async function joinVC() {
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(function () {
-      // Fallback to audio-only if video fails
       return navigator.mediaDevices.getUserMedia({ audio: true });
     });
 
@@ -8836,40 +10034,39 @@ async function joinVC() {
     }
 
     const hasVideo = stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled;
+    const hasAudio = stream.getAudioTracks().length > 0 && stream.getAudioTracks()[0].enabled;
     if (fallback) fallback.style.display = hasVideo ? "none" : "flex";
-    if (localName) localName.textContent = `${window.STUDYMATE_USER?.displayName || "You"} (Local)`;
+    if (localName) localName.textContent = `${window.STUDYMATE_USER?.displayName || "You"} (You)`;
     if (micBadge) {
-      micBadge.textContent = "Live";
-      micBadge.classList.add("live");
+      micBadge.textContent = hasAudio ? "Live" : "Muted";
+      micBadge.classList.toggle("live", hasAudio);
     }
+
+    updateMicUI(hasAudio);
+    const camBtn = document.getElementById("vc-toggle-cam");
+    if (camBtn) camBtn.classList.toggle("active", hasVideo);
 
     setupAudioAnalyser(stream);
 
-    // Notify server
-    if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-      libraryWs.send(JSON.stringify({
-        type: "vc:join",
-        hasVideo,
-        hasAudio: true
-      }));
-    }
+    sendLibraryRealtimeEvent({
+      type: "vc:join",
+      hasVideo,
+      hasAudio
+    });
 
     updateVCButtonStates(true);
     switchLibraryView("vc");
   } catch (err) {
     console.warn("Unable to capture media devices:", err);
-    // Continue in listen-only presence mode
     isCallJoined = true;
     updateVCButtonStates(true);
     switchLibraryView("vc");
 
-    if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-      libraryWs.send(JSON.stringify({
-        type: "vc:join",
-        hasVideo: false,
-        hasAudio: false
-      }));
-    }
+    sendLibraryRealtimeEvent({
+      type: "vc:join",
+      hasVideo: false,
+      hasAudio: false
+    });
   }
 }
 
@@ -8890,6 +10087,7 @@ function leaveVC() {
 
   peerConnections.forEach(function (pc) { pc.close(); });
   peerConnections.clear();
+  pendingIceCandidates.clear();
 
   const remoteContainer = document.getElementById("vc-remote-container");
   if (remoteContainer) {
@@ -8907,9 +10105,7 @@ function leaveVC() {
   if (localVideo) localVideo.srcObject = null;
   if (fallback) fallback.style.display = "flex";
 
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({ type: "vc:leave" }));
-  }
+  sendLibraryRealtimeEvent({ type: "vc:leave" });
 
   isCallJoined = false;
   updateVCButtonStates(false);
@@ -8917,54 +10113,75 @@ function leaveVC() {
 }
 
 function toggleMic() {
-  if (!localMediaStream) return;
+  if (!isCallJoined || !localMediaStream) {
+    joinVC();
+    return;
+  }
   const audioTrack = localMediaStream.getAudioTracks()[0];
   if (!audioTrack) return;
 
   audioTrack.enabled = !audioTrack.enabled;
   updateMicUI(audioTrack.enabled);
 
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({
-      type: "vc:media_state",
-      hasAudio: audioTrack.enabled
-    }));
-  }
+  sendLibraryRealtimeEvent({
+    type: "vc:media_state",
+    hasAudio: audioTrack.enabled
+  });
 }
 
 function updateMicUI(enabled) {
   const micLabel = document.getElementById("vc-mic-label");
   const micBadge = document.getElementById("vc-local-mic-badge");
   const micBtn = document.getElementById("vc-toggle-mic");
+  const svgOn = document.getElementById("vc-mic-svg-on");
+  const svgOff = document.getElementById("vc-mic-svg-off");
 
-  if (micLabel) micLabel.textContent = enabled ? "Mute" : "Unmute";
-  if (micBtn) micBtn.classList.toggle("active", enabled);
+  if (micLabel) micLabel.textContent = enabled ? "Mic On" : "Muted";
+  if (micBtn) {
+    micBtn.classList.toggle("active", Boolean(enabled));
+    micBtn.classList.toggle("is-muted", !enabled && isCallJoined);
+  }
+  if (svgOn) svgOn.hidden = !enabled;
+  if (svgOff) svgOff.hidden = Boolean(enabled);
   if (micBadge) {
     micBadge.textContent = enabled ? "Live" : "Muted";
-    micBadge.classList.toggle("live", enabled);
+    micBadge.classList.toggle("live", Boolean(enabled));
   }
 }
 
-function toggleCam() {
-  if (!localMediaStream) return;
-  const videoTrack = localMediaStream.getVideoTracks()[0];
+function updateCamUI(isLive) {
   const fallback = document.getElementById("vc-local-avatar-fallback");
   const camLabel = document.getElementById("vc-cam-label");
   const camBtn = document.getElementById("vc-toggle-cam");
+  const svgOn = document.getElementById("vc-cam-svg-on");
+  const svgOff = document.getElementById("vc-cam-svg-off");
+
+  if (fallback) fallback.style.display = isLive ? "none" : "flex";
+  if (camLabel) camLabel.textContent = isLive ? "Cam On" : "Cam Off";
+  if (camBtn) {
+    camBtn.classList.toggle("active", Boolean(isLive));
+    camBtn.classList.toggle("is-muted", !isLive && isCallJoined);
+  }
+  if (svgOn) svgOn.hidden = !isLive;
+  if (svgOff) svgOff.hidden = Boolean(isLive);
+}
+
+function toggleCam() {
+  if (!isCallJoined || !localMediaStream) {
+    joinVC();
+    return;
+  }
+  const videoTrack = localMediaStream.getVideoTracks()[0];
 
   if (videoTrack) {
     videoTrack.enabled = !videoTrack.enabled;
     const isLive = videoTrack.enabled;
-    if (fallback) fallback.style.display = isLive ? "none" : "flex";
-    if (camLabel) camLabel.textContent = isLive ? "Stop Video" : "Start Video";
-    if (camBtn) camBtn.classList.toggle("active", isLive);
+    updateCamUI(isLive);
 
-    if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-      libraryWs.send(JSON.stringify({
-        type: "vc:media_state",
-        hasVideo: isLive
-      }));
-    }
+    sendLibraryRealtimeEvent({
+      type: "vc:media_state",
+      hasVideo: isLive
+    });
   }
 }
 
@@ -8981,7 +10198,6 @@ async function toggleScreenShare() {
 
       const screenTrack = screenMediaStream.getVideoTracks()[0];
 
-      // Replace track on all peer connections
       peerConnections.forEach(function (pc) {
         const senders = pc.getSenders();
         const videoSender = senders.find(function (s) { return s.track && s.track.kind === "video"; });
@@ -8994,12 +10210,11 @@ async function toggleScreenShare() {
         stopScreenShare();
       };
 
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "vc:media_state",
-          isScreenSharing: true
-        }));
-      }
+      sendLibraryRealtimeEvent({
+        type: "vc:media_state",
+        isScreenSharing: true,
+        hasVideo: true
+      });
     } catch (e) {
       console.warn("Screen share canceled or failed:", e);
     }
@@ -9020,10 +10235,11 @@ function stopScreenShare() {
   if (screenLabel) screenLabel.textContent = "Share Screen";
   if (screenBtn) screenBtn.classList.remove("active");
 
-  // Restore camera video track
+  let hasCam = false;
   if (localMediaStream) {
     const camTrack = localMediaStream.getVideoTracks()[0];
     if (camTrack) {
+      hasCam = camTrack.enabled;
       peerConnections.forEach(function (pc) {
         const senders = pc.getSenders();
         const videoSender = senders.find(function (s) { return s.track && s.track.kind === "video"; });
@@ -9034,12 +10250,11 @@ function stopScreenShare() {
     }
   }
 
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    libraryWs.send(JSON.stringify({
-      type: "vc:media_state",
-      isScreenSharing: false
-    }));
-  }
+  sendLibraryRealtimeEvent({
+    type: "vc:media_state",
+    isScreenSharing: false,
+    hasVideo: hasCam
+  });
 }
 
 function toggleQuietStudyMode() {
@@ -9050,7 +10265,6 @@ function toggleQuietStudyMode() {
   if (label) label.textContent = quietStudyModeActive ? "Quiet Mode: On" : "Quiet Mode: Off";
   if (btn) btn.classList.toggle("active", quietStudyModeActive);
 
-  // If active and focus session running, mute immediately
   if (quietStudyModeActive && localMediaStream) {
     const isFocus = libraryRoomState?.syncTimer?.mode === "focus";
     if (isFocus) {
@@ -9058,6 +10272,10 @@ function toggleQuietStudyMode() {
       if (audioTrack && audioTrack.enabled) {
         audioTrack.enabled = false;
         updateMicUI(false);
+        sendLibraryRealtimeEvent({
+          type: "vc:media_state",
+          hasAudio: false
+        });
       }
     }
   }
@@ -9094,22 +10312,32 @@ function setupAudioAnalyser(stream) {
       let sum = 0;
       for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
       const avg = sum / dataArray.length;
-      const isSpeaking = avg > 28;
+      const audioTrack = stream.getAudioTracks()[0];
+      const isSpeaking = Boolean(audioTrack && audioTrack.enabled && avg > 28);
 
       if (meter) meter.classList.toggle("active", isSpeaking);
 
       if (isSpeaking !== wasSpeaking) {
         wasSpeaking = isSpeaking;
-        if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-          libraryWs.send(JSON.stringify({
-            type: "vc:media_state",
-            isSpeaking
-          }));
-        }
+        sendLibraryRealtimeEvent({
+          type: "vc:media_state",
+          isSpeaking
+        });
       }
     }, 150);
   } catch (err) {
     console.warn("Audio analyser setup error:", err);
+  }
+}
+
+function flushPendingIceCandidates(remotePeerId, pc) {
+  const queue = pendingIceCandidates.get(remotePeerId);
+  if (!queue || !queue.length || !pc || !pc.remoteDescription) return;
+  while (queue.length > 0) {
+    const candidate = queue.shift();
+    pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(function (err) {
+      console.warn("Flushed ICE candidate error:", err);
+    });
   }
 }
 
@@ -9128,30 +10356,29 @@ function createPeerConnection(remotePeerId, isInitiator) {
   }
 
   pc.onicecandidate = function (event) {
-    if (event.candidate && libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-      libraryWs.send(JSON.stringify({
+    if (event.candidate) {
+      sendLibraryRealtimeEvent({
         type: "signal:ice_candidate",
         targetPeerId: remotePeerId,
         candidate: event.candidate
-      }));
+      });
     }
   };
 
   pc.ontrack = function (event) {
-    ensureRemotePeerTile(remotePeerId, event.streams[0]);
+    const remoteStream = (event.streams && event.streams[0]) || new MediaStream([event.track]);
+    ensureRemotePeerTile(remotePeerId, remoteStream);
   };
 
   if (isInitiator) {
     pc.createOffer()
       .then(function (offer) { return pc.setLocalDescription(offer); })
       .then(function () {
-        if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-          libraryWs.send(JSON.stringify({
-            type: "signal:offer",
-            targetPeerId: remotePeerId,
-            offer: pc.localDescription
-          }));
-        }
+        sendLibraryRealtimeEvent({
+          type: "signal:offer",
+          targetPeerId: remotePeerId,
+          offer: pc.localDescription
+        });
       })
       .catch(function (err) {
         console.warn("Offer error:", err);
@@ -9161,19 +10388,30 @@ function createPeerConnection(remotePeerId, isInitiator) {
   return pc;
 }
 
-function handleRemoteOffer(fromPeerId, offer) {
+function handleRemoteOffer(fromPeerId, offer, remoteUser) {
+  if (!fromPeerId || !offer) return;
+  if (remoteUser) {
+    ensureRemotePeerTile(fromPeerId, null, {
+      peerId: fromPeerId,
+      displayName: remoteUser.displayName || "Study Partner",
+      avatarColor: remoteUser.avatarColor || "teal",
+      hasAudio: true,
+      hasVideo: true
+    });
+  }
   const pc = createPeerConnection(fromPeerId, false);
   pc.setRemoteDescription(new RTCSessionDescription(offer))
-    .then(function () { return pc.createAnswer(); })
+    .then(function () {
+      flushPendingIceCandidates(fromPeerId, pc);
+      return pc.createAnswer();
+    })
     .then(function (answer) { return pc.setLocalDescription(answer); })
     .then(function () {
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "signal:answer",
-          targetPeerId: fromPeerId,
-          answer: pc.localDescription
-        }));
-      }
+      sendLibraryRealtimeEvent({
+        type: "signal:answer",
+        targetPeerId: fromPeerId,
+        answer: pc.localDescription
+      });
     })
     .catch(function (err) {
       console.warn("Answer error:", err);
@@ -9181,28 +10419,44 @@ function handleRemoteOffer(fromPeerId, offer) {
 }
 
 function handleRemoteAnswer(fromPeerId, answer) {
+  if (!fromPeerId || !answer) return;
   const pc = peerConnections.get(fromPeerId);
   if (pc) {
-    pc.setRemoteDescription(new RTCSessionDescription(answer)).catch(function (err) {
-      console.warn("Set remote description error:", err);
-    });
+    pc.setRemoteDescription(new RTCSessionDescription(answer))
+      .then(function () {
+        flushPendingIceCandidates(fromPeerId, pc);
+      })
+      .catch(function (err) {
+        console.warn("Set remote description error:", err);
+      });
   }
 }
 
 function handleRemoteIceCandidate(fromPeerId, candidate) {
+  if (!fromPeerId || !candidate) return;
   const pc = peerConnections.get(fromPeerId);
-  if (pc) {
+  if (pc && pc.remoteDescription && pc.remoteDescription.type) {
     pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(function (err) {
       console.warn("Add ICE candidate error:", err);
     });
+  } else {
+    if (!pendingIceCandidates.has(fromPeerId)) {
+      pendingIceCandidates.set(fromPeerId, []);
+    }
+    pendingIceCandidates.get(fromPeerId).push(candidate);
   }
 }
 
-function ensureRemotePeerTile(peerId, stream) {
+function ensureRemotePeerTile(peerId, stream, participantOverride) {
   const container = document.getElementById("vc-remote-container");
   const emptyPeers = document.getElementById("vc-empty-peers");
   if (!container) return;
   if (emptyPeers) emptyPeers.style.display = "none";
+
+  const participant = participantOverride || libraryRoomState?.vcParticipants?.find(function (p) { return p.peerId === peerId; });
+  const name = participant ? (participant.displayName || "Study Partner") : "Study Partner";
+  const initials = getInitials(name);
+  const avatarBg = getSweaterColor(participant?.avatarColor || "teal");
 
   let tile = document.getElementById("vc-peer-tile-" + peerId);
   if (!tile) {
@@ -9213,27 +10467,47 @@ function ensureRemotePeerTile(peerId, stream) {
     const video = document.createElement("video");
     video.autoplay = true;
     video.playsInline = true;
-    if (stream) video.srcObject = stream;
+    if (stream) {
+      video.srcObject = stream;
+      video.play().catch(function () {});
+    }
+
+    const fallback = document.createElement("div");
+    fallback.className = "vc-avatar-fallback";
+    fallback.id = "vc-fallback-" + peerId;
+    fallback.style.display = (participant && participant.hasVideo === false) ? "flex" : (stream ? "none" : "flex");
+    fallback.innerHTML = `<div class="vc-fallback-circle" style="background:${avatarBg};">${escapeHtml(initials)}</div>`;
 
     const footer = document.createElement("div");
     footer.className = "vc-tile-footer";
-
-    const participant = libraryRoomState?.vcParticipants?.find(function (p) { return p.peerId === peerId; });
-    const name = participant ? participant.displayName : "Study Partner";
-
     footer.innerHTML = `
-      <span class="participant-name">${escapeHtml(name)}</span>
+      <span class="participant-name" id="vc-name-${peerId}">${escapeHtml(name)}</span>
       <div class="tile-indicators">
-        <span class="tile-badge mic-status live" id="mic-badge-${peerId}">Live</span>
+        <span class="tile-badge mic-status ${participant?.hasAudio === false ? "" : "live"}" id="mic-badge-${peerId}">${participant?.hasAudio === false ? "Muted" : "Live"}</span>
       </div>
     `;
 
     tile.appendChild(video);
+    tile.appendChild(fallback);
     tile.appendChild(footer);
     container.appendChild(tile);
-  } else if (stream) {
-    const video = tile.querySelector("video");
-    if (video) video.srcObject = stream;
+  } else {
+    if (stream) {
+      const video = tile.querySelector("video");
+      if (video && video.srcObject !== stream) {
+        video.srcObject = stream;
+        video.play().catch(function () {});
+      }
+      const fallback = document.getElementById("vc-fallback-" + peerId);
+      const hasLiveVideo = stream.getVideoTracks().some(function (t) { return t.enabled; });
+      if (fallback && (!participant || participant.hasVideo !== false)) {
+        fallback.style.display = hasLiveVideo ? "none" : "flex";
+      }
+    }
+    if (participant && participant.displayName) {
+      const nameEl = document.getElementById("vc-name-" + peerId);
+      if (nameEl) nameEl.textContent = participant.displayName;
+    }
   }
 }
 
@@ -9247,6 +10521,10 @@ function updateRemotePeerState(peerId, participant) {
     badge.textContent = participant.hasAudio ? "Live" : "Muted";
     badge.classList.toggle("live", !!participant.hasAudio);
   }
+  const fallback = document.getElementById("vc-fallback-" + peerId);
+  if (fallback && typeof participant.hasVideo === "boolean") {
+    fallback.style.display = participant.hasVideo ? "none" : "flex";
+  }
 }
 
 function closePeerConnection(peerId) {
@@ -9255,6 +10533,7 @@ function closePeerConnection(peerId) {
     pc.close();
     peerConnections.delete(peerId);
   }
+  pendingIceCandidates.delete(peerId);
   const tile = document.getElementById("vc-peer-tile-" + peerId);
   if (tile) tile.remove();
 
@@ -9303,8 +10582,26 @@ function switchLibraryView(view) {
     }
     if (desksBtn) desksBtn.classList.add("active");
     if (vcBtn) vcBtn.classList.remove("active");
+
+    requestAnimationFrame(function () {
+      if (window.cozyLibrary3D && typeof window.cozyLibrary3D.handleResize === "function") {
+        window.cozyLibrary3D.handleResize();
+      }
+      renderLibraryDesks();
+    });
   }
 }
+
+function syncCozyLibrary3DNow() {
+  if (!libraryRoomState) return;
+  renderLibraryDesks();
+  renderAtmosphere(libraryRoomState.atmosphere || "rainy");
+  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.handleResize === "function") {
+    window.cozyLibrary3D.handleResize();
+  }
+}
+window.syncCozyLibrary3DNow = syncCozyLibrary3DNow;
+window.addEventListener("cozyLibrary3DReady", syncCozyLibrary3DNow);
 
 // --- Cozy Ambient Sound Generator ---
 
@@ -9325,12 +10622,14 @@ function startLibraryAmbient(type) {
     libraryAmbientGainNode.gain.setValueAtTime(vol, libraryAmbientAudioCtx.currentTime);
     libraryAmbientGainNode.connect(libraryAmbientAudioCtx.destination);
 
-    const bufferSize = libraryAmbientAudioCtx.sampleRate * 3;
-    const buffer = libraryAmbientAudioCtx.createBuffer(1, bufferSize, libraryAmbientAudioCtx.sampleRate);
+    const sampleRate = libraryAmbientAudioCtx.sampleRate;
+    const bufferSize = sampleRate * 4;
+    const buffer = libraryAmbientAudioCtx.createBuffer(1, bufferSize, sampleRate);
     const data = buffer.getChannelData(0);
     let lastOut = 0.0;
 
     for (let i = 0; i < bufferSize; i++) {
+      const t = i / sampleRate;
       const white = Math.random() * 2 - 1;
       if (type === "hearth") {
         lastOut = (lastOut + 0.02 * white) / 1.02;
@@ -9338,6 +10637,16 @@ function startLibraryAmbient(type) {
       } else if (type === "rain") {
         lastOut = (lastOut + 0.04 * white) / 1.04;
         data[i] = lastOut * 2.2;
+      } else if (type === "lofi") {
+        // Warm Lofi Rhodes chord pad + gentle vinyl dust
+        lastOut = (lastOut + 0.02 * white) / 1.02;
+        const chord =
+          Math.sin(2 * Math.PI * 220 * t) * 0.12 +
+          Math.sin(2 * Math.PI * 261.63 * t) * 0.1 +
+          Math.sin(2 * Math.PI * 329.63 * t) * 0.1 +
+          Math.sin(2 * Math.PI * 392.0 * t) * 0.08;
+        const lfo = 0.82 + 0.18 * Math.sin(2 * Math.PI * 0.5 * t);
+        data[i] = chord * lfo + lastOut * 0.45;
       } else if (type === "cafe") {
         lastOut = (lastOut + 0.015 * white) / 1.015;
         data[i] = lastOut * 2.5;
@@ -9353,7 +10662,8 @@ function startLibraryAmbient(type) {
 
     const filter = libraryAmbientAudioCtx.createBiquadFilter();
     filter.type = "lowpass";
-    filter.frequency.setValueAtTime(type === "rain" ? 850 : (type === "hearth" ? 420 : 600), libraryAmbientAudioCtx.currentTime);
+    const cutoff = type === "rain" ? 850 : (type === "hearth" ? 420 : (type === "lofi" ? 920 : 600));
+    filter.frequency.setValueAtTime(cutoff, libraryAmbientAudioCtx.currentTime);
 
     source.connect(filter);
     filter.connect(libraryAmbientGainNode);
@@ -9363,10 +10673,13 @@ function startLibraryAmbient(type) {
     libraryAmbientPlaying = true;
 
     const toggleBtn = document.getElementById("library-sound-toggle");
+    const playSvg = document.getElementById("sound-svg-play");
+    const pauseSvg = document.getElementById("sound-svg-pause");
     if (toggleBtn) {
-      toggleBtn.textContent = "Pause";
-      toggleBtn.classList.add("playing");
+      toggleBtn.classList.add("playing", "active");
     }
+    if (playSvg) playSvg.hidden = true;
+    if (pauseSvg) pauseSvg.hidden = false;
   } catch (err) {
     console.warn("Library ambient error:", err);
   }
@@ -9382,15 +10695,71 @@ function stopLibraryAmbient() {
   }
   libraryAmbientPlaying = false;
   const toggleBtn = document.getElementById("library-sound-toggle");
+  const playSvg = document.getElementById("sound-svg-play");
+  const pauseSvg = document.getElementById("sound-svg-pause");
   if (toggleBtn) {
-    toggleBtn.textContent = "Play";
-    toggleBtn.classList.remove("playing");
+    toggleBtn.classList.remove("playing", "active");
   }
+  if (playSvg) playSvg.hidden = false;
+  if (pauseSvg) pauseSvg.hidden = true;
 }
 
+function syncCozyLibrary3DNow() {
+  if (!window.cozyLibrary3D) return;
+  if (libraryRoomState) {
+    ensureRoomHas36Desks(libraryRoomState);
+    updateLibraryFloorCapacityUI();
+    const currentUserId = window.STUDYMATE_USER?.id || 1;
+    const isGroupLibrary = Boolean(currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"));
+    if (typeof window.cozyLibrary3D.syncDesks === "function" && Array.isArray(libraryRoomState.desks)) {
+      window.cozyLibrary3D.syncDesks(libraryRoomState.desks, currentUserId, isGroupLibrary);
+    }
+    renderAtmosphere(libraryRoomState.atmosphere || "rainy", true);
+    syncFloorButtonsWithActiveContext();
+  }
+}
+window.syncCozyLibrary3DNow = syncCozyLibrary3DNow;
+
 // Global hook called when user opens the Cozy Library tab
-function initCozyLibrary() {
+async function initCozyLibrary() {
   updateLibraryGroupTitle();
+  const targetRoomId = currentLibraryRoomId || "common";
+  if (!libraryRoomState) {
+    try {
+      const res = await fetch("/api/library/room?roomId=" + encodeURIComponent(targetRoomId));
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.room) {
+          libraryRoomState = ensureRoomHas36Desks(data.room);
+          enforceSingleSeatRuleOnState();
+          renderAllLibraryComponents();
+        }
+      }
+    } catch (e) {
+      console.warn("Initial library room HTTP fetch error:", e);
+    }
+    if (!libraryRoomState) {
+      libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+      renderAllLibraryComponents();
+    }
+  } else {
+    ensureRoomHas36Desks(libraryRoomState);
+    enforceSingleSeatRuleOnState();
+    renderAllLibraryComponents();
+  }
+  requestAnimationFrame(function () {
+    const canvasWrap = document.getElementById("cozy-library-3d-canvas-wrap");
+    const labelsWrap = document.getElementById("cozy-library-3d-labels");
+    if (window.cozyLibrary3D) {
+      if (!window.cozyLibrary3D.renderer && canvasWrap) {
+        window.cozyLibrary3D.init(canvasWrap, labelsWrap);
+      }
+      if (typeof window.cozyLibrary3D.handleResize === "function") {
+        window.cozyLibrary3D.handleResize();
+      }
+      syncCozyLibrary3DNow();
+    }
+  });
   connectLibraryWs();
 }
 
@@ -9430,52 +10799,159 @@ function initCozyLibraryUI() {
   const groupCozyBtn = document.getElementById("group-cozy-library-button");
   if (groupCozyBtn) {
     groupCozyBtn.addEventListener("click", function () {
-      updateLibraryGroupTitle();
-      showSection("cozy-library");
+      if (appData.selectedCircleId) {
+        openGroupLibrary(appData.selectedCircleId);
+      } else {
+        openCommonLibrary();
+      }
     });
   }
 
-  // Atmosphere switcher toggle
+  // Multi-Floor & Hall Switcher (bound to active library context)
+  const floorSwitcherGroup = document.getElementById("library-floor-switcher");
+  if (floorSwitcherGroup) {
+    floorSwitcherGroup.querySelectorAll(".floor-pill-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        floorSwitcherGroup.querySelectorAll(".floor-pill-btn").forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        const floorId = btn.dataset.floorId || btn.dataset.floor || "ground";
+        const ctx = getLibraryContextState(currentLibraryRoomId);
+        ctx.activeFloor = floorId;
+        if (window.cozyLibrary3D && typeof window.cozyLibrary3D.switchFloor === "function") {
+          window.cozyLibrary3D.switchFloor(floorId);
+        }
+        const camPresetsGroup = document.getElementById("library-camera-presets");
+        if (camPresetsGroup) {
+          camPresetsGroup.querySelectorAll(".cam-preset-btn").forEach(function (b) { b.classList.remove("active"); });
+        }
+        sendLibraryRealtimeEvent({
+          type: "room:switch_floor",
+          floorId: floorId
+        });
+        const floorNames = {
+          ground: "Ground Floor (Main Reading Hall)",
+          mezzanine: "2nd Floor (Upper Mezzanine)",
+          archive: "West Archive Wing"
+        };
+        if (typeof showToast === "function") {
+          showToast(`Switched to ${floorNames[floorId] || floorId}`);
+        }
+      });
+    });
+  }
+
+  // 3D Camera Preset Switcher
+  const camPresetsGroup = document.getElementById("library-camera-presets");
+  if (camPresetsGroup) {
+    camPresetsGroup.querySelectorAll(".cam-preset-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        camPresetsGroup.querySelectorAll(".cam-preset-btn").forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        const preset = btn.dataset.camPreset || "overview";
+        if (window.cozyLibrary3D && typeof window.cozyLibrary3D.setCameraPreset === "function") {
+          window.cozyLibrary3D.setCameraPreset(preset);
+        }
+        if (preset === "lounge" && typeof showToast === "function") {
+          showToast("☕ Break Lounge: Click the coffee table or 'Sit & Take Coffee Break' pill to join!");
+        } else if (preset === "topdown" && typeof showToast === "function") {
+          showToast("📐 Top View: Framing all currently unlocked library floors.");
+        }
+      });
+    });
+  }
+
+  // Atmosphere switcher toggle ("Daylight", "Golden Hour", "Cozy Night")
   const atmoToggle = document.getElementById("library-atmosphere-toggle");
   if (atmoToggle) {
     atmoToggle.addEventListener("click", function () {
-      const order = ["rainy", "candlelight", "sunny", "midnight"];
-      const current = libraryRoomState?.atmosphere || "rainy";
-      const next = order[(order.indexOf(current) + 1) % order.length];
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "room:atmosphere",
-          atmosphere: next
-        }));
+      const order = ["cloudy", "sunny", "midnight"];
+      const currentRaw = libraryRoomState?.atmosphere || "midnight";
+      const normalizeMap = {
+        cloudy: "cloudy",
+        daylight: "cloudy",
+        "Daylight": "cloudy",
+        "Cloudy Afternoon": "cloudy",
+        sunny: "sunny",
+        "Golden Hour": "sunny",
+        rainy: "midnight",
+        "Autumn Rain": "midnight",
+        "Autumn Fall": "midnight",
+        "Rainy Night": "midnight",
+        midnight: "midnight",
+        candlelight: "midnight",
+        "Cozy Night": "midnight",
+        "Midnight Study": "midnight"
+      };
+      const normalizedCurrent = normalizeMap[currentRaw] || "midnight";
+      const idx = order.indexOf(normalizedCurrent);
+      const next = order[(idx + 1) % order.length];
+      if (libraryRoomState) {
+        libraryRoomState.atmosphere = next;
+        libraryRoomState._userChangedTheme = true;
       }
+      renderAtmosphere(next, true);
+      sendLibraryRealtimeEvent({
+        type: "room:atmosphere",
+        atmosphere: next
+      });
     });
   }
 
-  // Room Timer controls
+  // Desk Count Selector (4, 8, 12, 16 Desks)
+  const deskCountGroup = document.getElementById("library-desk-count-selector");
+  if (deskCountGroup) {
+    deskCountGroup.querySelectorAll(".desk-count-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        deskCountGroup.querySelectorAll(".desk-count-btn").forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        const count = Number(btn.dataset.deskCount) || 16;
+        appData.libraryDeskCount = count;
+        if (window.cozyLibrary3D && typeof window.cozyLibrary3D.setDeskCountLimit === "function") {
+          window.cozyLibrary3D.setDeskCountLimit(count);
+        }
+        renderLibraryDesks();
+      });
+    });
+  }
+
+  // Bidirectional StudyMate Focus Timer controls in Cozy Library Dock
   const timerToggleBtn = document.getElementById("sync-timer-toggle-btn");
   if (timerToggleBtn) {
     timerToggleBtn.addEventListener("click", function () {
-      const isRunning = libraryRoomState?.syncTimer?.status === "running";
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "room:timer_action",
-          action: isRunning ? "pause" : "start"
-        }));
+      if (appData.activeSession) {
+        toggleSessionPause();
+        renderLibraryTimer();
+      } else {
+        // Start a real StudyMate Focus session synced with user's seated desk (if any)
+        const myDesk = libraryRoomState?.desks?.find(function (d) { return isDeskMine(d); });
+        if (myDesk && myDesk.occupiedBy) {
+          const matchedSubj = findOrCreateSubject(myDesk.occupiedBy.subject || "Focus Study");
+          if (matchedSubj) appData.selectedSubjectId = matchedSubj.id;
+          if (myDesk.occupiedBy.goal) {
+            appData.currentSessionDraft = { goal: myDesk.occupiedBy.goal };
+          }
+        }
+        startSession();
+        renderLibraryTimer();
+        renderLibraryDesks();
       }
+      sendLibraryRealtimeEvent({
+        type: "room:timer_action",
+        action: appData.activeSession && appData.sessionState !== "paused" ? "start" : "pause"
+      });
     });
   }
 
-  const syncToLocalBtn = document.getElementById("sync-to-my-timer-btn");
-  if (syncToLocalBtn) {
-    syncToLocalBtn.addEventListener("click", function () {
-      if (libraryRoomState && libraryRoomState.syncTimer) {
-        // Sync local timer to room timer
-        const roomSecs = libraryRoomState.syncTimer.remainingSeconds || 1500;
-        appData.timerSeconds = roomSecs;
-        saveData();
-        updateSessionPage();
-        updateAllDisplays();
-        showToast("Synced your local focus timer with the library room timer!");
+  const timerFinishBtn = document.getElementById("sync-timer-finish-btn");
+  if (timerFinishBtn) {
+    timerFinishBtn.addEventListener("click", function () {
+      if (appData.activeSession) {
+        finishSession();
+        renderLibraryTimer();
+        renderLibraryDesks();
+        if (typeof showToast === "function") {
+          showToast("Focus session completed and logged to StudyMate Insights!");
+        }
       }
     });
   }
@@ -9498,7 +10974,9 @@ function initCozyLibraryUI() {
 
   if (soundSelect) {
     soundSelect.addEventListener("change", function () {
-      if (libraryAmbientPlaying) {
+      if (soundSelect.value === "off") {
+        stopLibraryAmbient();
+      } else {
         startLibraryAmbient(soundSelect.value);
       }
     });
@@ -9509,6 +10987,17 @@ function initCozyLibraryUI() {
       if (libraryAmbientGainNode && libraryAmbientAudioCtx) {
         libraryAmbientGainNode.gain.setValueAtTime(Number(soundVol.value), libraryAmbientAudioCtx.currentTime);
       }
+    });
+  }
+
+  // Personal Study Posture Selector in Bottom Floating Dock
+  const postureGroup = document.getElementById("dock-posture-group");
+  if (postureGroup) {
+    postureGroup.querySelectorAll(".dock-posture-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        const posture = btn.dataset.posture || "reading";
+        setMyDeskPosture(posture);
+      });
     });
   }
 
@@ -9529,13 +11018,7 @@ function initCozyLibraryUI() {
   const dockLeaveBtn = document.getElementById("dock-leave-seat-btn");
   if (dockLeaveBtn) {
     dockLeaveBtn.addEventListener("click", function () {
-      const currentUserId = window.STUDYMATE_USER?.id || 1;
-      const myDesk = libraryRoomState?.desks?.find(function (d) {
-        return d.occupiedBy && d.occupiedBy.userId === currentUserId && !d.occupiedBy.isBuddy;
-      });
-      if (myDesk) {
-        leaveDesk(myDesk.id);
-      }
+      leaveDesk();
     });
   }
 
@@ -9587,12 +11070,10 @@ function initCozyLibraryUI() {
       e.preventDefault();
       const text = chatInput.value.trim();
       if (!text) return;
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "chat:message",
-          content: text
-        }));
-      }
+      sendLibraryRealtimeEvent({
+        type: "chat:message",
+        content: text
+      });
       chatInput.value = "";
     });
   }
@@ -9617,13 +11098,11 @@ function initCozyLibraryUI() {
       const colorInput = stickyForm.querySelector('input[name="sticky-color"]:checked');
       const color = colorInput ? colorInput.value : "amber";
 
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "sticky:add",
-          content: text,
-          color
-        }));
-      }
+      sendLibraryRealtimeEvent({
+        type: "sticky:add",
+        content: text,
+        color
+      });
       stickyContent.value = "";
     });
   }
@@ -9643,12 +11122,22 @@ function initCozyLibraryUI() {
   if (deskForm) {
     deskForm.addEventListener("submit", function (e) {
       e.preventDefault();
-      const deskId = document.getElementById("desk-modal-target-id")?.value;
+      const deskId = Number(document.getElementById("desk-modal-target-id")?.value);
       const subjectInput = document.getElementById("desk-modal-subject");
       const goalInput = document.getElementById("desk-modal-goal");
       const lampInput = document.getElementById("desk-modal-lamp");
 
       if (!deskId) return;
+
+      // Guard against occupying a desk already occupied by someone else
+      const targetDesk = libraryRoomState?.desks?.find(function (d) { return d.id === deskId; });
+      if (targetDesk && targetDesk.occupiedBy && !isDeskMine(targetDesk)) {
+        if (typeof showToast === "function") {
+          showToast(`${targetDesk.occupiedBy.displayName || "Another student"} is already studying at this desk.`);
+        }
+        closeDeskModal();
+        return;
+      }
 
       const subjectName = subjectInput?.value?.trim() || "Focus Study";
       const goal = goalInput?.value?.trim() || "";
@@ -9657,19 +11146,58 @@ function initCozyLibraryUI() {
       const postureInput = deskForm.querySelector('input[name="modal-desk-posture"]:checked');
       const posture = postureInput ? postureInput.value : "reading";
 
-      findOrCreateSubject(subjectName);
+      const matchedSubj = findOrCreateSubject(subjectName);
+      if (matchedSubj) {
+        appData.selectedSubjectId = matchedSubj.id;
+      }
+      appData.currentSessionDraft = { goal: goal };
+      if (sessionGoalInput) sessionGoalInput.value = goal;
 
-      if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-        libraryWs.send(JSON.stringify({
-          type: "desk:take",
-          deskId: Number(deskId),
+      // Start or sync with the user's real StudyMate Focus session!
+      if (!appData.activeSession) {
+        startSession();
+      } else {
+        if (matchedSubj) appData.activeSession.subjectId = matchedSubj.id;
+        appData.activeSession.goal = goal;
+        saveData();
+        updateSessionPage();
+      }
+
+      // 1. Immediately vacate any previous desk occupied by this user locally & broadcast vacate
+      vacateMyExistingDesks(deskId);
+
+      // 2. Optimistically update the chosen desk locally so UI responds immediately
+      const currentUserId = window.STUDYMATE_USER?.id || 1;
+      const timerSeconds = appData.activeSession ? getSessionElapsedSeconds() : 0;
+      if (targetDesk) {
+        targetDesk.occupiedBy = {
+          peerId: libraryPeerId,
+          userId: currentUserId,
+          displayName: window.STUDYMATE_USER?.displayName || "Mahenoor",
+          avatarStyle: window.STUDYMATE_USER?.avatarStyle || "initials",
+          avatarColor: window.STUDYMATE_USER?.avatarColor || "teal",
+          avatarUrl: window.STUDYMATE_USER?.avatarUrl || null,
           subject: subjectName,
           goal,
-          timerSeconds: appData.activeSession ? appData.activeSession.elapsedSeconds : (appData.timerSeconds || 1500),
+          timerSeconds,
           lampOn,
-          posture
-        }));
+          posture,
+          isBuddy: false
+        };
+        renderLibraryDesks();
+        renderLibraryTimer();
       }
+
+      // 3. Broadcast desk:take to server and peers
+      sendLibraryRealtimeEvent({
+        type: "desk:take",
+        deskId,
+        subject: subjectName,
+        goal,
+        timerSeconds,
+        lampOn,
+        posture
+      });
 
       closeDeskModal();
     });
@@ -9677,7 +11205,7 @@ function initCozyLibraryUI() {
 
   // Close peer popovers when clicking outside
   document.addEventListener("click", function (e) {
-    if (!e.target.closest(".desk-minimal-caption") && !e.target.closest(".desk-paper-tooltip") && !e.target.closest(".desk-seated-avatar-wrap")) {
+    if (!e.target.closest(".desk-3d-name-pill") && !e.target.closest(".desk-paper-tooltip") && !e.target.closest(".spatial-3d-desk-overlay")) {
       closeAllPeerPopovers();
     }
   });
@@ -9686,6 +11214,9 @@ function initCozyLibraryUI() {
 // Window global helper functions for inline desk events
 window.openDeskModal = openDeskModal;
 window.leaveDesk = leaveDesk;
+window.claimDesk = claimDesk;
+window.openGroupLibrary = openGroupLibrary;
+window.openCommonLibrary = openCommonLibrary;
 window.sendDeskCheer = sendDeskCheer;
 window.deleteStickyNote = deleteStickyNote;
 window.togglePeerPopover = togglePeerPopover;
@@ -9705,6 +11236,7 @@ async function initializeApp() {
   updateAllDisplays();
   initAmbientSoundEngine();
   initCozyLibraryUI();
+  initCozyLibrary();
   showSettingsSection("profile");
   maybeShowOnboarding();
 }

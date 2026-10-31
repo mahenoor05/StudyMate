@@ -1,74 +1,84 @@
-# Implementation Plan: Complete Overhaul of Cozy Library & Virtual Study Space
+# Multi-Floor Isometric Library Architecture Plan
 
-## User Requirements & Architectural Goals
+Rebuilds the **Ground Floor**, **2nd Floor (Upper Mezzanine)**, and **Archive Wing** as three complete, self-contained isometric 3D study halls arranged side-by-side, eliminating wall/tree occlusion when switching floors while showcasing all unlocked halls simultaneously in **Top View**.
 
-1. **Header & Navigation Cleanup** [COMPLETED]:
-   - Removed "VIRTUAL STUDY SPACE", static room descriptions, and cluttered headers.
-   - Dynamic title: Displays strictly `"[Group Name] — Library"` (e.g. "Deep Work Club — Library"), syncing with active group selection.
-   - Unified pill switcher: `[ Desks ]` & `[ Study Call (VC) ]`.
-   - Fullscreen button (⛶) in the top-right corner activating `requestFullscreen()` on the library container to immerse the user and hide outer app bars.
-2. **3D Spatial Architecture (No More Flat Grids or Green Cards)** [COMPLETED]:
-   - Completely eliminated flat parallel rows, classroom card grids, and rectangular green box borders.
-   - Layered 3D spatial room structure (`#cozy-library-room`) with:
-     - **Back Wall**: Arched rainy window with falling raindrops, mahogany tall bookshelves, and fireplace alcove with flickering fire.
-     - **Floor Plane**: Hardwood perspective floor with wooden textures and soft contact shadows.
-     - **4 Physical Spatial Zones**:
-       - Zone 1 (Back-Left): Window Nook (Desks 1-2, scale 0.9x)
-       - Zone 2 (Back-Right): Fireplace Alcove (Desks 3-4, scale 0.9x)
-       - Zone 3 (Mid-ground): Central Communal Table (Desks 5-6, scale 1.0x)
-       - Zone 4 (Foreground): Quiet Corner Desk (Desks 7-8, scale 1.05x)
-3. **Cozy, Non-AI Character Avatars** [COMPLETED]:
-   - User's circular avatar sits directly in the chair behind each wooden desk.
-   - Active study state:
-     - Warm radial lamp glow emitting onto desk and floor (`box-shadow: 0 0 24px rgba(255, 214, 138, 0.35)`).
-     - Minimalist label directly below desk: `[FirstName] • [Timer]m` with pulsing green dot (`●`).
-     - Tooltip on hover/tap: Floating parchment paper note showing full details (Subject/Topic, Activity: 📖 Reading / 💻 Typing / ☕ Coffee). Room remains clean when unhovered.
-   - Empty desks: Clean desk illustration with subtle ghosted `+ Sit` button.
-4. **Seamless In-Canvas Video Call (VC)** [COMPLETED]:
-   - Smoothly swaps the desk canvas for video tiles inside the **exact same viewport** (`#cozy-library-stage`).
-   - Dark, focused grid filling the viewport without vertical scrolling.
-5. **Integrated Bottom Glass Dock & Slide-Out Drawer** [COMPLETED]:
-   - Floating glass dock at the bottom of the canvas:
-     - Soundscape selector & volume slider
-     - Synchronized room timer (`24:50` + play/pause)
-     - Mic toggle button
-     - Camera toggle button
-     - Slide-out Chat & Sticky Notes drawer button (with unread badge)
-     - Leave Seat button (when seated)
-   - Slide-out glass drawer: Slides in over the canvas on demand for Room Chat and Sticky Notes corkboard.
+## User Review & Critical Decisions
+
+> [!IMPORTANT]
+> The following architectural decisions incorporate your confirmed preferences:
+
+- **Confirmed Decision 1 — Full Isometric Room per Floor (Side-by-Side in Top View)**: Each floor (`Ground Floor` at `x = 0`, `2nd Floor` at `x = +18`, `Archive Wing` at `x = -18`) is constructed as a complete `14.8m × 10.8m` cutaway isometric hall with its own North and West walls, wainscoting, herringbone oak flooring, 4 woven area rugs, bookcases, and lighting fixtures.
+- **Confirmed Decision 2 — 16 Rug-Aligned Desks on Each Upper Floor (52 Desks Total)**:
+  - **Ground Floor**: Desks 1–20 (5 per rug across 4 rugs; 16 in Group Library) + Foreground-Right Break Lounge.
+  - **2nd Floor (Upper Mezzanine)**: Desks 21–36 (16 desks arranged 4 per rug in a clean 2×2 grid on each of the 4 mezzanine rugs).
+  - **Archive Wing**: Desks 37–52 (16 desks arranged 4 per rug in a clean 2×2 grid on each of the 4 archive rugs).
+- **Confirmed Decision 3 — Strict Floor Isolation in Standard View & Multi-Hall Framing in Top View**:
+  - Clicking **Ground Floor**, **2nd Floor**, or **Archive Wing** hides the other floors' 3D geometry and labels so the active floor fills the viewport with a clean, unobstructed isometric camera angle.
+  - Clicking **Top View** makes all currently unlocked floors visible side-by-side and dynamically frames 1, 2, or all 3 unlocked rooms at once.
 
 ---
 
-## Changes Implemented
+## 1. Overview & Core Concept
 
-### 1. Templates (`app/templates/app.html`)
-- Replaced the library header with `.library-top-bar` featuring `#library-group-title`, `.library-pill-switcher` (`#btn-view-desks` and `#btn-view-vc`), and `#btn-library-fullscreen`.
-- Replaced the desk grid container with `#cozy-library-stage` containing `#cozy-library-room` (room backwall, bookcases, arched rain window, stone fireplace, hardwood floor plane with 4 spatial zone slots `#slot-zone-1`..`#slot-zone-4`) and `#library-vc-viewport` (in-canvas WebRTC grid).
-- Built `#library-glass-dock` containing soundscape controls, sync timer, mic/cam/screen toggles, drawer button, and leave seat button.
-- Added `#library-slide-drawer` with tabs for Room Chat and Sticky Notes corkboard.
-- Updated `#desk-action-modal` with subject, goal, lamp, and posture selectors.
-
-### 2. Styles (`app/static/css/style.css`)
-- Styled `:fullscreen` mode (100vw, 100vh, hidden chrome).
-- Built 3D spatial room backwall (grand bookcases, mahogany ladder, gothic arched window with animated rain-fall, stone fireplace with flickering fire).
-- Built hardwood floor with perspective, Persian rug, and 4 physical room zones (`.zone-window-nook`, `.zone-fireplace-alcove`, `.zone-communal-center`, `.zone-foreground-quiet`).
-- Styled `.spatial-desk-station` with carved wooden table, Banker's emerald lamp with warm radial glow (`0 0 24px rgba(255, 214, 138, 0.35)`), seated circular character avatar, minimalist caption (`FirstName • Timer ●`), and floating parchment paper note tooltip on hover with cheer reactions.
-- Styled ghosted `+ Sit` button on empty desks.
-- Built in-canvas VC viewport `.cozy-vc-viewport` filling the same stage viewport.
-- Styled translucent glass dock `.library-bottom-dock` and slide-out glass drawer `.library-slide-drawer`.
-
-### 3. JavaScript (`app/static/js/script.js`)
-- Wired `updateLibraryGroupTitle()` to dynamically display `[Active Group Name] — Library`.
-- Wired `#btn-library-fullscreen` to trigger `requestFullscreen()` on `#cozy-library`.
-- Implemented `createSpatialDeskStation(desk, currentUserId)` and updated `renderLibraryDesks()` to map desks into the 4 physical zones.
-- Updated `switchLibraryView("desks" | "vc")` to smoothly toggle between `#cozy-library-room` and `#library-vc-viewport` in the exact same viewport.
-- Wired bottom dock controls (soundscapes, timer play/pause, mic, cam, screen share, leave seat, drawer toggle).
-- Wired slide-out glass drawer with unread chat badge and tab switching.
+- **What It Does**: Provides a seamless multi-hall 3D study library where each unlocked floor looks and behaves like a complete, handcrafted Dark Academia room rather than an obstructed platform behind a wall.
+- **Target Audience**: Students studying solo in the Common Library or collaboratively in a Group Library.
+- **Key Value**: Eliminates 3D wall/tree clipping on the 2nd Floor and Archive Wing, gives every floor a balanced rug-aligned desk grid, and turns Top View into a true multi-room architectural overview.
 
 ---
 
-## Verification
-- `node --check server.js` and `node --check app/static/js/script.js` passed with 0 errors.
-- `compile_applet` passed successfully.
-- `lint_applet` passed with 0 errors.
-- Dev server restarted and confirmed healthy via `curl http://localhost:3000/api/library/room`.
+## 2. User Experience & Visual Design
+
+- **Key User Flows**:
+  1. **Entering the Library**: Opens on the **Ground Floor** (`x = 0`) with 20 desks (16 for Group Library) and the Break Lounge. Only the Ground Floor room is visible.
+  2. **Sequential Floor Unlocking**:
+     - When Ground Floor reaches $\ge 80\%$ occupancy (or via `+ Fill Floor`), the **2nd Floor** button unlocks in the top bar.
+     - Clicking **2nd Floor** isolates the **Upper Mezzanine Hall** (`x = +18`) with 16 desks on 4 burgundy/amber woven rugs, twin arched gallery windows, grand balustrade detailing, and wrought-iron chandeliers.
+     - When 2nd Floor reaches $\ge 80\%$ occupancy (or clicking `+ Fill 2nd Floor`), the **Archive Wing** button unlocks.
+     - Clicking **Archive Wing** isolates the **West Archive Hall** (`x = -18`) with 16 desks on 4 crimson/gold woven rugs, gothic vaulted book stacks, an illuminated manuscript lectern, and a celestial globe.
+  3. **Multi-Floor Top View**:
+     - Clicking **Top View** reveals all unlocked halls side-by-side (`Ground Floor` alone; `Ground Floor + 2nd Floor`; or `Archive Wing + Ground Floor + 2nd Floor`) with an overhead camera that frames every unlocked room cleanly.
+- **Visual Identity & Theme**:
+  - Preserves the Dark Academia palette (herringbone oak parquet, carved walnut wainscoting, brushed brass, and woven rugs) and synchronizes all 3 halls with the 3 lighting atmospheres (`Daylight`, `Golden Hour`, `Cozy Night`).
+
+---
+
+## 3. Key Product Decisions & Trade-Offs
+
+- **Decision 1 — Side-by-Side Full Isometric Rooms (`x = -18, 0, +18`) vs. Z-Stacked Rooms**:
+  - *Chosen Approach*: Place the three `14.8m × 10.8m` isometric rooms along the X-axis (`Archive Wing` at `x = -18`, `Ground Floor` at `x = 0`, `2nd Floor` at `x = +18`).
+  - *Why*: In an isometric view where North (`-Z`) and West (`-X`) walls are solid, placing a second room behind the North wall causes the first room's North wall and exterior window trees to block the camera. Placing each hall at its own X-offset allows identical, unobstructed isometric camera angles when viewing a single floor, and a clean horizontal panorama when viewing all unlocked floors in **Top View**.
+- **Decision 2 — 4-Desk-per-Rug Grid (16 Desks per Upper Floor)**:
+  - *Chosen Approach*: Each of the 4 rugs on the 2nd Floor and Archive Wing holds 4 desks in a symmetric 2×2 layout (`dx = ±1.4, dz = ±0.9` relative to each rug center).
+  - *Why*: Gives every scholar generous spacing on the `6.2m × 4.2m` woven rugs with zero edge overhang.
+
+---
+
+## 4. Technical Architecture & Data Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        TOP BAR FLOOR & VIEW CONTROLS                        │
+│  [Ground Floor] [2nd Floor (≥80%)] [Archive Wing (≥80%)] | [☕ Lounge] [Top] │
+└───────────────────┬─────────────────────────────────────────┬───────────────┘
+                    │ switchFloor(floorId)                    │ setCameraPreset("topdown")
+                    ▼                                         ▼
+┌───────────────────────────────────────┐ ┌───────────────────────────────────┐
+│      SINGLE-FLOOR ISOMETRIC MODE      │ │     MULTI-FLOOR TOP VIEW MODE     │
+│  • Shows ONLY active floor group:     │ │  • Shows ALL unlocked floor       │
+│    - Ground (x = 0, Desks 1..20)      │ │    groups side-by-side:           │
+│    - 2nd Floor (x = +18, Desks 21..36)│ │    - 1 floor: center x = 0        │
+│    - Archive (x = -18, Desks 37..52)  │ │    - 2 floors: center x = +9      │
+│  • Camera: (centerX+8.6, 8.8, 10.2)   │ │    - 3 floors: center x = 0       │
+│    Target: (centerX-0.3, 0.9, -0.3)   │ │  • Displays labels for all        │
+│  • Isolates 3D HTML labels to floor   │ │    unlocked floors                │
+└───────────────────────────────────────┘ └───────────────────────────────────┘
+```
+
+- **Data Model & 52-Desk State**:
+  - `DESK_LAYOUTS` defines 52 desks:
+    - `id: 1..20` (`floor: "ground"`, centered around `x = 0`)
+    - `id: 21..36` (`floor: "mezzanine"`, centered around `x = +18`)
+    - `id: 37..52` (`floor: "archive"`, centered around `x = -18`)
+  - Backend room initialization and client room hydration (`ensureRoomHasAllDesks`) support all 52 desks across Common and Group libraries.
+- **Visibility & Camera Controller**:
+  - `updateFloorVisibility()` toggles `this.groundFloorGroup.visible`, `this.mezzanineGroup.visible`, `this.archiveWingGroup.visible`, and each desk's `unit.group.visible` so only the active floor is rendered during normal navigation, while all unlocked floors render together in `Top View`.

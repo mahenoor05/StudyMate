@@ -123,6 +123,54 @@ const defaultGroup = {
       avatar_color: "teal",
       today_seconds: 7200,
       week_seconds: 36000
+    },
+    {
+      user_id: 2,
+      role: "member",
+      joined_at: new Date().toISOString(),
+      display_name: "Elena Rostova",
+      username: "elena_study",
+      avatar_url: null,
+      avatar_style: "orbit",
+      avatar_color: "blue",
+      today_seconds: 11400,
+      week_seconds: 42000
+    },
+    {
+      user_id: 3,
+      role: "member",
+      joined_at: new Date().toISOString(),
+      display_name: "Dev Patel",
+      username: "dev_coder",
+      avatar_url: null,
+      avatar_style: "spark",
+      avatar_color: "amber",
+      today_seconds: 9600,
+      week_seconds: 31000
+    },
+    {
+      user_id: 102,
+      role: "member",
+      joined_at: new Date().toISOString(),
+      display_name: "Aarav Sharma",
+      username: "aarav_s",
+      avatar_url: null,
+      avatar_style: "spark",
+      avatar_color: "rose",
+      today_seconds: 8100,
+      week_seconds: 28000
+    },
+    {
+      user_id: 103,
+      role: "member",
+      joined_at: new Date().toISOString(),
+      display_name: "Sophia Chen",
+      username: "sophia_c",
+      avatar_url: null,
+      avatar_style: "orbit",
+      avatar_color: "purple",
+      today_seconds: 12500,
+      week_seconds: 49000
     }
   ]
 };
@@ -207,6 +255,7 @@ app.use(session({
 
 // Static files
 app.use("/static", express.static(path.join(__dirname, "app", "static")));
+app.use("/vendor/three", express.static(path.join(__dirname, "node_modules", "three")));
 app.use(express.static(path.join(__dirname, "app", "static")));
 
 // Flash messages middleware
@@ -813,8 +862,8 @@ const libraryRooms = new Map();
 
 const defaultLibraryRoom = {
   id: "grand-oak",
-  name: "The Grand Oak Reading Room",
-  atmosphere: "rainy", // "rainy" | "candlelight" | "sunny" | "midnight"
+  name: "Common Library",
+  atmosphere: "midnight", // "cloudy" | "sunny" | "midnight"
   syncTimer: {
     status: "running",
     mode: "focus", // "focus" | "break"
@@ -826,7 +875,7 @@ const defaultLibraryRoom = {
   desks: [
     {
       id: 1,
-      label: "Window Desk 1",
+      label: "Window Nook 1",
       occupiedBy: {
         userId: 2,
         displayName: "Elena Rostova",
@@ -842,12 +891,12 @@ const defaultLibraryRoom = {
     },
     {
       id: 2,
-      label: "Window Desk 2",
+      label: "Window Nook 2",
       occupiedBy: null
     },
     {
       id: 3,
-      label: "Oak Alcove 3",
+      label: "Window Nook 3",
       occupiedBy: {
         userId: 3,
         displayName: "Dev Patel",
@@ -863,29 +912,101 @@ const defaultLibraryRoom = {
     },
     {
       id: 4,
-      label: "Oak Alcove 4",
+      label: "Window Nook 4",
       occupiedBy: null
     },
     {
       id: 5,
-      label: "Hearth Table 5",
+      label: "Window Nook 5",
       occupiedBy: null
     },
     {
       id: 6,
-      label: "Hearth Table 6",
+      label: "Hearthside 6",
       occupiedBy: null
     },
     {
       id: 7,
-      label: "Mezzanine 7",
+      label: "Hearthside 7",
       occupiedBy: null
     },
     {
       id: 8,
-      label: "Mezzanine 8",
+      label: "Hearthside 8",
       occupiedBy: null
-    }
+    },
+    {
+      id: 9,
+      label: "Hearthside 9",
+      occupiedBy: null
+    },
+    {
+      id: 10,
+      label: "Hearthside 10",
+      occupiedBy: null
+    },
+    {
+      id: 11,
+      label: "Main Archive 11",
+      occupiedBy: null
+    },
+    {
+      id: 12,
+      label: "Main Archive 12",
+      occupiedBy: null
+    },
+    {
+      id: 13,
+      label: "Main Archive 13",
+      occupiedBy: null
+    },
+    {
+      id: 14,
+      label: "Main Archive 14",
+      occupiedBy: null
+    },
+    {
+      id: 15,
+      label: "Main Archive 15",
+      occupiedBy: null
+    },
+    {
+      id: 16,
+      label: "Quiet Corner 16",
+      occupiedBy: null
+    },
+    {
+      id: 17,
+      label: "Quiet Corner 17",
+      occupiedBy: null
+    },
+    {
+      id: 18,
+      label: "Quiet Corner 18",
+      occupiedBy: null
+    },
+    {
+      id: 19,
+      label: "Quiet Corner 19",
+      occupiedBy: null
+    },
+    {
+      id: 20,
+      label: "Quiet Corner 20",
+      occupiedBy: null
+    },
+    ...Array.from({ length: 16 }, (_, idx) => ({
+      id: 21 + idx,
+      label: `2nd Floor Mezzanine ${21 + idx}`,
+      occupiedBy: null,
+      reservedBy: null
+    })),
+    ...Array.from({ length: 16 }, (_, idx) => ({
+      id: 37 + idx,
+      label: `Archive Wing ${37 + idx}`,
+      occupiedBy: null,
+      reservedBy: null
+    }))
   ],
   stickyNotes: [
     {
@@ -924,17 +1045,100 @@ const defaultLibraryRoom = {
   vcParticipants: new Map() // peerId -> { peerId, userId, displayName, avatarStyle, avatarColor, hasVideo, hasAudio, isScreenSharing, isSpeaking }
 };
 libraryRooms.set("grand-oak", defaultLibraryRoom);
+libraryRooms.set("common", defaultLibraryRoom);
+
+function getOrCreateLibraryRoom(roomId = "common") {
+  const normId = roomId || "common";
+  if (libraryRooms.has(normId)) {
+    return libraryRooms.get(normId);
+  }
+  if (normId === "grand-oak") {
+    return defaultLibraryRoom;
+  }
+  const isGroup = normId.startsWith("group:");
+  const desks = [];
+  const deskCount = 52;
+  for (let i = 1; i <= deskCount; i++) {
+    const zone = i <= 5 ? "Window Nook" : (i <= 10 ? "Hearthside" : (i <= 15 ? "Main Archive" : (i <= 20 ? "Quiet Corner" : (i <= 36 ? "2nd Floor Mezzanine" : "Archive Wing"))));
+    desks.push({
+      id: i,
+      label: `${zone} ${i}`,
+      occupiedBy: null,
+      reservedBy: null
+    });
+  }
+  desks[0].occupiedBy = {
+    userId: 2,
+    displayName: "Elena Rostova",
+    avatarStyle: "orbit",
+    avatarColor: "blue",
+    subject: "Calculus III",
+    goal: "Stokes' Theorem problem set",
+    timerSeconds: 1140,
+    lampOn: true,
+    posture: "reading",
+    isBuddy: true
+  };
+  desks[2].occupiedBy = {
+    userId: 3,
+    displayName: "Dev Patel",
+    avatarStyle: "spark",
+    avatarColor: "amber",
+    subject: "Algorithms",
+    goal: "Graph traversals & DFS/BFS",
+    timerSeconds: 960,
+    lampOn: true,
+    posture: "typing",
+    isBuddy: true
+  };
+  if (isGroup) {
+    desks[1].reservedBy = {
+      userId: 102,
+      displayName: "Aarav Sharma",
+      avatarStyle: "spark",
+      avatarColor: "rose",
+      subject: "Quantum Mechanics"
+    };
+    desks[3].reservedBy = {
+      userId: 103,
+      displayName: "Sophia Chen",
+      avatarStyle: "orbit",
+      avatarColor: "purple",
+      subject: "Organic Chemistry"
+    };
+  }
+  const newRoom = {
+    id: normId,
+    name: isGroup ? "Group Library" : "Common Library",
+    atmosphere: "midnight",
+    activeFloor: "ground",
+    syncTimer: {
+      status: "running",
+      mode: "focus",
+      focusMinutes: 25,
+      breakMinutes: 5,
+      remainingSeconds: 23 * 60 + 40,
+      lastTick: Date.now()
+    },
+    desks: desks,
+    stickyNotes: [],
+    messages: [],
+    vcParticipants: new Map()
+  };
+  libraryRooms.set(normId, newRoom);
+  return newRoom;
+}
 
 // Library REST API
 app.get("/api/library/room", (req, res) => {
-  const room = libraryRooms.get("grand-oak");
-  if (!room) return res.status(404).json({ error: "Room not found" });
-
+  const roomId = req.query.roomId || "common";
+  const room = getOrCreateLibraryRoom(roomId);
   res.json({
     room: {
       id: room.id,
       name: room.name,
       atmosphere: room.atmosphere,
+      activeFloor: room.activeFloor || "ground",
       syncTimer: room.syncTimer,
       desks: room.desks,
       stickyNotes: room.stickyNotes,
@@ -996,81 +1200,154 @@ wss.on("connection", (ws) => {
       switch (data.type) {
         case "join:library": {
           meta.user = data.user || { displayName: "Guest", id: 0 };
+          if (data.roomId) meta.roomId = data.roomId;
+          const targetRoom = getOrCreateLibraryRoom(meta.roomId || "common");
           ws.send(JSON.stringify({
             type: "init:room_state",
             peerId: meta.peerId,
             room: {
-              id: room.id,
-              name: room.name,
-              atmosphere: room.atmosphere,
-              syncTimer: room.syncTimer,
-              desks: room.desks,
-              stickyNotes: room.stickyNotes,
-              messages: room.messages,
-              vcParticipants: Array.from(room.vcParticipants.values())
+              id: targetRoom.id,
+              name: targetRoom.name,
+              atmosphere: targetRoom.atmosphere,
+              activeFloor: targetRoom.activeFloor || "ground",
+              syncTimer: targetRoom.syncTimer,
+              desks: targetRoom.desks,
+              stickyNotes: targetRoom.stickyNotes,
+              messages: targetRoom.messages,
+              vcParticipants: Array.from(targetRoom.vcParticipants.values())
             }
           }));
+          break;
+        }
+
+        case "room:switch_floor": {
+          const { floorId } = data;
+          room.activeFloor = floorId || "ground";
+          broadcastToRoom(roomId, {
+            type: "room:floor_switched",
+            floorId: room.activeFloor
+          });
           break;
         }
 
         case "desk:take": {
           const { deskId, subject, goal, timerSeconds, lampOn } = data;
           const desk = room.desks.find(d => d.id === Number(deskId));
-          if (desk) {
-            // Free any other desk previously taken by this user
-            room.desks.forEach(d => {
-              if (d.occupiedBy && d.occupiedBy.userId === meta.user.id && !d.occupiedBy.isBuddy) {
-                d.occupiedBy = null;
-              }
-            });
+          if (!desk) break;
 
-            desk.occupiedBy = {
-              userId: meta.user.id,
-              displayName: meta.user.displayName || "Student",
-              avatarStyle: meta.user.avatarStyle || "initials",
-              avatarColor: meta.user.avatarColor || "teal",
-              avatarUrl: meta.user.avatarUrl || null,
-              subject: subject || "Focus Study",
-              goal: goal || "",
-              timerSeconds: timerSeconds || 1500,
-              lampOn: lampOn !== false,
-              posture: data.posture || "reading",
-              isBuddy: false,
-              joinedAt: new Date().toISOString()
-            };
+          const currentUserId = meta.user?.id;
+          const isOccupiedByOther =
+            desk.occupiedBy &&
+            (String(desk.occupiedBy.userId) !== String(currentUserId) || desk.occupiedBy.isBuddy) &&
+            desk.occupiedBy.peerId !== meta.peerId;
 
-            broadcastToRoom(roomId, {
-              type: "desk:updated",
+          if (isOccupiedByOther) {
+            ws.send(JSON.stringify({
+              type: "desk:occupied_error",
               deskId: desk.id,
-              desk
-            });
+              message: `${desk.occupiedBy.displayName || "Another student"} is already studying at this desk.`,
+              desks: room.desks
+            }));
+            break;
           }
+
+          // Strict Single-Seat Rule: Free any other desk previously occupied by this user or peer
+          const vacatedDeskIds = [];
+          room.desks.forEach(d => {
+            if (
+              d.id !== desk.id &&
+              d.occupiedBy &&
+              !d.occupiedBy.isBuddy &&
+              (String(d.occupiedBy.userId) === String(currentUserId) || d.occupiedBy.peerId === meta.peerId)
+            ) {
+              d.occupiedBy = null;
+              vacatedDeskIds.push(d.id);
+              broadcastToRoom(roomId, {
+                type: "desk:updated",
+                deskId: d.id,
+                desk: d,
+                desks: room.desks
+              });
+            }
+          });
+
+          desk.occupiedBy = {
+            userId: currentUserId,
+            peerId: meta.peerId,
+            displayName: meta.user?.displayName || "Student",
+            avatarStyle: meta.user?.avatarStyle || "initials",
+            avatarColor: meta.user?.avatarColor || "teal",
+            avatarUrl: meta.user?.avatarUrl || null,
+            subject: subject || "Focus Study",
+            goal: goal || "",
+            timerSeconds: timerSeconds || 1500,
+            lampOn: lampOn !== false,
+            posture: data.posture || "reading",
+            isBuddy: false,
+            joinedAt: new Date().toISOString()
+          };
+
+          broadcastToRoom(roomId, {
+            type: "desk:updated",
+            deskId: desk.id,
+            vacatedDeskIds,
+            desk,
+            desks: room.desks
+          });
           break;
         }
 
         case "desk:leave": {
           const { deskId } = data;
-          const desk = room.desks.find(d => d.id === Number(deskId));
-          if (desk && desk.occupiedBy && desk.occupiedBy.userId === meta.user.id) {
-            desk.occupiedBy = null;
-            broadcastToRoom(roomId, {
-              type: "desk:updated",
-              deskId: desk.id,
-              desk
-            });
+          const currentUserId = meta.user?.id;
+          let changed = false;
+          room.desks.forEach(d => {
+            const matchId = deskId ? d.id === Number(deskId) : true;
+            if (
+              matchId &&
+              d.occupiedBy &&
+              !d.occupiedBy.isBuddy &&
+              (String(d.occupiedBy.userId) === String(currentUserId) || d.occupiedBy.peerId === meta.peerId)
+            ) {
+              d.occupiedBy = null;
+              changed = true;
+              broadcastToRoom(roomId, {
+                type: "desk:updated",
+                deskId: d.id,
+                desk: d,
+                desks: room.desks
+              });
+            }
+          });
+          if (!changed && deskId) {
+            const desk = room.desks.find(d => d.id === Number(deskId));
+            if (desk) {
+              broadcastToRoom(roomId, {
+                type: "desk:updated",
+                deskId: desk.id,
+                desk,
+                desks: room.desks
+              });
+            }
           }
           break;
         }
 
         case "desk:posture": {
           const { deskId, posture } = data;
-          const desk = room.desks.find(d => d.id === Number(deskId));
-          if (desk && desk.occupiedBy && desk.occupiedBy.userId === meta.user.id) {
+          const currentUserId = meta.user?.id;
+          const desk = room.desks.find(d =>
+            deskId
+              ? d.id === Number(deskId)
+              : d.occupiedBy && !d.occupiedBy.isBuddy && (String(d.occupiedBy.userId) === String(currentUserId) || d.occupiedBy.peerId === meta.peerId)
+          );
+          if (desk && desk.occupiedBy && (String(desk.occupiedBy.userId) === String(currentUserId) || desk.occupiedBy.peerId === meta.peerId)) {
             desk.occupiedBy.posture = posture || "reading";
             broadcastToRoom(roomId, {
               type: "desk:updated",
               deskId: desk.id,
-              desk
+              desk,
+              desks: room.desks
             });
           }
           break;
@@ -1078,8 +1355,9 @@ wss.on("connection", (ws) => {
 
         case "desk:update_progress": {
           const { deskId, timerSeconds, subject, goal, lampOn, posture } = data;
+          const currentUserId = meta.user?.id;
           const desk = room.desks.find(d => d.id === Number(deskId));
-          if (desk && desk.occupiedBy && desk.occupiedBy.userId === meta.user.id) {
+          if (desk && desk.occupiedBy && (String(desk.occupiedBy.userId) === String(currentUserId) || desk.occupiedBy.peerId === meta.peerId)) {
             if (timerSeconds !== undefined) desk.occupiedBy.timerSeconds = timerSeconds;
             if (subject) desk.occupiedBy.subject = subject;
             if (goal !== undefined) desk.occupiedBy.goal = goal;
@@ -1089,7 +1367,8 @@ wss.on("connection", (ws) => {
             broadcastToRoom(roomId, {
               type: "desk:updated",
               deskId: desk.id,
-              desk
+              desk,
+              desks: room.desks
             });
           }
           break;
@@ -1102,6 +1381,55 @@ wss.on("connection", (ws) => {
             targetDeskId: Number(targetDeskId),
             reaction: reaction || "☕",
             fromName: meta.user ? meta.user.displayName : "A friend"
+          });
+          break;
+        }
+
+        case "desk:reserve": {
+          if (!String(roomId).startsWith("group:")) break;
+          const { deskId, subject } = data;
+          const desk = room.desks.find(d => d.id === Number(deskId));
+          if (!desk) break;
+          const currentUserId = meta.user?.id || 1;
+          const displayName = meta.user?.displayName || "Student";
+
+          room.desks.forEach(d => {
+            if (d.id !== desk.id && d.reservedBy && String(d.reservedBy.userId) === String(currentUserId)) {
+              d.reservedBy = null;
+            }
+          });
+
+          desk.reservedBy = {
+            userId: currentUserId,
+            peerId: meta.peerId,
+            displayName: displayName,
+            avatarStyle: meta.user?.avatarStyle || "initials",
+            avatarColor: meta.user?.avatarColor || "teal",
+            subject: subject || "Focus Study",
+            reservedAt: new Date().toISOString()
+          };
+
+          broadcastToRoom(roomId, {
+            type: "desk:updated",
+            deskId: desk.id,
+            desk,
+            desks: room.desks
+          });
+          break;
+        }
+
+        case "desk:unreserve": {
+          if (!String(roomId).startsWith("group:")) break;
+          const { deskId } = data;
+          const desk = room.desks.find(d => d.id === Number(deskId));
+          if (!desk) break;
+          desk.reservedBy = null;
+
+          broadcastToRoom(roomId, {
+            type: "desk:updated",
+            deskId: desk.id,
+            desk,
+            desks: room.desks
           });
           break;
         }
@@ -1216,30 +1544,45 @@ wss.on("connection", (ws) => {
             joinedAt: new Date().toISOString()
           };
 
-          // Existing peers in the VC room
-          const existingPeers = Array.from(room.vcParticipants.values());
+          // Existing peers in the VC room (excluding self)
+          const existingPeers = Array.from(room.vcParticipants.values()).filter(p => p.peerId !== meta.peerId);
           room.vcParticipants.set(meta.peerId, participant);
+          const allParticipants = Array.from(room.vcParticipants.values());
 
           // Tell the joining client about existing peers so they can initiate offers
           ws.send(JSON.stringify({
             type: "vc:existing_peers",
-            peers: existingPeers
+            peers: existingPeers,
+            participants: allParticipants
           }));
 
           // Tell others that a new peer joined
           broadcastToRoom(roomId, {
             type: "vc:participant_joined",
-            participant
+            participant,
+            participants: allParticipants
           }, ws);
+
+          // Broadcast updated participant list to everyone in the room
+          broadcastToRoom(roomId, {
+            type: "vc:participants_updated",
+            participants: allParticipants
+          });
           break;
         }
 
         case "vc:leave": {
           if (room.vcParticipants.has(meta.peerId)) {
             room.vcParticipants.delete(meta.peerId);
+            const allParticipants = Array.from(room.vcParticipants.values());
             broadcastToRoom(roomId, {
               type: "vc:participant_left",
-              peerId: meta.peerId
+              peerId: meta.peerId,
+              participants: allParticipants
+            });
+            broadcastToRoom(roomId, {
+              type: "vc:participants_updated",
+              participants: allParticipants
             });
           }
           break;
@@ -1256,12 +1599,14 @@ wss.on("connection", (ws) => {
             broadcastToRoom(roomId, {
               type: "vc:media_state_changed",
               peerId: meta.peerId,
-              participant
+              participant,
+              participants: Array.from(room.vcParticipants.values())
             });
           }
           break;
         }
 
+        case "offer":
         case "signal:offer": {
           const { targetPeerId, offer } = data;
           for (const [targetWs, targetMeta] of wsClients.entries()) {
@@ -1278,6 +1623,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        case "answer":
         case "signal:answer": {
           const { targetPeerId, answer } = data;
           for (const [targetWs, targetMeta] of wsClients.entries()) {
@@ -1293,6 +1639,7 @@ wss.on("connection", (ws) => {
           break;
         }
 
+        case "ice-candidate":
         case "signal:ice_candidate": {
           const { targetPeerId, candidate } = data;
           for (const [targetWs, targetMeta] of wsClients.entries()) {
@@ -1321,24 +1668,33 @@ wss.on("connection", (ws) => {
         // If user was in VC, leave
         if (room.vcParticipants.has(meta.peerId)) {
           room.vcParticipants.delete(meta.peerId);
+          const allParticipants = Array.from(room.vcParticipants.values());
           broadcastToRoom(meta.roomId, {
             type: "vc:participant_left",
-            peerId: meta.peerId
+            peerId: meta.peerId,
+            participants: allParticipants
+          });
+          broadcastToRoom(meta.roomId, {
+            type: "vc:participants_updated",
+            participants: allParticipants
           });
         }
         // If user occupied a non-buddy desk, leave desk
-        if (meta.user) {
-          room.desks.forEach(d => {
-            if (d.occupiedBy && d.occupiedBy.userId === meta.user.id && !d.occupiedBy.isBuddy) {
-              d.occupiedBy = null;
-              broadcastToRoom(meta.roomId, {
-                type: "desk:updated",
-                deskId: d.id,
-                desk: d
-              });
-            }
-          });
-        }
+        room.desks.forEach(d => {
+          if (
+            d.occupiedBy &&
+            !d.occupiedBy.isBuddy &&
+            (d.occupiedBy.peerId === meta.peerId || (meta.user && String(d.occupiedBy.userId) === String(meta.user.id)))
+          ) {
+            d.occupiedBy = null;
+            broadcastToRoom(meta.roomId, {
+              type: "desk:updated",
+              deskId: d.id,
+              desk: d,
+              desks: room.desks
+            });
+          }
+        });
       }
       wsClients.delete(ws);
     }
