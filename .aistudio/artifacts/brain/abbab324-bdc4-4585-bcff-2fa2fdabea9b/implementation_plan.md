@@ -1,55 +1,73 @@
-# Multi-Floor Isometric Library Architecture Plan
+# Exam Workspace AI Roadmap, Timed Mock Exam Simulator & Cozy Library PIP Video Call
 
-Rebuilds the **Ground Floor**, **2nd Floor (Upper Mezzanine)**, and **Archive Wing** as three complete, self-contained isometric 3D study halls arranged side-by-side, eliminating wall/tree occlusion when switching floors while showcasing all unlocked halls simultaneously in **Top View**.
+An overhaul of the Exam Workspace with interactive hierarchical syllabus management, AI study plan generation, timed mock exams with instant AI auto-grading, mistake logging, and a standalone Cozy Library video call experience supporting Picture-in-Picture (PiP).
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following architectural decisions incorporate your confirmed preferences:
-
-- **Confirmed Decision 1 — Full Isometric Room per Floor (Side-by-Side in Top View)**: Each floor (`Ground Floor` at `x = 0`, `2nd Floor` at `x = +18`, `Archive Wing` at `x = -18`) is constructed as a complete `14.8m × 10.8m` cutaway isometric hall with its own North and West walls, wainscoting, herringbone oak flooring, 4 woven area rugs, bookcases, and lighting fixtures.
-- **Confirmed Decision 2 — 16 Rug-Aligned Desks on Each Upper Floor (52 Desks Total)**:
-  - **Ground Floor**: Desks 1–20 (5 per rug across 4 rugs; 16 in Group Library) + Foreground-Right Break Lounge.
-  - **2nd Floor (Upper Mezzanine)**: Desks 21–36 (16 desks arranged 4 per rug in a clean 2×2 grid on each of the 4 mezzanine rugs).
-  - **Archive Wing**: Desks 37–52 (16 desks arranged 4 per rug in a clean 2×2 grid on each of the 4 archive rugs).
-- **Confirmed Decision 3 — Strict Floor Isolation in Standard View & Multi-Hall Framing in Top View**:
-  - Clicking **Ground Floor**, **2nd Floor**, or **Archive Wing** hides the other floors' 3D geometry and labels so the active floor fills the viewport with a clean, unobstructed isometric camera angle.
-  - Clicking **Top View** makes all currently unlocked floors visible side-by-side and dynamically frames 1, 2, or all 3 unlocked rooms at once.
+> The following user preferences were confirmed during clarification:
+> - **Test Analysis, Mocks & Practice Questions Location**: Integrated directly as sub-tabs inside each **Exam Workspace** (`Syllabus`, `Plan & Roadmap`, `Mock Tests & Practice`, `Test Analysis & Mistakes`).
+> - **Mock Test & Analysis Scope**:
+>   1. **AI Mock Test & Practice Question Generator** (custom topic/difficulty, timed test runner with immediate AI auto-grading and step-by-step solutions).
+>   2. **Score Tracker & Weak-Topic Radar** (accuracy %, speed per question, subject strengths vs. gaps).
+>   3. **Mistake Log** (tag errors by type: *Silly Error*, *Conceptual Gap*, *Time Pressure*, or *Formula Slip* with AI revision tips).
+> - **Cozy Library VC & Picture-in-Picture (PiP)**:
+>   - Joining/leaving the Voice & Video Call is **independent of sitting on a desk**. Users can join a study call without taking a desk seat or sit on a desk without being on a video call.
+>   - Modern Video Call interface with grid view, floating call control bar, camera/mic toggle, screen share, and a **Picture-in-Picture (PiP)** floating video window so users can keep study partners visible while navigating other tabs or writing notes.
 
 ---
 
 ## 1. Overview & Core Concept
 
-- **What It Does**: Provides a seamless multi-hall 3D study library where each unlocked floor looks and behaves like a complete, handcrafted Dark Academia room rather than an obstructed platform behind a wall.
-- **Target Audience**: Students studying solo in the Common Library or collaboratively in a Group Library.
-- **Key Value**: Eliminates 3D wall/tree clipping on the 2nd Floor and Archive Wing, gives every floor a balanced rug-aligned desk grid, and turns Top View into a true multi-room architectural overview.
+1. **Hierarchical Syllabus Management**:
+   - Clean 3-level structure: **Subject ➔ Units / Chapters ➔ Topics** with 4-stage revision pills (`Not Started`, `Studied`, `Revision 1`, `Mastered`).
+   - Dedicated buttons for **Add Subject**, **Add Chapter**, **Add Topic**, **Rename**, and **Delete** with clean prompt/inline editing.
+   - **Load Built-in Syllabus** populates curated exam blueprints on demand.
+   - **AI Search & Load Syllabus** (`POST /api/exams/ai-syllabus`) dynamically retrieves official unit topics via Google Search grounded Gemini AI.
+
+2. **AI Study Plan & Roadmap Generator**:
+   - Endpoint (`POST /api/exams/ai-plan`) creates a personalized phased preparation roadmap (e.g., *Phase 1: Foundation*, *Phase 2: High-Weightage Drills*, *Phase 3: Full Mocks & Revision*).
+   - Includes **One-Click Sync** to push generated milestones and daily revision tasks straight into `Today's Plan` and `Calendar`.
+
+3. **Timed Mock Exam Simulator & Test Analysis**:
+   - Timed exam runner with countdown timer, question palette, question flagging, and instant AI grading (`POST /api/exams/ai-mock`).
+   - Detailed score card: percentage, accuracy, time per question, and AI recommendations.
+   - Mistake Logger allowing students to tag wrong questions by error category (*Silly Error*, *Conceptual Gap*, *Time Pressure*) and review weak concepts.
+
+4. **Cozy Library Standalone Call & Picture-in-Picture**:
+   - Decoupled VC session from physical desk occupancy.
+   - Floating video canvas with HTML Video Picture-in-Picture API support (`video.requestPictureInPicture()`) allowing the user's call partner stream or grid to stay active on-screen anywhere in the browser.
 
 ---
 
 ## 2. User Experience & Visual Design
 
-- **Key User Flows**:
-  1. **Entering the Library**: Opens on the **Ground Floor** (`x = 0`) with 20 desks (16 for Group Library) and the Break Lounge. Only the Ground Floor room is visible.
-  2. **Sequential Floor Unlocking**:
-     - When Ground Floor reaches $\ge 80\%$ occupancy (or via `+ Fill Floor`), the **2nd Floor** button unlocks in the top bar.
-     - Clicking **2nd Floor** isolates the **Upper Mezzanine Hall** (`x = +18`) with 16 desks on 4 burgundy/amber woven rugs, twin arched gallery windows, grand balustrade detailing, and wrought-iron chandeliers.
-     - When 2nd Floor reaches $\ge 80\%$ occupancy (or clicking `+ Fill 2nd Floor`), the **Archive Wing** button unlocks.
-     - Clicking **Archive Wing** isolates the **West Archive Hall** (`x = -18`) with 16 desks on 4 crimson/gold woven rugs, gothic vaulted book stacks, an illuminated manuscript lectern, and a celestial globe.
-  3. **Multi-Floor Top View**:
-     - Clicking **Top View** reveals all unlocked halls side-by-side (`Ground Floor` alone; `Ground Floor + 2nd Floor`; or `Archive Wing + Ground Floor + 2nd Floor`) with an overhead camera that frames every unlocked room cleanly.
-- **Visual Identity & Theme**:
-  - Preserves the Dark Academia palette (herringbone oak parquet, carved walnut wainscoting, brushed brass, and woven rugs) and synchronizes all 3 halls with the 3 lighting atmospheres (`Daylight`, `Golden Hour`, `Cozy Night`).
+### Exam Workspace Layout & Sub-Tabs
+- **Workspace Navigation**:
+  - `Overview` ➔ Exam countdown card, target date, subject completion summary.
+  - `Syllabus` ➔ Interactive 3-level tree (Subject ➔ Unit ➔ Topics) with revision stage pills, `+ Subject`, `+ Chapter`, `+ Topic`, `Rename`, `Delete`, `Load Built-In Syllabus`, `✦ AI Search & Load Syllabus`.
+  - `Plan & Roadmap` ➔ AI Plan generator button (`✦ Generate AI Study Plan`), phased roadmap timeline, milestones, and `+ Today's Plan` sync actions.
+  - `Mock Tests & Practice` ➔ AI Mock Generator (`Length`, `Difficulty`, `Subject/Unit Filter`), active timed exam interface with countdown timer and question navigator, instant auto-grading report.
+  - `Test Analysis & Mistakes` ➔ Historical test scores, subject accuracy chart, weak-topic radar, and filterable Mistake Log (*Silly Error*, *Conceptual Gap*, *Time Pressure*).
+
+### Cozy Library Call UI
+- **Call Control Bar**: Floating pill bar at the bottom containing Mic toggle, Camera toggle, Screen Share, Grid/Focus view switcher, **Picture-in-Picture (PiP) toggle button**, and Leave Call.
+- **PiP Behavior**: Clicking the PiP icon transfers the active remote video stream or call canvas to the native browser Picture-in-Picture window.
 
 ---
 
 ## 3. Key Product Decisions & Trade-Offs
 
-- **Decision 1 — Side-by-Side Full Isometric Rooms (`x = -18, 0, +18`) vs. Z-Stacked Rooms**:
-  - *Chosen Approach*: Place the three `14.8m × 10.8m` isometric rooms along the X-axis (`Archive Wing` at `x = -18`, `Ground Floor` at `x = 0`, `2nd Floor` at `x = +18`).
-  - *Why*: In an isometric view where North (`-Z`) and West (`-X`) walls are solid, placing a second room behind the North wall causes the first room's North wall and exterior window trees to block the camera. Placing each hall at its own X-offset allows identical, unobstructed isometric camera angles when viewing a single floor, and a clean horizontal panorama when viewing all unlocked floors in **Top View**.
-- **Decision 2 — 4-Desk-per-Rug Grid (16 Desks per Upper Floor)**:
-  - *Chosen Approach*: Each of the 4 rugs on the 2nd Floor and Archive Wing holds 4 desks in a symmetric 2×2 layout (`dx = ±1.4, dz = ±0.9` relative to each rug center).
-  - *Why*: Gives every scholar generous spacing on the `6.2m × 4.2m` woven rugs with zero edge overhang.
+1. **In-Workspace Mock Simulator vs. Standalone Page**:
+   - *Chosen*: Integrated as a dedicated tab within each Exam Workspace.
+   - *Why*: Keeps test performance and mistake logs closely tied to the target exam's syllabus and study roadmap.
+
+2. **Decoupled Library Call vs. Mandatory Desk Occupancy**:
+   - *Chosen*: Decouple VC joining/leaving from desk occupancy in `script.js`.
+   - *Why*: Students often want to join a casual study voice call with group members without taking up a physical desk slot in the 3D room.
+
+3. **Client Canvas PiP / HTML Video PiP**:
+   - *Chosen*: Use standard HTML5 Video `requestPictureInPicture()` for the active peer video or composite video element in Chrome/Edge/Firefox, with graceful fallback.
 
 ---
 
@@ -57,28 +75,49 @@ Rebuilds the **Ground Floor**, **2nd Floor (Upper Mezzanine)**, and **Archive Wi
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        TOP BAR FLOOR & VIEW CONTROLS                        │
-│  [Ground Floor] [2nd Floor (≥80%)] [Archive Wing (≥80%)] | [☕ Lounge] [Top] │
-└───────────────────┬─────────────────────────────────────────┬───────────────┘
-                    │ switchFloor(floorId)                    │ setCameraPreset("topdown")
-                    ▼                                         ▼
-┌───────────────────────────────────────┐ ┌───────────────────────────────────┐
-│      SINGLE-FLOOR ISOMETRIC MODE      │ │     MULTI-FLOOR TOP VIEW MODE     │
-│  • Shows ONLY active floor group:     │ │  • Shows ALL unlocked floor       │
-│    - Ground (x = 0, Desks 1..20)      │ │    groups side-by-side:           │
-│    - 2nd Floor (x = +18, Desks 21..36)│ │    - 1 floor: center x = 0        │
-│    - Archive (x = -18, Desks 37..52)  │ │    - 2 floors: center x = +9      │
-│  • Camera: (centerX+8.6, 8.8, 10.2)   │ │    - 3 floors: center x = 0       │
-│    Target: (centerX-0.3, 0.9, -0.3)   │ │  • Displays labels for all        │
-│  • Isolates 3D HTML labels to floor   │ │    unlocked floors                │
-└───────────────────────────────────────┘ └───────────────────────────────────┘
+│                            STUDYMATE FRONTEND                               │
+├───────────────────┬────────────────────────┬────────────────────────────────┤
+│  Exam Workspace   │  Mock Test Simulator   │    Cozy Library Video Call     │
+│  - Syllabus Tree  │  - Timed Question Test │  - Modern Call Grid & Controls  │
+│  - AI Plan & Sync │  - AI Auto-Grading     │  - Picture-in-Picture (PiP)    │
+│  - Stage Revision │  - Mistake Log Tracker │  - Desk Unbound Standalone VC   │
+└─────────┬─────────┴───────────┬────────────┴───────────────┬────────────────┘
+          │                     │                            │
+          ▼                     ▼                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                             BACKEND ROUTES (Python)                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  POST /api/exams/ai-syllabus ➔ Gemini 3.8 Flash + Google Search Grounding    │
+│  POST /api/exams/ai-plan     ➔ Gemini 3.8 Flash Phased Plan & Daily Tasks   │
+│  POST /api/exams/ai-mock     ➔ Gemini 3.8 Flash Question & Solution Generator│
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Data Model & 52-Desk State**:
-  - `DESK_LAYOUTS` defines 52 desks:
-    - `id: 1..20` (`floor: "ground"`, centered around `x = 0`)
-    - `id: 21..36` (`floor: "mezzanine"`, centered around `x = +18`)
-    - `id: 37..52` (`floor: "archive"`, centered around `x = -18`)
-  - Backend room initialization and client room hydration (`ensureRoomHasAllDesks`) support all 52 desks across Common and Group libraries.
-- **Visibility & Camera Controller**:
-  - `updateFloorVisibility()` toggles `this.groundFloorGroup.visible`, `this.mezzanineGroup.visible`, `this.archiveWingGroup.visible`, and each desk's `unit.group.visible` so only the active floor is rendered during normal navigation, while all unlocked floors render together in `Top View`.
+### Data Schema Extensions (`appData.exams[i]`)
+- `mockTests`: Array of `{ id, title, durationMinutes, totalQuestions, score, totalMarks, accuracyPercent, dateCompleted, questions: [{ id, text, options, answer, explanation, userChoice, isCorrect, errorTag }] }`
+- `mistakes`: Array of `{ id, mockId, questionText, subjectName, chapterName, userChoice, correctChoice, errorTag, notes, dateLogged }`
+- `aiPlan`: `{ generatedAt, phasedRoadmap: [{ phaseName, duration, objectives, suggestedTasks: [] }] }`
+
+---
+
+## Implementation Steps
+
+1. **Backend Endpoints (`app/api/routes.py`)**:
+   - Verify `POST /api/exams/ai-syllabus`.
+   - Add `POST /api/exams/ai-plan` (generates phased roadmap & daily tasks from subject list & days left).
+   - Add `POST /api/exams/ai-mock` (generates structured multiple choice questions with options & explanations).
+
+2. **Frontend Exam Workspace UI (`app/templates/app.html` & `app/static/js/script.js`)**:
+   - Fix **Load Built-In Syllabus** to populate curated subjects/chapters/topics when clicked.
+   - Fix **Add Subject**, **Add Chapter**, **Add Topic**, **Rename**, and **Delete** actions across all 3 hierarchy levels.
+   - Add `Plan & Roadmap` tab with `✦ Generate AI Study Plan` button and roadmap timeline.
+   - Add `Mock Tests & Practice` tab with Mock Generator, Timed Exam Runner, and auto-grader.
+   - Add `Test Analysis & Mistakes` tab with Score Tracker and Mistake Logger.
+
+3. **Cozy Library VC Uncoupling & Picture-in-Picture (`script.js` & `app.html`)**:
+   - Update `joinVC()` and `leaveVC()` so joining or leaving the call is independent of sitting on a 3D desk.
+   - Add PiP button to `#vc-call-controls` that invokes `videoElement.requestPictureInPicture()` on the active video stream.
+
+4. **Verification & Testing**:
+   - Validate JS syntax with `node --check`.
+   - Compile and verify dev server health.

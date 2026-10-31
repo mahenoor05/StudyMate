@@ -1,4 +1,4 @@
-import * as THREE from "/static/vendor/three/build/three.module.js";
+import * as THREE from "/static/vendor/three/core/three.module.js";
 import { OrbitControls } from "/static/vendor/three/examples/jsm/controls/OrbitControls.js";
 
 /**

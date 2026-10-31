@@ -67,27 +67,509 @@ const timerModes = [
 const examPresets = [
   { category: "Engineering", name: "JEE Main", subjects: ["Physics", "Chemistry", "Mathematics"] },
   { category: "Engineering", name: "JEE Advanced", subjects: ["Physics", "Chemistry", "Mathematics"] },
-  { category: "Engineering", name: "GUJCET", subjects: ["Physics", "Chemistry", "Mathematics / Biology"] },
-  { category: "Engineering", name: "BITSAT", subjects: ["Physics", "Chemistry", "Mathematics", "English"] },
+  { category: "Engineering", name: "GUJCET", subjects: ["Physics", "Chemistry", "Mathematics"] },
+  { category: "Engineering", name: "BITSAT", subjects: ["Physics", "Chemistry", "Mathematics", "English & Logical Reasoning"] },
   { category: "Engineering", name: "MHT CET", subjects: ["Physics", "Chemistry", "Mathematics"] },
   { category: "Medical", name: "NEET UG", subjects: ["Physics", "Chemistry", "Botany", "Zoology"] },
-  { category: "University / Competitive", name: "CUET UG", subjects: [] },
-  { category: "University / Competitive", name: "UPSC", subjects: [] },
-  { category: "University / Competitive", name: "CA", subjects: [] },
-  { category: "University / Competitive", name: "GATE", subjects: [] },
+  { category: "University / Competitive", name: "CUET UG", subjects: ["General Test", "English", "Domain Subject 1", "Domain Subject 2"] },
+  { category: "University / Competitive", name: "UPSC", subjects: ["History & Culture", "Polity & Governance", "Geography & Environment", "Economy & Current Affairs", "CSAT"] },
+  { category: "University / Competitive", name: "CA", subjects: ["Financial Accounting", "Corporate & Other Laws", "Taxation (Direct & GST)", "Cost & Management Accounting"] },
+  { category: "University / Competitive", name: "GATE", subjects: ["Engineering Mathematics", "Core Engineering Subject", "Algorithms & Data Structures", "General Aptitude"] },
   { category: "University / Competitive", name: "CAT", subjects: ["Quantitative Aptitude", "DILR", "VARC"] },
   { category: "International", name: "SAT", subjects: ["Math", "Reading", "Writing"] },
-  { category: "International", name: "IB", subjects: [] },
-  { category: "International", name: "A Levels", subjects: [] },
-  { category: "School", name: "CBSE", subjects: [] },
-  { category: "School", name: "ICSE", subjects: [] },
-  { category: "School", name: "State Boards", subjects: [] },
-  { category: "School", name: "Class 10 Boards", subjects: [] },
-  { category: "School", name: "Class 12 Boards", subjects: [] },
-  { category: "College", name: "Semester Exam", subjects: [] },
-  { category: "College", name: "Internal Test", subjects: [] },
+  { category: "International", name: "IB", subjects: ["Mathematics", "Physics", "Chemistry", "English"] },
+  { category: "International", name: "A Levels", subjects: ["Mathematics", "Physics", "Chemistry"] },
+  { category: "School", name: "CBSE", subjects: ["Physics", "Chemistry", "Mathematics", "English"] },
+  { category: "School", name: "ICSE", subjects: ["Physics", "Chemistry", "Mathematics", "Biology", "English"] },
+  { category: "School", name: "State Boards", subjects: ["Physics", "Chemistry", "Mathematics", "English"] },
+  { category: "School", name: "Class 10 Boards", subjects: ["Mathematics", "Science", "Social Science", "English"] },
+  { category: "School", name: "Class 12 Boards", subjects: ["Physics", "Chemistry", "Mathematics", "English"] },
+  { category: "College", name: "Semester Exam", subjects: ["Core Paper I", "Core Paper II", "Department Elective", "Lab & Practical"] },
+  { category: "College", name: "Internal Test", subjects: ["Unit 1 & 2", "Unit 3 & 4", "Problem Sets & Assignments"] },
   { category: "Other", name: "Custom Exam", subjects: [] }
 ];
+
+const EXAM_REVISION_STAGES = [
+  { id: "not-started", label: "Not Started", shortLabel: "Not Started", weight: 0 },
+  { id: "studied", label: "Studied", shortLabel: "Studied", weight: 0.5 },
+  { id: "revision-1", label: "Revision 1", shortLabel: "Rev 1", weight: 0.8 },
+  { id: "mastered", label: "Mastered", shortLabel: "Mastered", weight: 1.0 }
+];
+
+const DEFAULT_SUBJECT_SYLLABI = {
+  physics: [
+    {
+      name: "Mechanics & Kinematics",
+      topics: [
+        "Units, Dimensions & Error Analysis",
+        "Motion in 1D & 2D (Projectiles & Relative Motion)",
+        "Newton's Laws of Motion & Friction",
+        "Work, Energy, Power & Circular Motion",
+        "Center of Mass, Collisions & Rotational Dynamics",
+        "Gravitation & Orbital Mechanics"
+      ]
+    },
+    {
+      name: "Thermodynamics, Waves & Oscillations",
+      topics: [
+        "Thermal Properties & Kinetic Theory of Gases",
+        "First & Second Laws of Thermodynamics",
+        "Properties of Solids & Fluid Mechanics",
+        "Simple Harmonic Motion (SHM)",
+        "Wave Motion, Superposition & Doppler Effect"
+      ]
+    },
+    {
+      name: "Electrodynamics & Magnetism",
+      topics: [
+        "Electrostatics, Electric Field & Gauss's Law",
+        "Electric Potential & Capacitance",
+        "Current Electricity, Ohm's Law & Kirchhoff's Rules",
+        "Moving Charges, Biot-Savart Law & Magnetism",
+        "Electromagnetic Induction (EMI) & Alternating Current (AC)"
+      ]
+    },
+    {
+      name: "Optics & Modern Physics",
+      topics: [
+        "Ray Optics, Mirrors, Lenses & Optical Instruments",
+        "Wave Optics, Interference, Diffraction & Polarization",
+        "Dual Nature of Radiation & Photoelectric Effect",
+        "Atomic Structure, Bohr Model & X-Rays",
+        "Nuclear Physics, Radioactivity & Semiconductors"
+      ]
+    }
+  ],
+  chemistry: [
+    {
+      name: "Physical Chemistry",
+      topics: [
+        "Some Basic Concepts of Chemistry & Mole Concept",
+        "Atomic Structure & Quantum Numbers",
+        "Chemical Thermodynamics & Thermochemistry",
+        "Chemical & Ionic Equilibrium",
+        "Solutions, Colligative Properties & Electrochemistry",
+        "Chemical Kinetics & Surface Chemistry"
+      ]
+    },
+    {
+      name: "Inorganic Chemistry",
+      topics: [
+        "Periodic Table & Periodic Trends",
+        "Chemical Bonding, VSEPR & Molecular Orbital Theory",
+        "s-Block & p-Block Elements",
+        "d-Block & f-Block Transition Elements",
+        "Coordination Compounds & Isomerism",
+        "Qualitative Analysis & Metallurgy"
+      ]
+    },
+    {
+      name: "Organic Chemistry",
+      topics: [
+        "General Organic Chemistry (GOC), Electronic Effects & Isomerism",
+        "Hydrocarbons (Alkanes, Alkenes, Alkynes & Arenes)",
+        "Haloalkanes & Haloarenes (SN1, SN2, E1, E2)",
+        "Alcohols, Phenols & Ethers",
+        "Aldehydes, Ketones & Carboxylic Acids",
+        "Amines, Diazonium Salts, Biomolecules & Polymers"
+      ]
+    }
+  ],
+  mathematics: [
+    {
+      name: "Algebra & Matrices",
+      topics: [
+        "Sets, Relations & Functions",
+        "Complex Numbers & Quadratic Equations",
+        "Matrices & Determinants",
+        "Permutations, Combinations & Binomial Theorem",
+        "Sequences, Series (AP, GP, HP) & Mathematical Induction"
+      ]
+    },
+    {
+      name: "Calculus (Differential & Integral)",
+      topics: [
+        "Limits, Continuity & Differentiability",
+        "Methods of Differentiation & Tangents/Normals",
+        "Applications of Derivatives (Monotonicity & Maxima/Minima)",
+        "Indefinite & Definite Integration",
+        "Area Under Curves & Differential Equations"
+      ]
+    },
+    {
+      name: "Coordinate Geometry & Vectors",
+      topics: [
+        "Cartesian System & Straight Lines",
+        "Circles & System of Circles",
+        "Conic Sections (Parabola, Ellipse & Hyperbola)",
+        "Vector Algebra (Dot & Cross Products)",
+        "Three-Dimensional (3D) Geometry (Lines & Planes)"
+      ]
+    },
+    {
+      name: "Trigonometry, Probability & Statistics",
+      topics: [
+        "Trigonometric Ratios, Identities & Equations",
+        "Inverse Trigonometric Functions",
+        "Conditional Probability, Bayes' Theorem & Distributions",
+        "Measures of Central Tendency & Dispersion"
+      ]
+    }
+  ],
+  botany: [
+    {
+      name: "Plant Diversity & Structural Organisation",
+      topics: [
+        "The Living World & Biological Classification",
+        "Plant Kingdom (Algae, Bryophytes, Pteridophytes, Gymnosperms)",
+        "Morphology of Flowering Plants (Root, Stem, Leaf, Flower)",
+        "Anatomy of Flowering Plants & Secondary Growth"
+      ]
+    },
+    {
+      name: "Cell Biology & Plant Physiology",
+      topics: [
+        "Cell: The Unit of Life & Eukaryotic Organelles",
+        "Cell Cycle, Mitosis & Meiosis",
+        "Photosynthesis in Higher Plants (C3, C4 & CAM Pathways)",
+        "Respiration in Plants (Glycolysis, Krebs Cycle & ETS)",
+        "Plant Growth Regulators & Phytohormones"
+      ]
+    },
+    {
+      name: "Plant Reproduction, Genetics & Ecology",
+      topics: [
+        "Sexual Reproduction in Flowering Plants",
+        "Principles of Inheritance & Mendelian Genetics",
+        "Molecular Basis of Inheritance (DNA, RNA, Operon)",
+        "Organisms & Populations, Ecosystem & Biodiversity"
+      ]
+    }
+  ],
+  zoology: [
+    {
+      name: "Animal Kingdom & Structural Organisation",
+      topics: [
+        "Animal Kingdom (Non-Chordates & Chordates)",
+        "Animal Tissues & Structural Organisation",
+        "Biomolecules (Proteins, Carbohydrates, Lipids, Nucleic Acids & Enzymes)"
+      ]
+    },
+    {
+      name: "Human Physiology",
+      topics: [
+        "Breathing & Exchange of Gases",
+        "Body Fluids, Circulation & Cardiac Cycle",
+        "Excretory Products & Osmoregulation",
+        "Locomotion, Muscles & Skeletal System",
+        "Neural Control, Coordination & Endocrine System"
+      ]
+    },
+    {
+      name: "Human Reproduction, Evolution & Biotechnology",
+      topics: [
+        "Human Reproduction & Gametogenesis",
+        "Reproductive Health & Assisted Technologies",
+        "Evolutionary Biology & Hardy-Weinberg Principle",
+        "Human Health, Immunity & Common Diseases",
+        "Biotechnology: Principles, PCR, Cloning & Applications"
+      ]
+    }
+  ],
+  biology: [
+    {
+      name: "Cell Biology & Genetics",
+      topics: [
+        "Cell Structure, Organelles & Cell Division",
+        "Biomolecules & Enzyme Action",
+        "Mendelian Inheritance & Chromosomal Basis",
+        "DNA Replication, Transcription & Translation"
+      ]
+    },
+    {
+      name: "Plant & Human Physiology",
+      topics: [
+        "Photosynthesis, Respiration & Plant Transport",
+        "Human Circulatory, Respiratory & Excretory Systems",
+        "Nervous & Endocrine Coordination",
+        "Reproduction in Plants & Humans"
+      ]
+    },
+    {
+      name: "Biotechnology, Evolution & Ecology",
+      topics: [
+        "Recombinant DNA Technology & Applications",
+        "Origin of Life & Natural Selection",
+        "Ecosystems, Energy Flow & Biodiversity Conservation"
+      ]
+    }
+  ],
+  english: [
+    {
+      name: "Reading Comprehension & Critical Analysis",
+      topics: [
+        "Main Idea, Central Theme & Author's Tone",
+        "Factual vs. Inferential Questions",
+        "Logical Structure & Argument Evaluation",
+        "Summary & Paraphrasing Practice"
+      ]
+    },
+    {
+      name: "Grammar, Usage & Verbal Ability",
+      topics: [
+        "Subject-Verb Agreement, Tenses & Modifiers",
+        "Sentence Correction & Parallelism",
+        "Para-Jumbles & Sentence Completion",
+        "Vocabulary in Context, Idioms & Phrasal Verbs"
+      ]
+    }
+  ],
+  quantitative: [
+    {
+      name: "Arithmetic & Commercial Math",
+      topics: [
+        "Percentages, Profit, Loss & Discount",
+        "Ratio, Proportion, Mixtures & Alligations",
+        "Simple & Compound Interest",
+        "Time, Speed, Distance & Time and Work"
+      ]
+    },
+    {
+      name: "Number System, Algebra & Modern Math",
+      topics: [
+        "Factors, Multiples, Remainders & Divisibility",
+        "Linear, Quadratic & Polynomial Equations",
+        "Inequalities, Functions & Logarithms",
+        "Geometry, Mensuration & Coordinate Geometry",
+        "Permutations, Combinations & Probability"
+      ]
+    }
+  ],
+  dilr: [
+    {
+      name: "Data Interpretation (DI)",
+      topics: [
+        "Tables, Missing Data & Caselets",
+        "Bar Charts, Line Graphs & Pie Charts",
+        "Radar, Scatter & Multi-Source Data Sets"
+      ]
+    },
+    {
+      name: "Logical Reasoning (LR)",
+      topics: [
+        "Linear, Circular & Matrix Arrangements",
+        "Games, Tournaments & Scheduling Puzzles",
+        "Venn Diagrams, Set Theory & Routes/Networks"
+      ]
+    }
+  ],
+  science: [
+    {
+      name: "Physics: Light, Electricity & Magnetic Effects",
+      topics: [
+        "Reflection & Refraction of Light",
+        "Human Eye & Optical Phenomena",
+        "Electric Current, Potential & Ohm's Law",
+        "Magnetic Effects of Electric Current"
+      ]
+    },
+    {
+      name: "Chemistry: Reactions, Acids, Metals & Carbon",
+      topics: [
+        "Chemical Reactions & Balancing Equations",
+        "Acids, Bases, Salts & pH Scale",
+        "Metals, Non-Metals & Metallurgy",
+        "Carbon & Its Compounds"
+      ]
+    },
+    {
+      name: "Biology: Life Processes, Control & Heredity",
+      topics: [
+        "Nutrition, Respiration, Transportation & Excretion",
+        "Control & Coordination in Plants and Animals",
+        "How Do Organisms Reproduce?",
+        "Heredity, Evolution & Our Environment"
+      ]
+    }
+  ],
+  social: [
+    {
+      name: "History & Democratic Politics",
+      topics: [
+        "Rise of Nationalism in Europe & India",
+        "Age of Industrialisation & Print Culture",
+        "Power Sharing, Federalism & Political Parties",
+        "Outcomes of Democracy & Constitutional Design"
+      ]
+    },
+    {
+      name: "Geography & Economics",
+      topics: [
+        "Resources, Agriculture & Water Resources",
+        "Minerals, Energy & Manufacturing Industries",
+        "Development & Sectors of the Indian Economy",
+        "Money, Credit & Globalisation"
+      ]
+    }
+  ],
+  history: [
+    {
+      name: "Ancient, Medieval & Modern History",
+      topics: [
+        "Indus Valley, Vedic & Mauryan/Gupta Periods",
+        "Art, Architecture & Cultural Heritage",
+        "18th–20th Century Social Reforms & Freedom Struggle",
+        "Post-Independence Consolidation & World History"
+      ]
+    }
+  ],
+  polity: [
+    {
+      name: "Constitution, Governance & International Relations",
+      topics: [
+        "Preamble, Fundamental Rights, DPSP & Duties",
+        "Parliament, Union Executive & Judiciary",
+        "Federalism, Local Government & Constitutional Bodies",
+        "Public Policy, Governance & International Institutions"
+      ]
+    }
+  ],
+  geography: [
+    {
+      name: "Physical, Human & Environmental Geography",
+      topics: [
+        "Geomorphology, Climatology & Oceanography",
+        "Indian Physical Features, Drainage & Monsoon",
+        "Natural Resources, Agriculture & Cropping Patterns",
+        "Ecology, Biodiversity & Climate Change Conventions"
+      ]
+    }
+  ],
+  economy: [
+    {
+      name: "Macroeconomics, Banking & Fiscal Policy",
+      topics: [
+        "National Income Accounting (GDP, GNP, Inflation)",
+        "Monetary Policy, RBI & Banking Sector Reforms",
+        "Government Budgeting, Fiscal Deficit & Taxation",
+        "Balance of Payments, Trade & Inclusive Growth"
+      ]
+    }
+  ],
+  accounting: [
+    {
+      name: "Financial & Corporate Accounting",
+      topics: [
+        "Accounting Framework, Journal, Ledger & Trial Balance",
+        "Depreciation, Inventories & Bank Reconciliation",
+        "Financial Statements of Sole Proprietors & Companies",
+        "Partnership Accounts & Company Share Capital"
+      ]
+    }
+  ],
+  law: [
+    {
+      name: "Corporate & Mercantile Laws",
+      topics: [
+        "The Indian Contract Act & Special Contracts",
+        "Sale of Goods Act & Negotiable Instruments",
+        "The Companies Act: Incorporation, Prospectus & Management",
+        "LLP Act & Regulatory Interpretation"
+      ]
+    }
+  ],
+  taxation: [
+    {
+      name: "Direct Tax (Income Tax) & Indirect Tax (GST)",
+      topics: [
+        "Residential Status & Heads of Income (Salary, House Property)",
+        "Profits & Gains of Business/Profession & Capital Gains",
+        "Deductions, Set-Off & Total Tax Computation",
+        "GST Concept, Supply, Input Tax Credit (ITC) & Returns"
+      ]
+    }
+  ],
+  algorithms: [
+    {
+      name: "Data Structures & Algorithmic Design",
+      topics: [
+        "Asymptotic Complexity, Recursion & Divide-and-Conquer",
+        "Arrays, Linked Lists, Stacks, Queues & Heaps",
+        "Trees, Binary Search Trees & Graph Algorithms",
+        "Greedy Algorithms & Dynamic Programming"
+      ]
+    }
+  ]
+};
+
+function getBuiltInSyllabusTemplateForSubject(subjectName) {
+  const lower = String(subjectName || "").toLowerCase().trim();
+  if (!lower) return [];
+  if (lower.includes("physic")) return DEFAULT_SUBJECT_SYLLABI.physics;
+  if (lower.includes("chemis")) return DEFAULT_SUBJECT_SYLLABI.chemistry;
+  if (lower.includes("botan")) return DEFAULT_SUBJECT_SYLLABI.botany;
+  if (lower.includes("zoolog")) return DEFAULT_SUBJECT_SYLLABI.zoology;
+  if (lower.includes("biolog")) return DEFAULT_SUBJECT_SYLLABI.biology;
+  if (lower.includes("quant") || lower.includes("aptitude") || lower.includes("csat")) return DEFAULT_SUBJECT_SYLLABI.quantitative;
+  if (lower.includes("dilr") || lower.includes("logical") || lower.includes("reasoning")) return DEFAULT_SUBJECT_SYLLABI.dilr;
+  if (lower.includes("math")) return DEFAULT_SUBJECT_SYLLABI.mathematics;
+  if (lower.includes("english") || lower.includes("varc") || lower.includes("reading") || lower.includes("writing")) return DEFAULT_SUBJECT_SYLLABI.english;
+  if (lower.includes("social")) return DEFAULT_SUBJECT_SYLLABI.social;
+  if (lower === "science" || lower.includes("general science")) return DEFAULT_SUBJECT_SYLLABI.science;
+  if (lower.includes("histor") || lower.includes("culture")) return DEFAULT_SUBJECT_SYLLABI.history;
+  if (lower.includes("polit") || lower.includes("govern")) return DEFAULT_SUBJECT_SYLLABI.polity;
+  if (lower.includes("geograph") || lower.includes("environ")) return DEFAULT_SUBJECT_SYLLABI.geography;
+  if (lower.includes("econom")) return DEFAULT_SUBJECT_SYLLABI.economy;
+  if (lower.includes("account") || lower.includes("cost")) return DEFAULT_SUBJECT_SYLLABI.accounting;
+  if (lower.includes("law")) return DEFAULT_SUBJECT_SYLLABI.law;
+  if (lower.includes("tax") || lower.includes("gst")) return DEFAULT_SUBJECT_SYLLABI.taxation;
+  if (lower.includes("algorithm") || lower.includes("computer") || lower.includes("data struct") || lower.includes("core engineering")) {
+    return DEFAULT_SUBJECT_SYLLABI.algorithms;
+  }
+  return [
+    {
+      name: `Unit 1: Core Concepts in ${subjectName}`,
+      topics: [
+        `Foundations & Definitions of ${subjectName}`,
+        "Key Principles, Formulas & Frameworks",
+        "Solved Examples & Concept Check"
+      ]
+    },
+    {
+      name: `Unit 2: Applied ${subjectName} & Problem Solving`,
+      topics: [
+        "Intermediate Problems & Case Analysis",
+        "High-Weightage Exam Topics",
+        "Previous Year Questions (PYQs) Practice"
+      ]
+    },
+    {
+      name: `Unit 3: Advanced Revision & Mock Practice`,
+      topics: [
+        "Summary Notes & Formula/Concept Sheet",
+        "Timed Topic Test & Error Log Review"
+      ]
+    }
+  ];
+}
+
+function buildDefaultChaptersForSubject(subjectName) {
+  const template = getBuiltInSyllabusTemplateForSubject(subjectName);
+  return template.map(function (chapterDef) {
+    return {
+      id: createId(),
+      name: chapterDef.name,
+      revisionStage: "not-started",
+      topics: (chapterDef.topics || []).map(function (topicTitle) {
+        return {
+          id: createId(),
+          name: topicTitle,
+          completed: false
+        };
+      })
+    };
+  });
+}
 
 const onboardingSubjectPresets = [
   "Physics",
@@ -1373,9 +1855,12 @@ function normalizePlannerItem(item) {
 
 function normalizeExam(exam) {
   const flatTopics = Array.isArray(exam.topics) ? exam.topics : [];
-  const rawSubjects = Array.isArray(exam.subjects) && exam.subjects.length > 0
+  const presetMatch = examPresets.find(function (p) { return p.name === (exam.type || exam.name); });
+  let rawSubjects = Array.isArray(exam.subjects) && exam.subjects.length > 0
     ? exam.subjects
-    : [{ name: exam.subject || "General Study", topics: flatTopics }];
+    : (presetMatch && presetMatch.subjects.length > 0
+      ? presetMatch.subjects.map(function (sName) { return { name: sName, chapters: buildDefaultChaptersForSubject(sName) }; })
+      : [{ name: exam.subject || "General Study", topics: flatTopics }]);
 
   return {
     id: exam.id || createId(),
@@ -1391,24 +1876,43 @@ function normalizeExam(exam) {
 }
 
 function normalizeExamSubject(subject) {
-  const subjectName = typeof subject === "string" ? subject : subject.name;
+  const subjectName = typeof subject === "string" ? subject : (subject.name || "Subject");
   const oldTopics = Array.isArray(subject.topics) ? subject.topics : [];
-  const chapters = Array.isArray(subject.chapters) && subject.chapters.length > 0
+  let chapters = Array.isArray(subject.chapters) && subject.chapters.length > 0
     ? subject.chapters
     : oldTopics.length > 0 ? [{ name: "General", topics: oldTopics }] : [];
 
+  if (chapters.length === 0 && !(typeof subject === "object" && subject && subject.syllabusCleared)) {
+    chapters = buildDefaultChaptersForSubject(subjectName);
+  }
+
   return {
-    id: subject.id || createId(),
+    id: (typeof subject === "object" && subject && subject.id) || createId(),
     name: subjectName || "Subject",
+    syllabusCleared: Boolean(typeof subject === "object" && subject && subject.syllabusCleared),
     chapters: chapters.map(normalizeExamChapter)
   };
 }
 
 function normalizeExamChapter(chapter) {
+  const topics = Array.isArray(chapter.topics) ? chapter.topics.map(normalizeExamTopic) : [];
+  const validStages = ["not-started", "studied", "revision-1", "mastered"];
+  let stage = validStages.includes(chapter.revisionStage) ? chapter.revisionStage : "";
+  if (!stage) {
+    const doneCount = topics.filter(function (t) { return t.completed; }).length;
+    if (topics.length > 0 && doneCount === topics.length) {
+      stage = "mastered";
+    } else if (doneCount > 0) {
+      stage = "studied";
+    } else {
+      stage = "not-started";
+    }
+  }
   return {
     id: chapter.id || createId(),
     name: chapter.name || "Chapter",
-    topics: Array.isArray(chapter.topics) ? chapter.topics.map(normalizeExamTopic) : []
+    revisionStage: stage,
+    topics
   };
 }
 
@@ -2518,20 +3022,32 @@ function getExamDaysLeft(dateKey) {
   return Math.round((examDate - today) / 86400000);
 }
 
+function getExamUrgencyTier(daysLeft) {
+  if (daysLeft === null || Number.isNaN(daysLeft) || daysLeft < 0) return "neutral";
+  if (daysLeft <= 7) return "critical";
+  if (daysLeft <= 29) return "soon";
+  return "safe";
+}
+
 function getExamStats(exam) {
   let totalTopics = 0;
   let completedTopics = 0;
+  let weightedCompleted = 0;
+  let totalChapters = 0;
+  let masteredChapters = 0;
 
-  exam.subjects.forEach(function (subject) {
-    subject.chapters.forEach(function (chapter) {
-      chapter.topics.forEach(function (topic) {
-        totalTopics += 1;
-        if (topic.completed) completedTopics += 1;
-      });
+  (exam.subjects || []).forEach(function (subject) {
+    (subject.chapters || []).forEach(function (chapter) {
+      totalChapters += 1;
+      const cStats = getChapterStats(chapter);
+      if (cStats.revisionStage === "mastered") masteredChapters += 1;
+      totalTopics += cStats.totalTopics;
+      completedTopics += cStats.completedTopics;
+      weightedCompleted += cStats.effectiveCompletedTopics;
     });
   });
 
-  const completedMilestones = exam.milestones.filter(function (milestone) {
+  const completedMilestones = (exam.milestones || []).filter(function (milestone) {
     return milestone.completed;
   }).length;
 
@@ -2539,18 +3055,20 @@ function getExamStats(exam) {
     totalTopics,
     completedTopics,
     remainingTopics: Math.max(totalTopics - completedTopics, 0),
-    progressPercent: totalTopics === 0 ? 0 : Math.round((completedTopics / totalTopics) * 100),
+    totalChapters,
+    masteredChapters,
+    progressPercent: totalTopics === 0 ? 0 : Math.min(100, Math.round((weightedCompleted / totalTopics) * 100)),
     completedMilestones,
-    totalMilestones: exam.milestones.length
+    totalMilestones: (exam.milestones || []).length
   };
 }
 
 function getExamSubjectSummary(exam) {
-  if (exam.subjects.length === 0) return "No subjects yet";
+  if (!exam.subjects || exam.subjects.length === 0) return "No subjects yet";
   if (exam.subjects.length <= 3) {
     return exam.subjects.map(function (subject) { return subject.name; }).join(" · ");
   }
-  return `${exam.subjects.length} subjects`;
+  return `${exam.subjects.slice(0, 3).map(function (s) { return s.name; }).join(" · ")} +${exam.subjects.length - 3}`;
 }
 
 function getCountdownMessage(daysLeft) {
@@ -2565,12 +3083,12 @@ function getCountdownMessage(daysLeft) {
 }
 
 function getExamStatusLabel(daysLeft) {
-  if (daysLeft === null) return "Date not set";
+  if (daysLeft === null) return "Date TBD";
   if (daysLeft < 0) return "Completed";
-  if (daysLeft <= 7) return "Very close";
-  if (daysLeft <= 14) return "Soon";
-  if (daysLeft <= 30) return "Coming up";
-  return "Plenty of time";
+  if (daysLeft === 0) return "Today";
+  if (daysLeft <= 7) return "Final Sprint";
+  if (daysLeft <= 29) return "Approaching";
+  return "On Track";
 }
 
 function getRangeLabel(range) {
@@ -3275,9 +3793,9 @@ function appendTaskPreview(parent, task) {
 function renderHomeNextExam(exam) {
   homeNextExam.innerHTML = "";
   const titleEl = document.getElementById("home-exam-title");
+  if (titleEl) titleEl.textContent = "Upcoming Exam";
 
   if (!exam) {
-    if (titleEl) titleEl.textContent = "Upcoming Exam";
     homeNextExam.className = "compact-empty next-exam-countdown-box";
     const empty = document.createElement("strong");
     empty.textContent = "No upcoming exams yet";
@@ -3300,20 +3818,7 @@ function renderHomeNextExam(exam) {
   const today = new Date(`${getTodayKey()}T00:00:00`);
   const examDate = exam.date ? new Date(`${exam.date}T00:00:00`) : null;
   const daysDiff = examDate ? Math.round((examDate - today) / 86400000) : null;
-
-  if (titleEl) {
-    if (daysDiff === null) {
-      titleEl.textContent = `${exam.name}`;
-    } else if (daysDiff === 0) {
-      titleEl.textContent = `${exam.name} today`;
-    } else if (daysDiff === 1) {
-      titleEl.textContent = `${exam.name} tomorrow`;
-    } else if (daysDiff > 1) {
-      titleEl.textContent = `${exam.name} in ${daysDiff} days`;
-    } else {
-      titleEl.textContent = `${exam.name} completed`;
-    }
-  }
+  const urgencyTier = getExamUrgencyTier(daysDiff);
 
   const headerRow = document.createElement("div");
   headerRow.className = "exam-card-top-row";
@@ -3323,14 +3828,14 @@ function renderHomeNextExam(exam) {
   title.textContent = exam.name;
 
   const badge = document.createElement("span");
-  badge.className = "status-pill exam-type-badge";
-  badge.textContent = exam.category || "Target Exam";
+  badge.className = `status-pill exam-type-badge urgency-${urgencyTier}`;
+  badge.textContent = getExamStatusLabel(daysDiff);
 
   headerRow.appendChild(title);
   headerRow.appendChild(badge);
 
   const countdownHero = document.createElement("div");
-  countdownHero.className = "countdown-hero-block";
+  countdownHero.className = `countdown-hero-block urgency-${urgencyTier}`;
 
   const num = document.createElement("div");
   num.className = "countdown-big-number";
@@ -3349,18 +3854,19 @@ function renderHomeNextExam(exam) {
   if (daysDiff === null) {
     unit.textContent = "DATE TBD";
   } else if (daysDiff === 0) {
-    unit.textContent = "TODAY";
+    unit.textContent = "EXAM TODAY";
   } else if (daysDiff === 1) {
-    unit.textContent = "DAY LEFT";
+    unit.textContent = "DAY REMAINING";
   } else if (daysDiff < 0) {
-    unit.textContent = "PAST TARGET";
+    unit.textContent = "COMPLETED";
   } else {
-    unit.textContent = "DAYS LEFT";
+    unit.textContent = "DAYS REMAINING";
   }
 
   const dateSub = document.createElement("div");
   dateSub.className = "countdown-date-sub";
-  dateSub.textContent = exam.date ? `Target: ${exam.date}` : "Date not scheduled";
+  const subjectText = getExamSubjectSummary(exam);
+  dateSub.textContent = exam.date ? `Target: ${exam.date} · ${subjectText}` : subjectText;
 
   labelBox.appendChild(unit);
   labelBox.appendChild(dateSub);
@@ -3374,7 +3880,7 @@ function renderHomeNextExam(exam) {
   progressWrap.className = "exam-progress-wrap";
   const progressText = document.createElement("span");
   progressText.className = "muted-text";
-  progressText.textContent = `${stats.progressPercent}% syllabus completed`;
+  progressText.textContent = `${stats.progressPercent}% syllabus ready (${stats.completedTopics}/${stats.totalTopics} topics)`;
   const bar = document.createElement("div");
   bar.className = "progress-bar";
   const barSpan = document.createElement("span");
@@ -3386,7 +3892,7 @@ function renderHomeNextExam(exam) {
   const action = document.createElement("button");
   action.type = "button";
   action.className = "text-button exam-open-link";
-  action.textContent = "View Syllabus & Topics →";
+  action.textContent = "Open Syllabus & Revision Plan →";
   action.addEventListener("click", function () { openExamWorkspace(exam.id); });
 
   footerRow.appendChild(progressWrap);
@@ -5519,10 +6025,15 @@ function addExam(event) {
   event.preventDefault();
   if (!selectedExamPreset) return;
 
-  const subjectNames = examSubjectsInput.value
+  const rawSubjectNames = examSubjectsInput.value
     .split(",")
     .map(function (subject) { return subject.trim(); })
     .filter(Boolean);
+  const subjectNames = rawSubjectNames.length > 0
+    ? rawSubjectNames
+    : (Array.isArray(selectedExamPreset.subjects) && selectedExamPreset.subjects.length > 0
+      ? selectedExamPreset.subjects.slice()
+      : ["Core Subject 1", "Core Subject 2"]);
   const isCustom = selectedExamPreset.name === "Custom Exam";
   const customName = examNameInput.value.trim();
   const title = examTitleInput.value.trim();
@@ -5534,6 +6045,9 @@ function addExam(event) {
 
   if (!examName || !examDateInput.value) return;
 
+  const autoLoadToggle = document.getElementById("exam-autoload-syllabus");
+  const shouldAutoLoad = !autoLoadToggle || autoLoadToggle.checked;
+
   const exam = {
     id: createId(),
     type: selectedExamPreset.name,
@@ -5541,21 +6055,29 @@ function addExam(event) {
     date: examDateInput.value,
     time: "",
     subjects: subjectNames.map(function (subjectName) {
-      return { id: createId(), name: subjectName, chapters: [] };
+      return {
+        id: createId(),
+        name: subjectName,
+        syllabusCleared: !shouldAutoLoad,
+        chapters: shouldAutoLoad ? buildDefaultChaptersForSubject(subjectName) : []
+      };
     }),
     notes: "",
     milestones: [],
     createdAt: new Date().toISOString()
   };
 
+  let createdNewCustom = false;
   if (existingExam && examForm.dataset.mode === "edit") {
     existingExam.type = exam.type;
     existingExam.name = exam.name;
     existingExam.date = exam.date;
-    existingExam.subjects = mergeExamSubjects(existingExam.subjects, subjectNames);
+    existingExam.subjects = mergeExamSubjects(existingExam.subjects, subjectNames, shouldAutoLoad);
   } else {
     appData.exams.push(exam);
     appData.selectedExamId = exam.id;
+    appData.selectedExamTab = "syllabus";
+    createdNewCustom = isCustom && shouldAutoLoad;
   }
 
   closeExamModal();
@@ -5564,14 +6086,29 @@ function addExam(event) {
   renderPlanner();
   updateHome();
   if (appData.selectedExamId) renderExamWorkspace();
+  if (createdNewCustom) {
+    loadAiSyllabusForExam(exam.id, true);
+  }
 }
 
-function mergeExamSubjects(existingSubjects, subjectNames) {
+function mergeExamSubjects(existingSubjects, subjectNames, shouldAutoLoad = true) {
   return subjectNames.map(function (subjectName) {
     const existing = existingSubjects.find(function (subject) {
       return subject.name.toLowerCase() === subjectName.toLowerCase();
     });
-    return existing || { id: createId(), name: subjectName, chapters: [] };
+    if (existing) {
+      if (shouldAutoLoad && (!existing.chapters || existing.chapters.length === 0)) {
+        existing.chapters = buildDefaultChaptersForSubject(subjectName);
+        existing.syllabusCleared = false;
+      }
+      return existing;
+    }
+    return {
+      id: createId(),
+      name: subjectName,
+      syllabusCleared: !shouldAutoLoad,
+      chapters: shouldAutoLoad ? buildDefaultChaptersForSubject(subjectName) : []
+    };
   });
 }
 
@@ -5586,7 +6123,7 @@ function renderExams() {
     const copy = document.createElement("p");
     const action = document.createElement("button");
     title.textContent = "No exams yet.";
-    copy.textContent = "Add the exam you're preparing for.";
+    copy.textContent = "Add the exam you're preparing for to auto-load its syllabus and revision tracker.";
     action.type = "button";
     action.textContent = "+ Add Exam";
     action.addEventListener("click", openExamModal);
@@ -5603,45 +6140,90 @@ function renderExams() {
     .forEach(function (exam) {
       const stats = getExamStats(exam);
       const daysLeft = getExamDaysLeft(exam.date);
+      const urgencyTier = getExamUrgencyTier(daysLeft);
+
       const card = document.createElement("button");
-      const header = document.createElement("span");
-      const title = document.createElement("strong");
-      const type = document.createElement("small");
-      const countdown = document.createElement("span");
-      const subjects = document.createElement("span");
-      const progressText = document.createElement("span");
-      const progressBar = document.createElement("span");
-      const progressFill = document.createElement("span");
-      const status = document.createElement("span");
-
       card.type = "button";
-      card.className = "exam-card";
+      card.className = `exam-card urgency-border-${urgencyTier}`;
       card.addEventListener("click", function () { openExamWorkspace(exam.id); });
-      header.className = "exam-card-header";
-      type.className = "muted-text";
-      countdown.className = "exam-countdown";
-      subjects.className = "muted-text";
-      progressText.className = "exam-progress-text";
-      progressBar.className = "progress-bar exam-card-progress";
-      status.className = "status-pill exam-status";
 
+      const header = document.createElement("div");
+      header.className = "exam-card-header";
+
+      const title = document.createElement("strong");
+      title.className = "exam-list-card-title";
       title.textContent = exam.name;
-      type.textContent = exam.type;
-      countdown.textContent = getExamCountdown(exam.date);
-      subjects.textContent = getExamSubjectSummary(exam);
-      progressText.textContent = `${stats.progressPercent}% complete`;
-      progressFill.style.width = `${stats.progressPercent}%`;
+
+      const status = document.createElement("span");
+      status.className = `status-pill exam-status urgency-${urgencyTier}`;
       status.textContent = getExamStatusLabel(daysLeft);
 
       header.appendChild(title);
       header.appendChild(status);
+
+      const countdownRow = document.createElement("div");
+      countdownRow.className = "exam-card-countdown-row";
+
+      const countdown = document.createElement("span");
+      countdown.className = `exam-countdown urgency-text-${urgencyTier}`;
+      countdown.textContent = getExamCountdown(exam.date);
+
+      const dateBadge = document.createElement("span");
+      dateBadge.className = "exam-card-date-chip";
+      dateBadge.textContent = exam.date ? `Target: ${exam.date}` : "Date TBD";
+
+      countdownRow.appendChild(countdown);
+      countdownRow.appendChild(dateBadge);
+
+      const metaRow = document.createElement("div");
+      metaRow.className = "exam-card-meta-row";
+
+      const typePill = document.createElement("span");
+      typePill.className = "exam-meta-pill";
+      typePill.textContent = exam.type || "Exam";
+
+      const sep = document.createElement("span");
+      sep.className = "exam-meta-sep";
+      sep.textContent = "·";
+
+      const subjects = document.createElement("span");
+      subjects.className = "exam-meta-subjects";
+      subjects.textContent = getExamSubjectSummary(exam);
+
+      metaRow.appendChild(typePill);
+      metaRow.appendChild(sep);
+      metaRow.appendChild(subjects);
+
+      const progressWrap = document.createElement("div");
+      progressWrap.className = "exam-card-progress-wrap";
+
+      const progressTop = document.createElement("div");
+      progressTop.className = "exam-card-progress-top";
+
+      const progressText = document.createElement("span");
+      progressText.className = "exam-progress-text";
+      progressText.textContent = `${stats.progressPercent}% syllabus ready`;
+
+      const topicCountText = document.createElement("span");
+      topicCountText.className = "exam-progress-count";
+      topicCountText.textContent = `${stats.completedTopics}/${stats.totalTopics} topics`;
+
+      progressTop.appendChild(progressText);
+      progressTop.appendChild(topicCountText);
+
+      const progressBar = document.createElement("span");
+      progressBar.className = "progress-bar exam-card-progress";
+      const progressFill = document.createElement("span");
+      progressFill.style.width = `${stats.progressPercent}%`;
       progressBar.appendChild(progressFill);
+
+      progressWrap.appendChild(progressTop);
+      progressWrap.appendChild(progressBar);
+
       card.appendChild(header);
-      card.appendChild(type);
-      card.appendChild(countdown);
-      card.appendChild(subjects);
-      card.appendChild(progressText);
-      card.appendChild(progressBar);
+      card.appendChild(countdownRow);
+      card.appendChild(metaRow);
+      card.appendChild(progressWrap);
       examList.appendChild(card);
     });
 
@@ -5689,9 +6271,12 @@ function renderExamWorkspace() {
     return;
   }
 
+  const daysLeft = getExamDaysLeft(exam.date);
+  const urgencyTier = getExamUrgencyTier(daysLeft);
   examWorkspaceType.textContent = exam.type;
   examWorkspaceTitle.textContent = exam.name;
-  examWorkspaceCountdown.textContent = `${getExamCountdown(exam.date)} - ${getCountdownMessage(getExamDaysLeft(exam.date))}`;
+  examWorkspaceCountdown.className = `exam-workspace-countdown-line urgency-text-${urgencyTier}`;
+  examWorkspaceCountdown.innerHTML = `<span class="status-pill urgency-${urgencyTier}">${escapeHtml(getExamCountdown(exam.date))}</span><span class="workspace-countdown-sep">·</span><span class="muted-text">${escapeHtml(getCountdownMessage(daysLeft))}</span>`;
 
   examTabs.forEach(function (tab) {
     const isActive = tab.dataset.examTab === appData.selectedExamTab;
@@ -5703,10 +6288,12 @@ function renderExamWorkspace() {
     panel.classList.toggle("active", panel.id === `exam-tab-${appData.selectedExamTab}`);
   });
 
-  renderExamOverview(exam);
-  renderExamSyllabus(exam);
-  renderExamPlan(exam);
-  renderExamProgress(exam);
+  if (appData.selectedExamTab === "overview") renderExamOverview(exam);
+  else if (appData.selectedExamTab === "syllabus") renderExamSyllabus(exam);
+  else if (appData.selectedExamTab === "plan") renderExamPlan(exam);
+  else if (appData.selectedExamTab === "mocks") renderExamMocks(exam);
+  else if (appData.selectedExamTab === "mistakes") renderExamMistakes(exam);
+  else renderExamOverview(exam);
 }
 
 function renderExamOverview(exam) {
@@ -5717,7 +6304,15 @@ function renderExamOverview(exam) {
 
   const progressArea = document.createElement("article");
   progressArea.className = "secondary-surface exam-progress-area";
-  progressArea.innerHTML = `<h3>Syllabus Progress</h3><strong>${stats.progressPercent}% complete</strong><p class="muted-text">${stats.remainingTopics} topics remaining</p>`;
+  progressArea.innerHTML = `
+    <div class="exam-overview-progress-head">
+      <div>
+        <h3>Syllabus Readiness</h3>
+        <p class="muted-text">${stats.completedTopics} of ${stats.totalTopics} topics completed · ${stats.masteredChapters}/${stats.totalChapters} chapters mastered</p>
+      </div>
+      <strong class="exam-overview-pct">${stats.progressPercent}%</strong>
+    </div>
+  `;
   const bar = document.createElement("div");
   const fill = document.createElement("span");
   bar.className = "progress-bar";
@@ -5726,24 +6321,54 @@ function renderExamOverview(exam) {
   progressArea.appendChild(bar);
   panel.appendChild(progressArea);
 
+  const quickActions = document.createElement("article");
+  quickActions.className = "secondary-surface exam-quick-syllabus-cta";
+  quickActions.innerHTML = `
+    <div>
+      <h3>Chapter Revision &amp; Daily Planner</h3>
+      <p class="muted-text">Track chapter stages (Not Started → Studied → Revision 1 → Mastered) or send any chapter directly to Today's Plan.</p>
+    </div>
+  `;
+  const openSylBtn = document.createElement("button");
+  openSylBtn.type = "button";
+  openSylBtn.className = "secondary-button";
+  openSylBtn.textContent = "Open Interactive Syllabus →";
+  openSylBtn.addEventListener("click", function () {
+    appData.selectedExamTab = "syllabus";
+    saveData();
+    renderExamWorkspace();
+  });
+  quickActions.appendChild(openSylBtn);
+  panel.appendChild(quickActions);
+
   const next = document.createElement("article");
   next.className = "inline-section";
   const nextMilestone = exam.milestones.find(function (milestone) { return !milestone.completed; });
-  next.innerHTML = `<h3>Next Planned Step</h3><p class="muted-text">${nextMilestone ? escapeHtml(nextMilestone.title) : "No milestones yet. Create the next thing you want to finish."}</p>`;
+  next.innerHTML = `<h3>Next Planned Milestone</h3><p class="muted-text">${nextMilestone ? escapeHtml(nextMilestone.title) : "No milestones yet. Create the next milestone in the Plan tab."}</p>`;
   panel.appendChild(next);
 }
 
 function createExamSummaryStrip(exam, stats) {
+  const daysLeft = getExamDaysLeft(exam.date);
+  const urgencyTier = getExamUrgencyTier(daysLeft);
   const strip = document.createElement("div");
   strip.className = "summary-strip exam-summary-strip";
   [
-    ["Countdown", getExamCountdown(exam.date)],
-    ["Exam Date", exam.date],
-    ["Subjects", exam.subjects.length],
-    ["Remaining", stats.remainingTopics]
+    ["Countdown", getExamCountdown(exam.date), `urgency-text-${urgencyTier}`],
+    ["Exam Date", exam.date || "Not set", ""],
+    ["Subjects", `${exam.subjects.length} ${exam.subjects.length === 1 ? "Subject" : "Subjects"}`, ""],
+    ["Remaining", `${stats.remainingTopics} Topics`, ""]
   ].forEach(function (item) {
     const cell = document.createElement("div");
-    cell.innerHTML = `<span>${item[0]}</span><strong>${item[1]}</strong>`;
+    cell.className = "exam-summary-cell";
+    const label = document.createElement("span");
+    label.className = "exam-summary-label";
+    label.textContent = item[0];
+    const value = document.createElement("strong");
+    value.className = `exam-summary-value ${item[2] || ""}`.trim();
+    value.textContent = String(item[1]);
+    cell.appendChild(label);
+    cell.appendChild(value);
     strip.appendChild(cell);
   });
   return strip;
@@ -5752,14 +6377,54 @@ function createExamSummaryStrip(exam, stats) {
 function renderExamSyllabus(exam) {
   const panel = document.getElementById("exam-tab-syllabus");
   panel.innerHTML = "";
+
   const toolbar = document.createElement("div");
-  toolbar.className = "exam-toolbar";
-  toolbar.innerHTML = "<h3>Syllabus</h3>";
-  toolbar.appendChild(createSmallAction("Add subject", function () { addExamSubject(exam.id); }));
+  toolbar.className = "exam-toolbar exam-syllabus-toolbar";
+
+  const titleWrap = document.createElement("div");
+  titleWrap.className = "exam-syllabus-heading-group";
+  titleWrap.innerHTML = `
+    <h3>Syllabus &amp; Revision Tracker</h3>
+    <p class="muted-text">Click a chapter's revision stage pill to update progress, or send any chapter/topic to Today's Plan.</p>
+  `;
+
+  const actionGroup = document.createElement("div");
+  actionGroup.className = "exam-syllabus-toolbar-actions";
+
+  const aiBtn = document.createElement("button");
+  aiBtn.type = "button";
+  aiBtn.className = "secondary-button ai-syllabus-btn";
+  aiBtn.id = "exam-ai-syllabus-btn";
+  aiBtn.textContent = "✦ AI Search & Load Syllabus";
+  aiBtn.title = "Search official exam chapters and topics using AI";
+  aiBtn.addEventListener("click", function () {
+    loadAiSyllabusForExam(exam.id, false, aiBtn);
+  });
+
+  const resetDefaultBtn = document.createElement("button");
+  resetDefaultBtn.type = "button";
+  resetDefaultBtn.className = "secondary-button";
+  resetDefaultBtn.textContent = "Load Built-In Syllabus";
+  resetDefaultBtn.title = "Populate default chapters and topics for all subjects in this exam";
+  resetDefaultBtn.addEventListener("click", function () {
+    populateBuiltInSyllabusForExam(exam.id);
+  });
+
+  const addSubjBtn = document.createElement("button");
+  addSubjBtn.type = "button";
+  addSubjBtn.textContent = "+ Add Subject";
+  addSubjBtn.addEventListener("click", function () { addExamSubject(exam.id); });
+
+  actionGroup.appendChild(aiBtn);
+  actionGroup.appendChild(resetDefaultBtn);
+  actionGroup.appendChild(addSubjBtn);
+
+  toolbar.appendChild(titleWrap);
+  toolbar.appendChild(actionGroup);
   panel.appendChild(toolbar);
 
   if (exam.subjects.length === 0) {
-    appendSimpleItem(panel, "No syllabus topics yet. Add your first subject ->");
+    appendSimpleItem(panel, "No syllabus subjects yet. Click '+ Add Subject' or 'Load Built-In Syllabus' above.");
     return;
   }
 
@@ -5772,73 +6437,319 @@ function renderSubjectSyllabus(exam, subject) {
   const details = document.createElement("details");
   details.className = "syllabus-subject";
   details.open = true;
+
   const summary = document.createElement("summary");
+  summary.className = "syllabus-subject-summary";
   const stats = getSubjectStats(subject);
-  summary.innerHTML = `<strong>${escapeHtml(subject.name)}</strong><span>${stats.progressPercent}%</span>`;
+
+  const leftInfo = document.createElement("div");
+  leftInfo.className = "syllabus-subject-title-wrap";
+  const subjTitle = document.createElement("strong");
+  subjTitle.textContent = subject.name;
+  const subjMeta = document.createElement("span");
+  subjMeta.className = "syllabus-subject-meta";
+  subjMeta.textContent = `${subject.chapters.length} ${subject.chapters.length === 1 ? "chapter" : "chapters"} · ${stats.completedTopics}/${stats.totalTopics} topics`;
+  leftInfo.appendChild(subjTitle);
+  leftInfo.appendChild(subjMeta);
+
+  const rightPct = document.createElement("span");
+  rightPct.className = "syllabus-subject-pct";
+  rightPct.textContent = `${stats.progressPercent}%`;
+
+  summary.appendChild(leftInfo);
+  summary.appendChild(rightPct);
   details.appendChild(summary);
 
   const actions = document.createElement("div");
-  actions.className = "compact-actions";
-  actions.appendChild(createSmallAction("Add chapter", function () { addExamChapter(exam.id, subject.id); }));
-  actions.appendChild(createSmallAction("Delete subject", function () { deleteExamSubject(exam.id, subject.id); }, "danger"));
+  actions.className = "compact-actions syllabus-subject-actions";
+  actions.appendChild(createSmallAction("+ Add Chapter", function () { addExamChapter(exam.id, subject.id); }));
+  actions.appendChild(createSmallAction("Rename Subject", function () { renameExamSubject(exam.id, subject.id); }));
+  if (subject.chapters.length === 0) {
+    actions.appendChild(createSmallAction("Auto-Load Chapters", function () {
+      subject.chapters = buildDefaultChaptersForSubject(subject.name);
+      subject.syllabusCleared = false;
+      persistExamChange();
+    }));
+  }
+  actions.appendChild(createSmallAction("Delete Subject", function () { deleteExamSubject(exam.id, subject.id); }, "danger"));
   details.appendChild(actions);
 
+  const chapterContainer = document.createElement("div");
+  chapterContainer.className = "syllabus-chapters-container";
   subject.chapters.forEach(function (chapter) {
-    details.appendChild(renderChapterSyllabus(exam, subject, chapter));
+    chapterContainer.appendChild(renderChapterSyllabus(exam, subject, chapter));
   });
+  details.appendChild(chapterContainer);
   return details;
 }
 
 function renderChapterSyllabus(exam, subject, chapter) {
   const details = document.createElement("details");
   details.className = "syllabus-chapter";
+  details.open = true;
   const stats = getChapterStats(chapter);
+
   const summary = document.createElement("summary");
-  summary.innerHTML = `<strong>${escapeHtml(chapter.name)}</strong><span>${stats.completedTopics}/${stats.totalTopics}</span>`;
+  summary.className = "syllabus-chapter-summary";
+
+  const titleGroup = document.createElement("div");
+  titleGroup.className = "syllabus-chapter-title-group";
+
+  const chapterTitle = document.createElement("strong");
+  chapterTitle.className = "syllabus-chapter-name";
+  chapterTitle.textContent = chapter.name;
+
+  const topicCounter = document.createElement("span");
+  topicCounter.className = "syllabus-chapter-counter";
+  topicCounter.textContent = `${stats.completedTopics}/${stats.totalTopics} topics`;
+
+  titleGroup.appendChild(chapterTitle);
+  titleGroup.appendChild(topicCounter);
+
+  const controlsGroup = document.createElement("div");
+  controlsGroup.className = "syllabus-chapter-controls";
+  controlsGroup.addEventListener("click", function (ev) {
+    ev.stopPropagation();
+  });
+
+  // 4-Stage Revision Selector Pill Bar
+  const stageBar = document.createElement("div");
+  stageBar.className = "revision-stage-group";
+  stageBar.setAttribute("role", "group");
+  stageBar.setAttribute("aria-label", `Revision stage for ${chapter.name}`);
+
+  EXAM_REVISION_STAGES.forEach(function (stageObj) {
+    const stageBtn = document.createElement("button");
+    stageBtn.type = "button";
+    const isCurrent = stats.revisionStage === stageObj.id;
+    stageBtn.className = `revision-stage-pill stage-${stageObj.id}${isCurrent ? " active" : ""}`;
+    stageBtn.textContent = stageObj.label;
+    stageBtn.title = `Set chapter stage to ${stageObj.label}`;
+    stageBtn.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      setExamChapterRevisionStage(exam.id, subject.id, chapter.id, stageObj.id);
+    });
+    stageBar.appendChild(stageBtn);
+  });
+
+  const planBtn = document.createElement("button");
+  planBtn.type = "button";
+  planBtn.className = "send-to-plan-btn";
+  planBtn.textContent = "+ Today's Plan";
+  planBtn.title = `Add "${subject.name}: ${chapter.name}" to Today's Plan`;
+  planBtn.addEventListener("click", function (ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    sendSyllabusItemToTodayPlan(exam, subject, chapter, null, planBtn);
+  });
+
+  controlsGroup.appendChild(stageBar);
+  controlsGroup.appendChild(planBtn);
+
+  summary.appendChild(titleGroup);
+  summary.appendChild(controlsGroup);
   details.appendChild(summary);
 
   const list = document.createElement("ul");
   list.className = "shared-list syllabus-topic-list";
   chapter.topics.forEach(function (topic) {
     const item = document.createElement("li");
+    item.className = "syllabus-topic-row";
     const checkbox = document.createElement("input");
-    const label = document.createElement("span");
-    const edit = createSmallAction("Edit", function () { editExamTopic(exam.id, subject.id, chapter.id, topic.id); });
-    const del = createSmallAction("×", function () { deleteExamTopic(exam.id, subject.id, chapter.id, topic.id); }, "danger");
     checkbox.type = "checkbox";
+    checkbox.className = "task-checkbox";
     checkbox.checked = topic.completed;
     checkbox.addEventListener("change", function () { toggleExamTopic(exam.id, subject.id, chapter.id, topic.id); });
+
+    const label = document.createElement("span");
+    label.className = "syllabus-topic-name";
     label.textContent = topic.name;
+
+    const rowActions = document.createElement("div");
+    rowActions.className = "syllabus-topic-actions";
+
+    const topicPlanBtn = document.createElement("button");
+    topicPlanBtn.type = "button";
+    topicPlanBtn.className = "send-to-plan-btn compact";
+    topicPlanBtn.textContent = "+ Today's Plan";
+    topicPlanBtn.title = `Add "${topic.name}" to Today's Plan`;
+    topicPlanBtn.addEventListener("click", function () {
+      sendSyllabusItemToTodayPlan(exam, subject, chapter, topic, topicPlanBtn);
+    });
+
+    const edit = createSmallAction("Edit", function () { editExamTopic(exam.id, subject.id, chapter.id, topic.id); });
+    const del = createSmallAction("×", function () { deleteExamTopic(exam.id, subject.id, chapter.id, topic.id); }, "danger");
+
+    rowActions.appendChild(topicPlanBtn);
+    rowActions.appendChild(edit);
+    rowActions.appendChild(del);
+
     item.classList.toggle("completed", topic.completed);
     item.appendChild(checkbox);
     item.appendChild(label);
-    item.appendChild(edit);
-    item.appendChild(del);
+    item.appendChild(rowActions);
     list.appendChild(item);
   });
   details.appendChild(list);
 
   const actions = document.createElement("div");
-  actions.className = "compact-actions";
-  actions.appendChild(createSmallAction("Add topic", function () { addExamTopic(exam.id, subject.id, chapter.id); }));
-  actions.appendChild(createSmallAction("Delete chapter", function () { deleteExamChapter(exam.id, subject.id, chapter.id); }, "danger"));
+  actions.className = "compact-actions syllabus-chapter-footer-actions";
+  actions.appendChild(createSmallAction("+ Add Topic", function () { addExamTopic(exam.id, subject.id, chapter.id); }));
+  actions.appendChild(createSmallAction("Rename Chapter", function () { renameExamChapter(exam.id, subject.id, chapter.id); }));
+  actions.appendChild(createSmallAction("Delete Chapter", function () { deleteExamChapter(exam.id, subject.id, chapter.id); }, "danger"));
   details.appendChild(actions);
   return details;
+}
+
+async function generateAiExamPlan(examId, buttonEl) {
+  const exam = getExamById(examId);
+  if (!exam) return;
+  const origText = buttonEl ? buttonEl.textContent : "";
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.textContent = "✦ Generating Plan...";
+  }
+  try {
+    const daysLeft = getExamDaysLeft(exam.date) || 30;
+    const subjects = (exam.subjects || []).map(function (s) { return s.name; });
+    const response = await fetch("/api/exams/ai-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        examName: exam.name,
+        examType: exam.type,
+        daysLeft: Math.max(1, daysLeft),
+        subjects
+      })
+    });
+    const data = await response.json().catch(function () { return {}; });
+    if (data && data.plan) {
+      exam.aiPlan = data.plan;
+      if (Array.isArray(data.plan.suggestedMilestones)) {
+        data.plan.suggestedMilestones.forEach(function (sm) {
+          const exists = (exam.milestones || []).some(function (m) { return m.title.toLowerCase() === sm.title.toLowerCase(); });
+          if (!exists) {
+            exam.milestones = exam.milestones || [];
+            exam.milestones.push({
+              id: createId(),
+              title: sm.title,
+              dueDate: sm.daysFromNow ? formatIsoDateString(new Date(Date.now() + sm.daysFromNow * 86400000)) : "",
+              completed: false
+            });
+          }
+        });
+      }
+      persistExamChange();
+      if (typeof showLibraryToast === "function") {
+        showLibraryToast(`Generated AI preparation roadmap for ${exam.name}`);
+      }
+    }
+  } catch (err) {
+    console.warn("AI plan generation error:", err);
+  } finally {
+    if (buttonEl) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = origText || "✦ Generate AI Study Plan";
+    }
+  }
 }
 
 function renderExamPlan(exam) {
   const panel = document.getElementById("exam-tab-plan");
   panel.innerHTML = "";
+
   const toolbar = document.createElement("div");
-  toolbar.className = "exam-toolbar";
-  toolbar.innerHTML = "<h3>Milestones</h3>";
-  toolbar.appendChild(createSmallAction("Add milestone", function () { addExamMilestone(exam.id); }));
+  toolbar.className = "exam-toolbar exam-plan-toolbar";
+
+  const headingGroup = document.createElement("div");
+  headingGroup.innerHTML = `
+    <h3>AI Study Plan &amp; Phased Roadmap</h3>
+    <p class="muted-text">A multi-phase study timeline tailored to your exam target date and subjects.</p>
+  `;
+
+  const actions = document.createElement("div");
+  actions.className = "exam-plan-actions";
+
+  const aiPlanBtn = document.createElement("button");
+  aiPlanBtn.type = "button";
+  aiPlanBtn.className = "primary-button";
+  aiPlanBtn.textContent = "✦ Generate AI Study Plan";
+  aiPlanBtn.addEventListener("click", function () {
+    generateAiExamPlan(exam.id, aiPlanBtn);
+  });
+
+  const addMsBtn = document.createElement("button");
+  addMsBtn.type = "button";
+  addMsBtn.className = "secondary-button";
+  addMsBtn.textContent = "+ Add Milestone";
+  addMsBtn.addEventListener("click", function () { addExamMilestone(exam.id); });
+
+  actions.appendChild(aiPlanBtn);
+  actions.appendChild(addMsBtn);
+  toolbar.appendChild(headingGroup);
+  toolbar.appendChild(actions);
   panel.appendChild(toolbar);
+
+  // Phased Roadmap
+  if (exam.aiPlan && Array.isArray(exam.aiPlan.phases) && exam.aiPlan.phases.length > 0) {
+    const roadmapCard = document.createElement("article");
+    roadmapCard.className = "secondary-surface exam-roadmap-card";
+    const planSummary = document.createElement("p");
+    planSummary.className = "exam-plan-summary-text";
+    planSummary.textContent = exam.aiPlan.summary || "Structured preparation timeline";
+    roadmapCard.appendChild(planSummary);
+
+    const phasesGrid = document.createElement("div");
+    phasesGrid.className = "exam-phases-grid";
+
+    exam.aiPlan.phases.forEach(function (phase, pIdx) {
+      const phaseBox = document.createElement("div");
+      phaseBox.className = "exam-phase-box";
+      phaseBox.innerHTML = `
+        <div class="phase-header">
+          <span class="phase-number-badge">Phase ${pIdx + 1}</span>
+          <strong>${escapeHtml(phase.phaseName)}</strong>
+          <span class="phase-duration">${phase.durationDays || 10} Days</span>
+        </div>
+        <p class="muted-text phase-desc">${escapeHtml(phase.description || "")}</p>
+      `;
+
+      if (Array.isArray(phase.weeklyTasks) && phase.weeklyTasks.length > 0) {
+        const taskUl = document.createElement("ul");
+        taskUl.className = "phase-task-list";
+        phase.weeklyTasks.forEach(function (wtText) {
+          const li = document.createElement("li");
+          const label = document.createElement("span");
+          label.textContent = wtText;
+          const syncBtn = document.createElement("button");
+          syncBtn.type = "button";
+          syncBtn.className = "send-to-plan-btn compact";
+          syncBtn.textContent = "+ Today's Plan";
+          syncBtn.addEventListener("click", function () {
+            sendSyllabusItemToTodayPlan(exam, { name: exam.name }, { name: phase.phaseName }, { name: wtText }, syncBtn);
+          });
+          li.appendChild(label);
+          li.appendChild(syncBtn);
+          taskUl.appendChild(li);
+        });
+        phaseBox.appendChild(taskUl);
+      }
+      phasesGrid.appendChild(phaseBox);
+    });
+    roadmapCard.appendChild(phasesGrid);
+    panel.appendChild(roadmapCard);
+  }
+
+  // Milestones List
+  const msSection = document.createElement("article");
+  msSection.className = "inline-section exam-milestones-section";
+  msSection.innerHTML = "<h3>Preparation Milestones</h3>";
 
   const list = document.createElement("ul");
   list.className = "shared-list exam-milestone-list";
-  if (exam.milestones.length === 0) {
-    appendSimpleItem(list, "No milestones yet. Create the next thing you want to finish.");
+  if (!exam.milestones || exam.milestones.length === 0) {
+    appendSimpleItem(list, "No custom milestones yet. Click '✦ Generate AI Study Plan' or '+ Add Milestone' above.");
   } else {
     exam.milestones.forEach(function (milestone) {
       const item = document.createElement("li");
@@ -5847,6 +6758,7 @@ function renderExamPlan(exam) {
       const meta = document.createElement("small");
       const del = createSmallAction("×", function () { deleteExamMilestone(exam.id, milestone.id); }, "danger");
       checkbox.type = "checkbox";
+      checkbox.className = "task-checkbox";
       checkbox.checked = milestone.completed;
       checkbox.addEventListener("change", function () { toggleExamMilestone(exam.id, milestone.id); });
       title.textContent = milestone.title;
@@ -5859,26 +6771,466 @@ function renderExamPlan(exam) {
       list.appendChild(item);
     });
   }
+  msSection.appendChild(list);
+  panel.appendChild(msSection);
+}
+
+let activeMockState = null;
+
+function renderExamMocks(exam) {
+  const panel = document.getElementById("exam-tab-mocks");
+  panel.innerHTML = "";
+
+  if (activeMockState && activeMockState.examId === exam.id && !activeMockState.submitted) {
+    renderActiveMockRunner(exam, panel);
+    return;
+  }
+
+  if (activeMockState && activeMockState.examId === exam.id && activeMockState.submitted) {
+    renderMockResults(exam, panel);
+    return;
+  }
+
+  // Mock Generator Form Card
+  const genCard = document.createElement("article");
+  genCard.className = "secondary-surface mock-generator-card";
+  genCard.innerHTML = `
+    <div class="mock-gen-header">
+      <div>
+        <h3>✦ AI Practice &amp; Timed Mock Test Generator</h3>
+        <p class="muted-text">Create an instant timed multiple-choice practice exam based on your exam syllabus.</p>
+      </div>
+    </div>
+  `;
+
+  const form = document.createElement("form");
+  form.className = "mock-gen-form";
+
+  const subjSelect = document.createElement("select");
+  subjSelect.id = "mock-subject-select";
+  const optAll = document.createElement("option");
+  optAll.value = "All";
+  optAll.textContent = "All Subjects (Full Syllabus)";
+  subjSelect.appendChild(optAll);
+  (exam.subjects || []).forEach(function (s) {
+    const opt = document.createElement("option");
+    opt.value = s.name;
+    opt.textContent = s.name;
+    subjSelect.appendChild(opt);
+  });
+
+  const countSelect = document.createElement("select");
+  countSelect.id = "mock-count-select";
+  [3, 5, 10, 15].forEach(function (n) {
+    const opt = document.createElement("option");
+    opt.value = n;
+    opt.textContent = `${n} Questions`;
+    if (n === 5) opt.selected = true;
+    countSelect.appendChild(opt);
+  });
+
+  const diffSelect = document.createElement("select");
+  diffSelect.id = "mock-diff-select";
+  [["easy", "Easy (Concept Check)"], ["medium", "Medium (Standard Exam)"], ["hard", "Hard (High Difficulty)"]].forEach(function (d) {
+    const opt = document.createElement("option");
+    opt.value = d[0];
+    opt.textContent = d[1];
+    if (d[0] === "medium") opt.selected = true;
+    diffSelect.appendChild(opt);
+  });
+
+  const startBtn = document.createElement("button");
+  startBtn.type = "submit";
+  startBtn.className = "primary-button start-mock-btn";
+  startBtn.textContent = "✦ Generate & Start Timed Mock";
+
+  form.appendChild(subjSelect);
+  form.appendChild(countSelect);
+  form.appendChild(diffSelect);
+  form.appendChild(startBtn);
+
+  form.addEventListener("submit", async function (e) {
+    e.preventDefault();
+    startBtn.disabled = true;
+    startBtn.textContent = "Generating Questions...";
+    try {
+      const response = await fetch("/api/exams/ai-mock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          examName: exam.name,
+          examType: exam.type,
+          subject: subjSelect.value,
+          numQuestions: Number(countSelect.value),
+          difficulty: diffSelect.value
+        })
+      });
+      const data = await response.json().catch(function () { return {}; });
+      const mockTest = data.mockTest;
+      if (mockTest && Array.isArray(mockTest.questions) && mockTest.questions.length > 0) {
+        activeMockState = {
+          examId: exam.id,
+          mockTest,
+          currentIndex: 0,
+          userAnswers: {},
+          flagged: {},
+          startTime: Date.now(),
+          timeLimitSeconds: (mockTest.timeLimitMinutes || 10) * 60,
+          elapsedSeconds: 0,
+          submitted: false
+        };
+        renderExamWorkspace();
+      }
+    } catch (err) {
+      console.warn("Mock generation failed:", err);
+    } finally {
+      startBtn.disabled = false;
+      startBtn.textContent = "✦ Generate & Start Timed Mock";
+    }
+  });
+
+  genCard.appendChild(form);
+  panel.appendChild(genCard);
+
+  // Past Mocks History
+  const historySec = document.createElement("article");
+  historySec.className = "inline-section mock-history-section";
+  historySec.innerHTML = "<h3>Recent Mock Test Attempts</h3>";
+  const historyList = document.createElement("div");
+  historyList.className = "shared-list mock-history-list";
+
+  if (!exam.mockTests || exam.mockTests.length === 0) {
+    appendSimpleItem(historyList, "No mock tests attempted yet. Generate your first timed mock above!");
+  } else {
+    exam.mockTests.forEach(function (mt) {
+      const row = document.createElement("div");
+      row.className = "insight-row mock-history-row";
+      row.innerHTML = `
+        <div>
+          <strong>${escapeHtml(mt.title)}</strong>
+          <small class="muted-text">${mt.dateCompleted || "Recently"} · ${mt.correctCount}/${mt.totalQuestions} Correct</small>
+        </div>
+        <div class="mock-history-badge">
+          <strong>${mt.accuracyPercent}%</strong>
+        </div>
+      `;
+      historyList.appendChild(row);
+    });
+  }
+  historySec.appendChild(historyList);
+  panel.appendChild(historySec);
+}
+
+function renderActiveMockRunner(exam, panel) {
+  const st = activeMockState;
+  const qList = st.mockTest.questions;
+  const q = qList[st.currentIndex];
+
+  const runnerCard = document.createElement("article");
+  runnerCard.className = "secondary-surface mock-runner-card";
+
+  const topBar = document.createElement("div");
+  topBar.className = "mock-runner-topbar";
+
+  const counter = document.createElement("span");
+  counter.className = "mock-q-counter";
+  counter.textContent = `Question ${st.currentIndex + 1} of ${qList.length}`;
+
+  const timer = document.createElement("strong");
+  timer.className = "mock-timer-digits tabular-nums";
+  const remaining = Math.max(0, st.timeLimitSeconds - st.elapsedSeconds);
+  const m = Math.floor(remaining / 60);
+  const s = remaining % 60;
+  timer.textContent = `⏱ ${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+
+  topBar.appendChild(counter);
+  topBar.appendChild(timer);
+  runnerCard.appendChild(topBar);
+
+  const qBox = document.createElement("div");
+  qBox.className = "mock-question-box";
+  qBox.innerHTML = `
+    <span class="mock-q-subject">${escapeHtml(q.subject || "General")} · ${escapeHtml(q.chapter || "Core Unit")}</span>
+    <h4 class="mock-q-text">${escapeHtml(q.questionText)}</h4>
+  `;
+
+  const optsBox = document.createElement("div");
+  optsBox.className = "mock-options-group";
+  q.options.forEach(function (optText, oIdx) {
+    const label = document.createElement("label");
+    label.className = `mock-option-label${st.userAnswers[st.currentIndex] === oIdx ? " selected" : ""}`;
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = `mock-q-${st.currentIndex}`;
+    radio.checked = st.userAnswers[st.currentIndex] === oIdx;
+    radio.addEventListener("change", function () {
+      st.userAnswers[st.currentIndex] = oIdx;
+      renderExamWorkspace();
+    });
+    const span = document.createElement("span");
+    span.textContent = `${String.fromCharCode(65 + oIdx)}. ${optText}`;
+    label.appendChild(radio);
+    label.appendChild(span);
+    optsBox.appendChild(label);
+  });
+  qBox.appendChild(optsBox);
+  runnerCard.appendChild(qBox);
+
+  // Bottom Controls Bar
+  const ctrlBar = document.createElement("div");
+  ctrlBar.className = "mock-runner-controls";
+
+  const prevBtn = document.createElement("button");
+  prevBtn.type = "button";
+  prevBtn.className = "secondary-button";
+  prevBtn.textContent = "← Previous";
+  prevBtn.disabled = st.currentIndex === 0;
+  prevBtn.addEventListener("click", function () {
+    st.currentIndex = Math.max(0, st.currentIndex - 1);
+    renderExamWorkspace();
+  });
+
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.className = "secondary-button";
+  nextBtn.textContent = st.currentIndex === qList.length - 1 ? "Review & Finish" : "Next →";
+  nextBtn.addEventListener("click", function () {
+    if (st.currentIndex < qList.length - 1) {
+      st.currentIndex++;
+      renderExamWorkspace();
+    } else {
+      submitMockTest(exam);
+    }
+  });
+
+  const submitBtn = document.createElement("button");
+  submitBtn.type = "button";
+  submitBtn.className = "primary-button submit-mock-btn";
+  submitBtn.textContent = "Submit Test";
+  submitBtn.addEventListener("click", function () { submitMockTest(exam); });
+
+  ctrlBar.appendChild(prevBtn);
+  ctrlBar.appendChild(nextBtn);
+  ctrlBar.appendChild(submitBtn);
+  runnerCard.appendChild(ctrlBar);
+
+  panel.appendChild(runnerCard);
+}
+
+function submitMockTest(exam) {
+  if (!activeMockState) return;
+  const st = activeMockState;
+  st.submitted = true;
+  const qList = st.mockTest.questions;
+  let correctCount = 0;
+
+  qList.forEach(function (q, idx) {
+    const userChoice = st.userAnswers[idx];
+    if (userChoice === q.correctIndex) {
+      correctCount++;
+    } else {
+      // Auto-log mistake
+      exam.mistakes = exam.mistakes || [];
+      exam.mistakes.unshift({
+        id: createId(),
+        mockTitle: st.mockTest.title,
+        questionText: q.questionText,
+        subjectName: q.subject || "General",
+        chapterName: q.chapter || "Unit",
+        userChoice: userChoice !== undefined ? `${String.fromCharCode(65 + userChoice)}. ${q.options[userChoice]}` : "Unanswered",
+        correctChoice: `${String.fromCharCode(65 + q.correctIndex)}. ${q.options[q.correctIndex]}`,
+        explanation: q.explanation,
+        errorTag: "Conceptual Gap",
+        dateLogged: getTodayKey()
+      });
+    }
+  });
+
+  const accuracyPercent = Math.round((correctCount / qList.length) * 100);
+  exam.mockTests = exam.mockTests || [];
+  exam.mockTests.unshift({
+    id: createId(),
+    title: st.mockTest.title,
+    totalQuestions: qList.length,
+    correctCount,
+    accuracyPercent,
+    dateCompleted: getTodayKey()
+  });
+
+  persistExamChange();
+}
+
+function renderMockResults(exam, panel) {
+  const st = activeMockState;
+  const qList = st.mockTest.questions;
+
+  const resCard = document.createElement("article");
+  resCard.className = "secondary-surface mock-results-card";
+
+  const total = qList.length;
+  let correct = 0;
+  qList.forEach(function (q, idx) {
+    if (st.userAnswers[idx] === q.correctIndex) correct++;
+  });
+  const pct = Math.round((correct / total) * 100);
+
+  resCard.innerHTML = `
+    <div class="mock-results-header">
+      <div>
+        <h3>Mock Test Results: ${escapeHtml(st.mockTest.title)}</h3>
+        <p class="muted-text">Score: ${correct} / ${total} (${pct}% Accuracy)</p>
+      </div>
+      <button type="button" class="primary-button" id="exit-mock-results-btn">Return to Test Generator</button>
+    </div>
+  `;
+
+  const qDetails = document.createElement("div");
+  qDetails.className = "mock-solutions-list";
+
+  qList.forEach(function (q, idx) {
+    const userChoice = st.userAnswers[idx];
+    const isCorrect = userChoice === q.correctIndex;
+    const box = document.createElement("div");
+    box.className = `mock-solution-item ${isCorrect ? "correct" : "incorrect"}`;
+    box.innerHTML = `
+      <div class="solution-item-head">
+        <strong>Q${idx + 1}. ${escapeHtml(q.questionText)}</strong>
+        <span class="status-pill ${isCorrect ? "urgency-safe" : "urgency-critical"}">${isCorrect ? "✓ Correct" : "× Incorrect"}</span>
+      </div>
+      <div class="solution-item-choices">
+        <p><strong>Your Answer:</strong> ${userChoice !== undefined ? escapeHtml(q.options[userChoice]) : "Not Answered"}</p>
+        <p><strong>Correct Answer:</strong> ${escapeHtml(q.options[q.correctIndex])}</p>
+        <p class="solution-explanation"><strong>Explanation:</strong> ${escapeHtml(q.explanation || "")}</p>
+      </div>
+    `;
+    qDetails.appendChild(box);
+  });
+
+  resCard.appendChild(qDetails);
+  panel.appendChild(resCard);
+
+  const exitBtn = resCard.querySelector("#exit-mock-results-btn");
+  if (exitBtn) {
+    exitBtn.addEventListener("click", function () {
+      activeMockState = null;
+      renderExamWorkspace();
+    });
+  }
+}
+
+function renderExamMistakes(exam) {
+  const panel = document.getElementById("exam-tab-mistakes");
+  panel.innerHTML = "";
+
+  const toolbar = document.createElement("div");
+  toolbar.className = "exam-toolbar exam-mistakes-toolbar";
+  toolbar.innerHTML = `
+    <div>
+      <h3>Mistake Tracker &amp; Error Analysis</h3>
+      <p class="muted-text">Review questions missed in mock tests, classify error causes, and clear weak spots.</p>
+    </div>
+  `;
+  panel.appendChild(toolbar);
+
+  const list = document.createElement("div");
+  list.className = "shared-list mistake-log-list";
+
+  if (!exam.mistakes || exam.mistakes.length === 0) {
+    appendSimpleItem(list, "No logged mistakes yet! Any missed mock test questions will appear here automatically.");
+  } else {
+    exam.mistakes.forEach(function (m, mIdx) {
+      const card = document.createElement("article");
+      card.className = "secondary-surface mistake-card";
+
+      const topRow = document.createElement("div");
+      topRow.className = "mistake-card-top";
+
+      const subjTag = document.createElement("span");
+      subjTag.className = "mistake-subj-badge";
+      subjTag.textContent = `${m.subjectName || "General"} · ${m.chapterName || "Unit"}`;
+
+      const tagSelect = document.createElement("select");
+      tagSelect.className = "mistake-tag-select";
+      ["Conceptual Gap", "Silly Error", "Time Pressure", "Formula Slip"].forEach(function (tag) {
+        const opt = document.createElement("option");
+        opt.value = tag;
+        opt.textContent = tag;
+        if (m.errorTag === tag) opt.selected = true;
+        tagSelect.appendChild(opt);
+      });
+      tagSelect.addEventListener("change", function () {
+        m.errorTag = tagSelect.value;
+        persistExamChange();
+      });
+
+      topRow.appendChild(subjTag);
+      topRow.appendChild(tagSelect);
+      card.appendChild(topRow);
+
+      const qText = document.createElement("h4");
+      qText.className = "mistake-q-text";
+      qText.textContent = m.questionText;
+      card.appendChild(qText);
+
+      const choices = document.createElement("div");
+      choices.className = "mistake-choices-box";
+      choices.innerHTML = `
+        <p class="mistake-wrong-text"><strong>Your Answer:</strong> ${escapeHtml(m.userChoice)}</p>
+        <p class="mistake-correct-text"><strong>Correct:</strong> ${escapeHtml(m.correctChoice)}</p>
+        <p class="mistake-expl"><strong>Key Concept:</strong> ${escapeHtml(m.explanation || "")}</p>
+      `;
+      card.appendChild(choices);
+
+      const foot = document.createElement("div");
+      foot.className = "mistake-card-footer";
+
+      const planBtn = document.createElement("button");
+      planBtn.type = "button";
+      planBtn.className = "send-to-plan-btn";
+      planBtn.textContent = "+ Revision Task in Plan";
+      planBtn.addEventListener("click", function () {
+        sendSyllabusItemToTodayPlan(exam, { name: m.subjectName }, { name: m.chapterName }, { name: `Revise: ${m.questionText.slice(0, 40)}...` }, planBtn);
+      });
+
+      const delBtn = createSmallAction("Delete Entry", function () {
+        exam.mistakes.splice(mIdx, 1);
+        persistExamChange();
+      }, "danger");
+
+      foot.appendChild(planBtn);
+      foot.appendChild(delBtn);
+      card.appendChild(foot);
+
+      list.appendChild(card);
+    });
+  }
   panel.appendChild(list);
 }
 
-function renderExamProgress(exam) {
-  const panel = document.getElementById("exam-tab-progress");
-  const stats = getExamStats(exam);
-  panel.innerHTML = "";
-  panel.appendChild(createExamSummaryStrip(exam, stats));
-  const list = document.createElement("div");
-  list.className = "shared-list exam-progress-list";
-  exam.subjects.forEach(function (subject) {
-    const row = document.createElement("div");
-    const subjectStats = getSubjectStats(subject);
-    row.className = "insight-row";
-    row.innerHTML = `<span>${escapeHtml(subject.name)}</span><strong>${subjectStats.progressPercent}%</strong>`;
-    list.appendChild(row);
-  });
-  if (exam.subjects.length === 0) appendSimpleItem(list, "Add subjects to see subject progress.");
-  panel.appendChild(list);
+async function togglePictureInPicture() {
+  try {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+    } else {
+      const localVideo = document.getElementById("vc-local-video");
+      const remoteVideos = document.querySelectorAll("#vc-remote-container video");
+      const screenVideo = document.getElementById("vc-screen-video");
+
+      const targetVideo = (screenVideo && !screenVideo.paused && screenVideo.srcObject)
+        ? screenVideo
+        : (remoteVideos.length > 0 && remoteVideos[0].srcObject ? remoteVideos[0] : localVideo);
+
+      if (targetVideo && typeof targetVideo.requestPictureInPicture === "function") {
+        await targetVideo.requestPictureInPicture();
+      } else if (typeof showLibraryToast === "function") {
+        showLibraryToast("Picture-in-Picture requires an active video stream.");
+      }
+    }
+  } catch (err) {
+    console.warn("Picture-in-Picture error:", err);
+  }
 }
+window.togglePictureInPicture = togglePictureInPicture;
 
 function createSmallAction(text, handler, tone) {
   const button = document.createElement("button");
@@ -5892,34 +7244,212 @@ function createSmallAction(text, handler, tone) {
 function getSubjectStats(subject) {
   let totalTopics = 0;
   let completedTopics = 0;
-  subject.chapters.forEach(function (chapter) {
+  let weightedCompleted = 0;
+  (subject.chapters || []).forEach(function (chapter) {
     const stats = getChapterStats(chapter);
     totalTopics += stats.totalTopics;
     completedTopics += stats.completedTopics;
+    weightedCompleted += stats.effectiveCompletedTopics;
   });
   return {
     totalTopics,
     completedTopics,
-    progressPercent: totalTopics === 0 ? 0 : Math.round((completedTopics / totalTopics) * 100)
+    progressPercent: totalTopics === 0 ? 0 : Math.min(100, Math.round((weightedCompleted / totalTopics) * 100))
   };
 }
 
 function getChapterStats(chapter) {
-  const totalTopics = chapter.topics.length;
-  const completedTopics = chapter.topics.filter(function (topic) { return topic.completed; }).length;
+  const topics = Array.isArray(chapter.topics) ? chapter.topics : [];
+  const totalTopics = Math.max(topics.length, 1);
+  const actualCompleted = topics.filter(function (topic) { return topic.completed; }).length;
+  const stageObj = EXAM_REVISION_STAGES.find(function (s) { return s.id === chapter.revisionStage; }) || EXAM_REVISION_STAGES[0];
+  const stageWeight = stageObj.weight;
+  const effectiveCompletedTopics = Math.max(actualCompleted, Math.round(totalTopics * stageWeight));
   return {
-    totalTopics,
-    completedTopics,
-    progressPercent: totalTopics === 0 ? 0 : Math.round((completedTopics / totalTopics) * 100)
+    totalTopics: topics.length,
+    completedTopics: actualCompleted,
+    effectiveCompletedTopics: topics.length === 0 ? stageWeight : effectiveCompletedTopics,
+    revisionStage: stageObj.id,
+    progressPercent: topics.length === 0
+      ? Math.round(stageWeight * 100)
+      : Math.min(100, Math.round((effectiveCompletedTopics / topics.length) * 100))
   };
 }
 
-function addExamSubject(examId) {
-  const name = prompt("Subject name");
-  if (!name) return;
+function setExamChapterRevisionStage(examId, subjectId, chapterId, stageId) {
+  const chapter = getExamChapter(examId, subjectId, chapterId);
+  if (!chapter) return;
+  chapter.revisionStage = stageId;
+  if (stageId === "mastered" && Array.isArray(chapter.topics)) {
+    chapter.topics.forEach(function (topic) { topic.completed = true; });
+  } else if (stageId === "not-started" && Array.isArray(chapter.topics)) {
+    chapter.topics.forEach(function (topic) { topic.completed = false; });
+  }
+  persistExamChange();
+}
+
+function ensureAppSubjectForExamSubject(subjectName) {
+  const cleanName = String(subjectName || "General Study").trim();
+  const existing = appData.subjects.find(function (s) {
+    return s.name.toLowerCase() === cleanName.toLowerCase();
+  });
+  if (existing) return existing.id;
+  const created = createSubject(cleanName, getNextSubjectColorKey());
+  appData.subjects.push(created);
+  return created.id;
+}
+
+function sendSyllabusItemToTodayPlan(exam, subject, chapter, topic, triggerBtn) {
+  const subjectId = ensureAppSubjectForExamSubject(subject.name);
+  const taskTitle = topic
+    ? `${subject.name}: ${topic.name} (${chapter.name})`
+    : `Revise ${subject.name}: ${chapter.name}`;
+  const daysLeft = getExamDaysLeft(exam.date);
+  const priority = (daysLeft !== null && daysLeft <= 7) ? "urgent" : ((daysLeft !== null && daysLeft <= 21) ? "high" : "normal");
+
+  const alreadyExists = appData.tasks.some(function (t) {
+    return t.date === getTodayKey() && !t.completed && t.text.toLowerCase() === taskTitle.toLowerCase();
+  });
+
+  if (!alreadyExists) {
+    const newTask = createTask(taskTitle, getTodayKey(), subjectId, "never", priority, topic ? 25 : 50);
+    appData.tasks.push(newTask);
+    saveData();
+    dispatchTasksUpdated("syllabus-to-plan");
+  }
+
+  if (triggerBtn) {
+    const origText = triggerBtn.textContent;
+    triggerBtn.textContent = "✓ In Today's Plan";
+    triggerBtn.classList.add("added-to-plan");
+    setTimeout(function () {
+      triggerBtn.textContent = origText;
+      triggerBtn.classList.remove("added-to-plan");
+    }, 1800);
+  }
+
+  if (typeof showLibraryToast === "function") {
+    showLibraryToast(alreadyExists ? `Already in Today's Plan: ${taskTitle}` : `Added to Today's Plan: ${taskTitle}`);
+  }
+}
+
+function populateBuiltInSyllabusForExam(examId) {
   const exam = getExamById(examId);
   if (!exam) return;
-  exam.subjects.push({ id: createId(), name: name.trim(), chapters: [] });
+  const presetMatch = examPresets.find(function (p) { return p.name === exam.type; });
+  if (exam.subjects.length === 0 && presetMatch && presetMatch.subjects.length > 0) {
+    exam.subjects = presetMatch.subjects.map(function (sName) {
+      return {
+        id: createId(),
+        name: sName,
+        syllabusCleared: false,
+        chapters: buildDefaultChaptersForSubject(sName)
+      };
+    });
+  } else {
+    exam.subjects.forEach(function (subj) {
+      subj.syllabusCleared = false;
+      if (!subj.chapters || subj.chapters.length === 0) {
+        subj.chapters = buildDefaultChaptersForSubject(subj.name);
+      } else {
+        const defaults = buildDefaultChaptersForSubject(subj.name);
+        defaults.forEach(function (defChap) {
+          const exists = subj.chapters.some(function (c) { return c.name.toLowerCase() === defChap.name.toLowerCase(); });
+          if (!exists) subj.chapters.push(defChap);
+        });
+      }
+    });
+  }
+  persistExamChange();
+  if (typeof showLibraryToast === "function") {
+    showLibraryToast(`Loaded official syllabus chapters & topics for ${exam.name}`);
+  }
+}
+
+async function loadAiSyllabusForExam(examId, silent = false, buttonEl = null) {
+  const exam = getExamById(examId);
+  if (!exam) return;
+  const origLabel = buttonEl ? buttonEl.textContent : "";
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Searching Syllabus...";
+  }
+  try {
+    const subjectNames = (exam.subjects || []).map(function (s) { return s.name; });
+    const response = await fetch("/api/exams/ai-syllabus", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        examName: exam.name,
+        examType: exam.type,
+        subjects: subjectNames
+      })
+    });
+    const data = await response.json().catch(function () { return {}; });
+    const aiSubjects = data && data.syllabus && Array.isArray(data.syllabus.subjects) ? data.syllabus.subjects : [];
+    if (aiSubjects.length > 0) {
+      aiSubjects.forEach(function (aiSubj) {
+        const sName = String(aiSubj.name || "").trim();
+        if (!sName) return;
+        let targetSubj = exam.subjects.find(function (s) { return s.name.toLowerCase() === sName.toLowerCase(); });
+        if (!targetSubj) {
+          targetSubj = { id: createId(), name: sName, syllabusCleared: false, chapters: [] };
+          exam.subjects.push(targetSubj);
+        }
+        targetSubj.syllabusCleared = false;
+        (aiSubj.chapters || []).forEach(function (aiChap) {
+          const cName = String(aiChap.name || "").trim();
+          if (!cName) return;
+          const existingChap = targetSubj.chapters.find(function (c) { return c.name.toLowerCase() === cName.toLowerCase(); });
+          if (!existingChap) {
+            targetSubj.chapters.push({
+              id: createId(),
+              name: cName,
+              revisionStage: "not-started",
+              topics: (aiChap.topics || []).map(function (tName) {
+                return { id: createId(), name: String(tName).trim(), completed: false };
+              })
+            });
+          }
+        });
+      });
+      persistExamChange();
+      if (!silent && typeof showLibraryToast === "function") {
+        showLibraryToast(`Syllabus updated for ${exam.name}`);
+      }
+    }
+  } catch (err) {
+    console.warn("AI syllabus search fallback:", err);
+    populateBuiltInSyllabusForExam(examId);
+  } finally {
+    if (buttonEl) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = origLabel || "✦ AI Search & Load Syllabus";
+    }
+  }
+}
+
+function addExamSubject(examId) {
+  const name = prompt("Subject name (e.g., Physics, Organic Chemistry, Aptitude)");
+  if (!name || !name.trim()) return;
+  const exam = getExamById(examId);
+  if (!exam) return;
+  const cleanName = name.trim();
+  exam.subjects.push({
+    id: createId(),
+    name: cleanName,
+    syllabusCleared: false,
+    chapters: buildDefaultChaptersForSubject(cleanName)
+  });
+  persistExamChange();
+}
+
+function renameExamSubject(examId, subjectId) {
+  const subject = getExamSubject(examId, subjectId);
+  if (!subject) return;
+  const nextName = prompt("Rename subject", subject.name);
+  if (!nextName || !nextName.trim()) return;
+  subject.name = nextName.trim();
   persistExamChange();
 }
 
@@ -5931,11 +7461,25 @@ function deleteExamSubject(examId, subjectId) {
 }
 
 function addExamChapter(examId, subjectId) {
-  const name = prompt("Chapter name");
-  if (!name) return;
+  const name = prompt("Chapter / Unit name");
+  if (!name || !name.trim()) return;
   const subject = getExamSubject(examId, subjectId);
   if (!subject) return;
-  subject.chapters.push({ id: createId(), name: name.trim(), topics: [] });
+  subject.chapters.push({
+    id: createId(),
+    name: name.trim(),
+    revisionStage: "not-started",
+    topics: []
+  });
+  persistExamChange();
+}
+
+function renameExamChapter(examId, subjectId, chapterId) {
+  const chapter = getExamChapter(examId, subjectId, chapterId);
+  if (!chapter) return;
+  const nextName = prompt("Rename chapter", chapter.name);
+  if (!nextName || !nextName.trim()) return;
+  chapter.name = nextName.trim();
   persistExamChange();
 }
 
@@ -5943,12 +7487,15 @@ function deleteExamChapter(examId, subjectId, chapterId) {
   const subject = getExamSubject(examId, subjectId);
   if (!subject) return;
   subject.chapters = subject.chapters.filter(function (chapter) { return chapter.id !== chapterId; });
+  if (subject.chapters.length === 0) {
+    subject.syllabusCleared = true;
+  }
   persistExamChange();
 }
 
 function addExamTopic(examId, subjectId, chapterId) {
   const name = prompt("Topic name");
-  if (!name) return;
+  if (!name || !name.trim()) return;
   const chapter = getExamChapter(examId, subjectId, chapterId);
   if (!chapter) return;
   chapter.topics.push({ id: createId(), name: name.trim(), completed: false });
@@ -5959,7 +7506,7 @@ function editExamTopic(examId, subjectId, chapterId, topicId) {
   const topic = getExamTopic(examId, subjectId, chapterId, topicId);
   if (!topic) return;
   const name = prompt("Edit topic", topic.name);
-  if (!name) return;
+  if (!name || !name.trim()) return;
   topic.name = name.trim();
   persistExamChange();
 }
@@ -5972,9 +7519,18 @@ function deleteExamTopic(examId, subjectId, chapterId, topicId) {
 }
 
 function toggleExamTopic(examId, subjectId, chapterId, topicId) {
+  const chapter = getExamChapter(examId, subjectId, chapterId);
   const topic = getExamTopic(examId, subjectId, chapterId, topicId);
-  if (!topic) return;
+  if (!topic || !chapter) return;
   topic.completed = !topic.completed;
+  const doneCount = chapter.topics.filter(function (t) { return t.completed; }).length;
+  if (chapter.topics.length > 0 && doneCount === chapter.topics.length) {
+    chapter.revisionStage = "mastered";
+  } else if (doneCount > 0 && chapter.revisionStage === "not-started") {
+    chapter.revisionStage = "studied";
+  } else if (doneCount === 0 && chapter.revisionStage === "mastered") {
+    chapter.revisionStage = "not-started";
+  }
   persistExamChange();
 }
 
@@ -7794,6 +9350,16 @@ examTabs.forEach(function (tab) {
     renderExamWorkspace();
   });
 });
+if (examWorkspace) {
+  examWorkspace.addEventListener("click", function (event) {
+    const tabBtn = event.target.closest(".exam-tab");
+    if (tabBtn && tabBtn.dataset.examTab) {
+      appData.selectedExamTab = tabBtn.dataset.examTab;
+      saveData();
+      renderExamWorkspace();
+    }
+  });
+}
 distractionForm.addEventListener("submit", addDistraction);
 saveAccentButton.addEventListener("click", saveAccentColor);
 resetAccentButton.addEventListener("click", resetAccentColor);
@@ -10841,17 +12407,6 @@ function switchLibraryView(view) {
   }
 }
 
-function syncCozyLibrary3DNow() {
-  if (!libraryRoomState) return;
-  renderLibraryDesks();
-  renderAtmosphere(libraryRoomState.atmosphere || "rainy");
-  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.handleResize === "function") {
-    window.cozyLibrary3D.handleResize();
-  }
-}
-window.syncCozyLibrary3DNow = syncCozyLibrary3DNow;
-window.addEventListener("cozyLibrary3DReady", syncCozyLibrary3DNow);
-
 // --- Cozy Ambient Sound Generator ---
 
 function startLibraryAmbient(type) {
@@ -10965,9 +12520,13 @@ function syncCozyLibrary3DNow() {
     }
     renderAtmosphere(libraryRoomState.atmosphere || "rainy", true);
     syncFloorButtonsWithActiveContext();
+    if (typeof window.cozyLibrary3D.handleResize === "function") {
+      window.cozyLibrary3D.handleResize();
+    }
   }
 }
 window.syncCozyLibrary3DNow = syncCozyLibrary3DNow;
+window.addEventListener("cozyLibrary3DReady", syncCozyLibrary3DNow);
 
 function initLibrary3D() {
   const targetRoomId = currentLibraryRoomId || "common";
@@ -11268,12 +12827,14 @@ function initCozyLibraryUI() {
   const toggleMicBtn = document.getElementById("vc-toggle-mic");
   const toggleCamBtn = document.getElementById("vc-toggle-cam");
   const toggleScreenBtn = document.getElementById("vc-toggle-screen");
+  const togglePipBtn = document.getElementById("vc-toggle-pip");
   const toggleQuietBtn = document.getElementById("vc-toggle-quiet-mode");
   const leaveCallBtn = document.getElementById("vc-leave-call-btn");
 
   if (toggleMicBtn) toggleMicBtn.addEventListener("click", toggleMic);
   if (toggleCamBtn) toggleCamBtn.addEventListener("click", toggleCam);
   if (toggleScreenBtn) toggleScreenBtn.addEventListener("click", toggleScreenShare);
+  if (togglePipBtn) togglePipBtn.addEventListener("click", togglePictureInPicture);
   if (toggleQuietBtn) toggleQuietBtn.addEventListener("click", toggleQuietStudyMode);
   if (leaveCallBtn) leaveCallBtn.addEventListener("click", leaveVC);
 

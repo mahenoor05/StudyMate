@@ -1,6 +1,6 @@
 {
-  "summary":  "Architectural plan to rebuild the 3D multi-floor library so each floor (Ground Floor, 2nd Floor, Archive Wing) is a complete, self-contained isometric room with 16 rug-aligned desks, isolated when viewing a single floor and displayed side-by-side when viewing Top View.",
-  "updatedAt":  "2026-10-31T14:53:15.634248745Z",
+  "summary":  "Implementation plan for Exam Workspace Syllabus & AI Study Roadmap, Timed Mock Exam Simulator with Auto-Grading & Mistake Log, and Cozy Library Standalone Call with Picture-in-Picture (PiP).",
+  "updatedAt":  "2026-10-31T18:19:02.975632753Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

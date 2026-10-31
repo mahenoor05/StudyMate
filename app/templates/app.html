@@ -791,14 +791,16 @@
         <div class="exam-tabs" role="tablist" aria-label="Exam workspace tabs">
           <button type="button" class="exam-tab active" data-exam-tab="overview">Overview</button>
           <button type="button" class="exam-tab secondary-button" data-exam-tab="syllabus">Syllabus</button>
-          <button type="button" class="exam-tab secondary-button" data-exam-tab="plan">Plan</button>
-          <button type="button" class="exam-tab secondary-button" data-exam-tab="progress">Progress</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="plan">Plan &amp; Roadmap</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="mocks">Mock Tests &amp; Practice</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="mistakes">Test Analysis &amp; Mistakes</button>
         </div>
 
         <section class="exam-tab-panel active" id="exam-tab-overview"></section>
         <section class="exam-tab-panel" id="exam-tab-syllabus"></section>
         <section class="exam-tab-panel" id="exam-tab-plan"></section>
-        <section class="exam-tab-panel" id="exam-tab-progress"></section>
+        <section class="exam-tab-panel" id="exam-tab-mocks"></section>
+        <section class="exam-tab-panel" id="exam-tab-mistakes"></section>
       </div>
 
       <div class="modal-backdrop" id="exam-modal" hidden>
@@ -828,9 +830,15 @@
             <input id="exam-title-input" type="text" placeholder="January attempt">
             <label for="exam-subjects-input">Subjects</label>
             <input id="exam-subjects-input" type="text" placeholder="Physics, Chemistry, Mathematics">
+            <div class="exam-syllabus-autoload-box" id="exam-syllabus-autoload-box">
+              <label class="exam-autoload-toggle-label" for="exam-autoload-syllabus">
+                <input type="checkbox" id="exam-autoload-syllabus" class="task-checkbox" checked>
+                <span>Pre-load official chapters &amp; unit topics automatically (fully editable)</span>
+              </label>
+            </div>
             <div class="form-footer">
               <button type="button" class="secondary-button" id="exam-back-to-presets">Back</button>
-              <button type="submit">Create Exam</button>
+              <button type="submit" id="exam-submit-button">Create Exam</button>
             </div>
           </form>
         </div>
@@ -1414,6 +1422,14 @@
                 <line x1="12" y1="17" x2="12" y2="21"></line>
               </svg>
               <span class="hardware-btn-label" id="vc-screen-label">Share</span>
+            </button>
+
+            <button type="button" class="dock-hardware-btn" id="vc-toggle-pip" title="Picture-in-Picture (Pop out floating video overlay)" aria-label="Toggle Picture in Picture">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <rect x="11" y="9" width="8" height="6" rx="1" ry="1" fill="currentColor" fill-opacity="0.3"></rect>
+              </svg>
+              <span class="hardware-btn-label" id="vc-pip-label">PiP</span>
             </button>
           </div>
 

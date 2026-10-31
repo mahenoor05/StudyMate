@@ -1,6 +1,8 @@
 node_modules/
 dist/
-build/
+/build/
+!app/static/vendor/
+!app/static/vendor/**
 .DS_Store
 Thumbs.db
 *.log
@@ -11,3 +13,4 @@ instance/*.db
 app/static/uploads/avatars/
 __pycache__/
 *.pyc
+
