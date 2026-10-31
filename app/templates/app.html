@@ -1176,8 +1176,7 @@
             <button type="button" class="floor-pill-btn active" data-floor-id="ground" id="floor-btn-ground" title="Main Reading Hall - Ground Floor">Ground Floor</button>
             <button type="button" class="floor-pill-btn" data-floor-id="mezzanine" id="floor-btn-mezzanine" style="display: none;" title="Upper Mezzanine - 2nd Floor (Unlocks when Ground Floor is 80% full)">2nd Floor</button>
             <button type="button" class="floor-pill-btn" data-floor-id="archive" id="floor-btn-archive" style="display: none;" title="West Archive Wing (Unlocks when 2nd Floor is 80% full)">Archive Wing</button>
-            <span class="library-capacity-indicator" id="library-capacity-indicator">Ground · 2/20</span>
-            <button type="button" class="library-sim-fill-btn" id="library-sim-fill-btn" onclick="toggleSimulateFullLibrary()" title="Step-by-step floor capacity fill to unlock 2nd Floor then Archive Wing">+ Fill Floor</button>
+            <span class="library-capacity-indicator" id="library-capacity-indicator">Ground · 0/20</span>
           </div>
 
           <!-- 3D Camera Angle Switcher -->
@@ -1211,6 +1210,11 @@
               <span class="vc-badge" id="vc-live-count" hidden>0</span>
             </button>
           </div>
+
+          <!-- Prominent Real-Time Study Call Join / Leave Action Button -->
+          <button type="button" class="primary-button vc-header-action-btn" id="quick-join-vc-btn" title="Join or leave live video/audio study call">
+            <span id="quick-vc-btn-label">Join Study Call</span>
+          </button>
 
           <!-- Immersive Fullscreen Button -->
           <button type="button" class="library-fullscreen-btn" id="btn-library-fullscreen" title="Toggle Immersive Fullscreen (Esc to exit)" aria-label="Toggle Fullscreen">

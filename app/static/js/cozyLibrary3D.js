@@ -852,32 +852,7 @@ export class CozyLibrary3DEngine {
       const defaultDesks = DESK_LAYOUTS.map((d) => ({
         id: d.id,
         label: d.label,
-        occupiedBy:
-          d.id === 1
-            ? {
-                userId: 2,
-                displayName: "Elena Rostova",
-                avatarColor: "blue",
-                subject: "Calculus III",
-                goal: "Stokes' Theorem problem set",
-                timerSeconds: 1140,
-                lampOn: true,
-                posture: "reading",
-                isBuddy: true
-              }
-            : d.id === 3
-            ? {
-                userId: 3,
-                displayName: "Dev Patel",
-                avatarColor: "amber",
-                subject: "Algorithms",
-                goal: "Graph traversals & DFS/BFS",
-                timerSeconds: 960,
-                lampOn: true,
-                posture: "typing",
-                isBuddy: true
-              }
-            : null,
+        occupiedBy: null,
         reservedBy: null
       }));
       this.syncDesks(defaultDesks, window.STUDYMATE_USER?.id || 1, false);
