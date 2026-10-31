@@ -1851,46 +1851,6 @@ def get_library_room():
             "occupiedBy": None,
             "reservedBy": None,
         })
-    desks[0]["occupiedBy"] = {
-        "userId": 2,
-        "displayName": "Elena Rostova",
-        "avatarStyle": "orbit",
-        "avatarColor": "blue",
-        "subject": "Calculus III",
-        "goal": "Stokes' Theorem problem set",
-        "timerSeconds": 1140,
-        "lampOn": True,
-        "posture": "reading",
-        "isBuddy": True,
-    }
-    desks[2]["occupiedBy"] = {
-        "userId": 3,
-        "displayName": "Dev Patel",
-        "avatarStyle": "spark",
-        "avatarColor": "amber",
-        "subject": "Algorithms",
-        "goal": "Graph traversals & DFS/BFS",
-        "timerSeconds": 960,
-        "lampOn": True,
-        "posture": "typing",
-        "isBuddy": True,
-    }
-    if is_group:
-        desks[1]["reservedBy"] = {
-            "userId": 102,
-            "displayName": "Aarav Sharma",
-            "avatarStyle": "spark",
-            "avatarColor": "rose",
-            "subject": "Quantum Mechanics",
-        }
-        desks[3]["reservedBy"] = {
-            "userId": 103,
-            "displayName": "Sophia Chen",
-            "avatarStyle": "orbit",
-            "avatarColor": "purple",
-            "subject": "Organic Chemistry",
-        }
-
     return jsonify({
         "room": {
             "id": room_id,
@@ -1905,40 +1865,8 @@ def get_library_room():
                 "remainingSeconds": 1420,
             },
             "desks": desks,
-            "stickyNotes": [
-                {
-                    "id": "note-1",
-                    "author": "Elena R.",
-                    "color": "sage",
-                    "content": "Reminder: Review vector calculus problem set before 3pm tomorrow!",
-                    "createdAt": utc_now().isoformat(),
-                },
-                {
-                    "id": "note-2",
-                    "author": "Dev P.",
-                    "color": "amber",
-                    "content": "2 more 25m pomodoros today. Phones away, deep focus mode!",
-                    "createdAt": utc_now().isoformat(),
-                },
-            ],
-            "messages": [
-                {
-                    "id": "msg-1",
-                    "senderName": "Elena Rostova",
-                    "senderAvatarStyle": "orbit",
-                    "senderAvatarColor": "blue",
-                    "content": "Welcome to the study library! The rain outside makes it so peaceful today.",
-                    "createdAt": utc_now().isoformat(),
-                },
-                {
-                    "id": "msg-2",
-                    "senderName": "Dev Patel",
-                    "senderAvatarStyle": "spark",
-                    "senderAvatarColor": "amber",
-                    "content": "Starting a 25m focus sprint on algorithms. Feel free to join VC anytime!",
-                    "createdAt": utc_now().isoformat(),
-                },
-            ],
+            "stickyNotes": [],
+            "messages": [],
             "vcParticipants": [],
         }
     })

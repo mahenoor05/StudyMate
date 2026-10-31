@@ -6254,6 +6254,15 @@ function openExamWorkspace(examId) {
   showSection("exams");
   saveData();
   renderExamWorkspace();
+
+  // Service function trigger on exam selection: Fetch standard syllabus via Gemini API if empty
+  const exam = getExamById(examId);
+  if (exam) {
+    const hasChapters = (exam.subjects || []).some(function (s) { return Array.isArray(s.chapters) && s.chapters.length > 0; });
+    if (!hasChapters && !exam.syllabusFetchedWithGemini && !exam._aiSyllabusLoading) {
+      fetchAndApplyExamSyllabusWithGemini(exam.id, { silent: true });
+    }
+  }
 }
 
 function closeExamWorkspace() {
@@ -7366,14 +7375,30 @@ function populateBuiltInSyllabusForExam(examId) {
   }
 }
 
-async function loadAiSyllabusForExam(examId, silent = false, buttonEl = null) {
+async function fetchAndApplyExamSyllabusWithGemini(examId, options = {}, legacyButtonEl = null) {
+  let silent = false;
+  let buttonEl = null;
+
+  if (typeof options === "boolean") {
+    silent = options;
+    buttonEl = legacyButtonEl;
+  } else if (options && typeof options === "object") {
+    silent = Boolean(options.silent);
+    buttonEl = options.buttonEl || null;
+  }
+
   const exam = getExamById(examId);
   if (!exam) return;
+
+  if (exam._aiSyllabusLoading) return;
+  exam._aiSyllabusLoading = true;
+
   const origLabel = buttonEl ? buttonEl.textContent : "";
   if (buttonEl) {
     buttonEl.disabled = true;
-    buttonEl.textContent = "Searching Syllabus...";
+    buttonEl.textContent = "✦ Searching Syllabus with Gemini...";
   }
+
   try {
     const subjectNames = (exam.subjects || []).map(function (s) { return s.name; });
     const response = await fetch("/api/exams/ai-syllabus", {
@@ -7387,6 +7412,7 @@ async function loadAiSyllabusForExam(examId, silent = false, buttonEl = null) {
     });
     const data = await response.json().catch(function () { return {}; });
     const aiSubjects = data && data.syllabus && Array.isArray(data.syllabus.subjects) ? data.syllabus.subjects : [];
+
     if (aiSubjects.length > 0) {
       aiSubjects.forEach(function (aiSubj) {
         const sName = String(aiSubj.name || "").trim();
@@ -7397,6 +7423,8 @@ async function loadAiSyllabusForExam(examId, silent = false, buttonEl = null) {
           exam.subjects.push(targetSubj);
         }
         targetSubj.syllabusCleared = false;
+        if (!targetSubj.chapters) targetSubj.chapters = [];
+
         (aiSubj.chapters || []).forEach(function (aiChap) {
           const cName = String(aiChap.name || "").trim();
           if (!cName) return;
@@ -7413,21 +7441,29 @@ async function loadAiSyllabusForExam(examId, silent = false, buttonEl = null) {
           }
         });
       });
+      exam.syllabusFetchedWithGemini = true;
       persistExamChange();
       if (!silent && typeof showLibraryToast === "function") {
-        showLibraryToast(`Syllabus updated for ${exam.name}`);
+        showLibraryToast(`✦ Standard syllabus loaded via Gemini API for ${exam.name}!`);
       }
+    } else {
+      populateBuiltInSyllabusForExam(examId);
     }
   } catch (err) {
-    console.warn("AI syllabus search fallback:", err);
+    console.warn("Gemini syllabus fetch fallback:", err);
     populateBuiltInSyllabusForExam(examId);
   } finally {
+    exam._aiSyllabusLoading = false;
     if (buttonEl) {
       buttonEl.disabled = false;
       buttonEl.textContent = origLabel || "✦ AI Search & Load Syllabus";
     }
   }
 }
+
+const loadAiSyllabusForExam = fetchAndApplyExamSyllabusWithGemini;
+window.fetchAndApplyExamSyllabusWithGemini = fetchAndApplyExamSyllabusWithGemini;
+window.loadAiSyllabusForExam = fetchAndApplyExamSyllabusWithGemini;
 
 function addExamSubject(examId) {
   const name = prompt("Subject name (e.g., Physics, Organic Chemistry, Aptitude)");
@@ -9926,8 +9962,22 @@ function initAmbientSoundEngine() {
 // COZY VIRTUAL LIBRARY & REAL-TIME VC LOUNGE CLIENT ENGINE
 // ==========================================================================
 
-let libraryWs = null;
-let libraryBroadcastChannel = null;
+// ==========================================================================
+// COZY VIRTUAL LIBRARY & REAL-TIME SUPABASE PRESENCE & WEBRTC VC ENGINE
+// ==========================================================================
+
+let supabaseClient = null;
+try {
+  if (typeof supabase !== "undefined" && typeof supabase.createClient === "function") {
+    const sbUrl = window.SUPABASE_URL || "https://xyzcompany.supabase.co";
+    const sbKey = window.SUPABASE_ANON_KEY || "public-anon-key";
+    supabaseClient = supabase.createClient(sbUrl, sbKey);
+  }
+} catch (e) {
+  console.warn("Supabase client init warning:", e);
+}
+
+let currentLibraryChannel = null;
 let libraryPeerId = "peer-" + Math.random().toString(36).slice(2, 10);
 let libraryRoomState = null;
 let libraryAmbientAudioCtx = null;
@@ -9951,82 +10001,65 @@ const rtcConfig = {
   ]
 };
 
-function sendLibraryRealtimeEvent(payload) {
-  if (!payload) return;
-  const enriched = Object.assign({ fromPeerId: libraryPeerId }, payload);
-  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
-    try {
-      libraryWs.send(JSON.stringify(enriched));
-    } catch (err) {
-      console.warn("Library WS send error:", err);
-    }
-  }
-  if (libraryBroadcastChannel) {
-    try {
-      libraryBroadcastChannel.postMessage(enriched);
-    } catch (err) {
-      console.warn("BroadcastChannel post error:", err);
-    }
-  }
+function connectLibraryWs() {
+  initLibraryRealtimePresence();
 }
 
-let libraryWsUnreachable = false;
-let libraryWsWarnedOnce = false;
+function initLibraryRealtimePresence() {
+  if (!supabaseClient) {
+    console.warn("Supabase client unavailable — library running in local offline mode.");
+    return;
+  }
 
-function initLibraryBroadcastChannel() {
-  if (libraryBroadcastChannel || typeof BroadcastChannel === "undefined") return;
-  try {
-    libraryBroadcastChannel = new BroadcastChannel("studymate_library_realtime");
-    libraryBroadcastChannel.onmessage = function (event) {
-      const data = event.data;
-      if (!data || data.fromPeerId === libraryPeerId) return;
+  if (currentLibraryChannel) {
+    try {
+      supabaseClient.removeChannel(currentLibraryChannel);
+    } catch (e) {}
+    currentLibraryChannel = null;
+  }
 
-      // Mirror cross-tab WebRTC & desk events when operating in local/offline or BroadcastChannel mode
-      if (data.type === "signal:offer" || data.type === "offer") {
-        if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
-          handleRemoteOffer(data.fromPeerId, data.offer, data.user);
-        }
-      } else if (data.type === "signal:answer" || data.type === "answer") {
-        if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
-          handleRemoteAnswer(data.fromPeerId, data.answer);
-        }
-      } else if (data.type === "signal:ice_candidate" || data.type === "ice-candidate") {
-        if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
-          handleRemoteIceCandidate(data.fromPeerId, data.candidate);
-        }
-      } else if (data.type === "desk:take" && libraryRoomState && Array.isArray(libraryRoomState.desks)) {
-        const d = libraryRoomState.desks.find(function (x) { return x.id === Number(data.deskId); });
-        if (d) {
-          d.occupiedBy = {
-            peerId: data.fromPeerId,
-            userId: data.userId || 99,
-            displayName: data.displayName || "Study Partner",
-            avatarColor: data.avatarColor || "teal",
-            subject: data.subject || "Focus Study",
-            goal: data.goal || "",
-            timerSeconds: data.timerSeconds || 1500,
-            lampOn: data.lampOn !== false,
-            posture: data.posture || "reading"
-          };
-          renderLibraryDesks();
-        }
-      } else if (data.type === "desk:leave" && libraryRoomState && Array.isArray(libraryRoomState.desks)) {
-        const d = libraryRoomState.desks.find(function (x) { return x.id === Number(data.deskId); });
-        if (d) {
-          d.occupiedBy = null;
-          renderLibraryDesks();
+  const currentUser = window.STUDYMATE_USER || { id: "user-" + Math.random().toString(36).slice(2, 8), displayName: "Student" };
+  const roomKey = currentLibraryRoomId || "common";
+  const channelName = roomKey.startsWith("group:") ? `library_group_${roomKey.split(":")[1]}` : "library_common_presence";
+
+  currentLibraryChannel = supabaseClient.channel(channelName, {
+    config: {
+      presence: { key: String(currentUser.id) },
+      broadcast: { self: false }
+    }
+  });
+
+  currentLibraryChannel
+    .on("presence", { event: "sync" }, () => {
+      const state = currentLibraryChannel.presenceState();
+      updateDesksFromPresenceState(state);
+      updateVCParticipantsFromPresence(state);
+    })
+    .on("broadcast", { event: "webrtc_signal" }, ({ payload }) => {
+      handleWebRtcSignal(payload);
+    })
+    .subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        const myDesk = libraryRoomState?.desks?.find(d => isDeskMine(d));
+        if (myDesk && myDesk.occupiedBy) {
+          await currentLibraryChannel.track({
+            deskId: myDesk.id,
+            user: currentUser,
+            subject: myDesk.occupiedBy.subject || "Focus Study",
+            goal: myDesk.occupiedBy.goal || "",
+            lampOn: myDesk.occupiedBy.lampOn !== false,
+            posture: myDesk.occupiedBy.posture || "reading",
+            timerSeconds: myDesk.occupiedBy.timerSeconds || 0,
+            joinedAt: Date.now()
+          });
         }
       }
-    };
-  } catch (err) {
-    console.warn("BroadcastChannel init error:", err);
-  }
+    });
 }
 
 function enforceSingleSeatRuleOnState() {
   if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
   const seenUsers = new Set();
-  // Traverse desks so each real user or peerId can only occupy at most one desk
   for (let i = 0; i < libraryRoomState.desks.length; i++) {
     const d = libraryRoomState.desks[i];
     if (d && d.occupiedBy && !d.occupiedBy.isBuddy) {
@@ -10042,106 +10075,134 @@ function enforceSingleSeatRuleOnState() {
   }
 }
 
-function isDeskMine(desk) {
-  if (!desk || !desk.occupiedBy || desk.occupiedBy.isBuddy) return false;
-  const currentUserId = window.STUDYMATE_USER?.id || 1;
-  if (desk.occupiedBy.peerId && libraryPeerId) {
-    return desk.occupiedBy.peerId === libraryPeerId || String(desk.occupiedBy.userId) === String(currentUserId);
+function updateDesksFromPresenceState(state) {
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+
+  libraryRoomState.desks.forEach(d => {
+    if (!isDeskMine(d)) {
+      d.occupiedBy = null;
+    }
+  });
+
+  Object.keys(state).forEach(presenceKey => {
+    const entries = state[presenceKey];
+    if (Array.isArray(entries) && entries.length > 0) {
+      const latest = entries[entries.length - 1];
+      if (latest && latest.deskId) {
+        const targetDesk = libraryRoomState.desks.find(d => d.id === Number(latest.deskId));
+        const currentUserId = String(window.STUDYMATE_USER?.id || 1);
+        if (targetDesk && String(latest.user?.id) !== currentUserId) {
+          targetDesk.occupiedBy = {
+            peerId: latest.user?.id || presenceKey,
+            userId: latest.user?.id || 99,
+            displayName: latest.user?.displayName || latest.user?.username || "Study Partner",
+            avatarColor: latest.user?.avatarColor || "teal",
+            avatarStyle: latest.user?.avatarStyle || "initials",
+            subject: latest.subject || "Focus Study",
+            goal: latest.goal || "",
+            timerSeconds: latest.timerSeconds || 0,
+            lampOn: latest.lampOn !== false,
+            posture: latest.posture || "reading",
+            isBuddy: false
+          };
+        }
+      }
+    }
+  });
+
+  renderLibraryDesks();
+  renderLibraryTimer();
+  if (window.cozyLibrary3D && typeof window.cozyLibrary3D.syncDesks === "function") {
+    const currentUserId = window.STUDYMATE_USER?.id || 1;
+    const isGroupLibrary = Boolean(currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"));
+    window.cozyLibrary3D.syncDesks(libraryRoomState.desks, currentUserId, isGroupLibrary);
   }
-  return String(desk.occupiedBy.userId) === String(currentUserId);
 }
 
-function vacateMyExistingDesks(exceptDeskId) {
-  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
-  libraryRoomState.desks.forEach(function (d) {
-    if (d.occupiedBy && isDeskMine(d) && Number(d.id) !== Number(exceptDeskId)) {
-      const vacatedId = d.id;
-      d.occupiedBy = null;
-      sendLibraryRealtimeEvent({
-        type: "desk:leave",
-        deskId: Number(vacatedId)
-      });
+function updateVCParticipantsFromPresence(state) {
+  let count = 0;
+  Object.keys(state).forEach(key => {
+    const entries = state[key];
+    if (Array.isArray(entries) && entries.length > 0) {
+      count++;
+    }
+  });
+  updateVCParticipantCount(count);
+}
+
+async function trackMyDeskPresence(deskId, subject, goal, lampOn, posture) {
+  if (!currentLibraryChannel) return;
+  const currentUser = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
+  try {
+    await currentLibraryChannel.track({
+      deskId: Number(deskId),
+      user: currentUser,
+      subject: subject || "Focus Study",
+      goal: goal || "",
+      lampOn: lampOn !== false,
+      posture: posture || "reading",
+      timerSeconds: appData.activeSession ? getSessionElapsedSeconds() : 0,
+      joinedAt: Date.now()
+    });
+  } catch (e) {
+    console.warn("Presence track error:", e);
+  }
+}
+
+async function untrackMyDeskPresence() {
+  if (!currentLibraryChannel) return;
+  try {
+    await currentLibraryChannel.untrack();
+  } catch (e) {
+    console.warn("Presence untrack error:", e);
+  }
+}
+
+function sendLibraryRealtimeEvent(payload) {
+  if (!payload) return;
+  if (payload.type === "desk:take") {
+    trackMyDeskPresence(payload.deskId, payload.subject, payload.goal, payload.lampOn, payload.posture);
+  } else if (payload.type === "desk:leave") {
+    untrackMyDeskPresence();
+  } else if (payload.type === "desk:update_progress" || payload.type === "desk:posture") {
+    const myDesk = libraryRoomState?.desks?.find(d => isDeskMine(d));
+    if (myDesk && myDesk.occupiedBy) {
+      trackMyDeskPresence(myDesk.id, myDesk.occupiedBy.subject, myDesk.occupiedBy.goal, myDesk.occupiedBy.lampOn, myDesk.occupiedBy.posture);
+    }
+  }
+}
+
+function sendWebRtcSignal(targetPeerId, signalData) {
+  if (!currentLibraryChannel) return;
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
+  currentLibraryChannel.send({
+    type: "broadcast",
+    event: "webrtc_signal",
+    payload: {
+      sender: currentUserId,
+      target: targetPeerId,
+      signal: signalData
     }
   });
 }
 
-function connectLibraryWs() {
-  initLibraryBroadcastChannel();
+function handleWebRtcSignal(payload) {
+  if (!payload) return;
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
+  if (payload.target && String(payload.target) !== currentUserId) return;
+  if (String(payload.sender) === currentUserId) return;
 
-  // Bypass WebSocket connection if already known to be unreachable or on static/WSGI host without /ws/library
-  if (libraryWsUnreachable || (window.location.hostname && window.location.hostname.includes("onrender.com"))) {
-    if (!libraryWsWarnedOnce) {
-      libraryWsWarnedOnce = true;
-      console.warn("Library WebSocket endpoint unavailable on this host — using local room state & BroadcastChannel sync.");
+  const fromPeerId = payload.sender;
+  const signal = payload.signal;
+
+  if (signal.sdp) {
+    if (signal.sdp.type === "offer") {
+      handleRemoteOffer(fromPeerId, signal.sdp, null);
+    } else if (signal.sdp.type === "answer") {
+      handleRemoteAnswer(fromPeerId, signal.sdp);
     }
-    libraryWsUnreachable = true;
-    return;
-  }
-
-  if (libraryWs && (libraryWs.readyState === WebSocket.OPEN || libraryWs.readyState === WebSocket.CONNECTING)) {
-    return;
-  }
-
-  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${wsProtocol}//${window.location.host}/ws/library`;
-
-  try {
-    let openedOnce = false;
-    libraryWs = new WebSocket(wsUrl);
-
-    libraryWs.addEventListener("open", function () {
-      openedOnce = true;
-      const user = window.STUDYMATE_USER || { id: 1, displayName: "Mahenoor" };
-      libraryWs.send(JSON.stringify({
-        type: "join:library",
-        roomId: currentLibraryRoomId,
-        user: {
-          id: user.id,
-          displayName: user.displayName || user.username || "Mahenoor",
-          avatarStyle: user.avatarStyle || "initials",
-          avatarColor: user.avatarColor || "teal",
-          avatarUrl: user.avatarUrl || null
-        }
-      }));
-    });
-
-    libraryWs.addEventListener("message", function (event) {
-      try {
-        const data = JSON.parse(event.data);
-        handleLibraryWsMessage(data);
-      } catch (err) {
-        console.warn("Error parsing library WS message:", err);
-      }
-    });
-
-    libraryWs.addEventListener("error", function () {
-      if (!openedOnce) {
-        libraryWsUnreachable = true;
-        if (!libraryWsWarnedOnce) {
-          libraryWsWarnedOnce = true;
-          console.warn("Library WebSocket endpoint unreachable — falling back to local offline room state.");
-        }
-      }
-    });
-
-    libraryWs.addEventListener("close", function () {
-      libraryWs = null;
-      if (!openedOnce) {
-        // Endpoint does not support WebSockets (e.g. 404/400 on WSGI); disable reconnect loop permanently
-        libraryWsUnreachable = true;
-        if (!libraryWsWarnedOnce) {
-          libraryWsWarnedOnce = true;
-          console.warn("Library WebSocket closed before opening — disabling reconnect loop and using local room state.");
-        }
-        return;
-      }
-    });
-  } catch (e) {
-    libraryWsUnreachable = true;
-    if (!libraryWsWarnedOnce) {
-      libraryWsWarnedOnce = true;
-      console.warn("WebSocket connection failure — using local room state:", e);
-    }
+  } else if (signal.iceCandidate) {
+    handleRemoteIceCandidate(fromPeerId, signal.iceCandidate);
   }
 }
 
@@ -11099,145 +11160,7 @@ function updateLibraryFloorCapacityUI() {
 }
 
 function toggleSimulateFullLibrary() {
-  if (!libraryRoomState) return;
-  ensureRoomHas36Desks(libraryRoomState);
-
-  const ctx = getLibraryContextState(currentLibraryRoomId);
-  ctx.simStep = ((ctx.simStep || 0) + 1) % 3;
-
-  const isCommon = currentLibraryRoomId === "common" || !currentLibraryRoomId;
-  const groundLimit = isCommon ? 20 : Number(appData.libraryDeskCount || 16);
-
-  const samplePartners = [
-    { name: "Marcus Thorne", subject: "Theoretical Physics", goal: "Quantum Mechanics pset", color: "indigo" },
-    { name: "Aria Patel", subject: "Organic Chemistry", goal: "Synthesis pathways", color: "rose" },
-    { name: "Sophia Müller", subject: "Neuroscience", goal: "Synaptic plasticity review", color: "teal" },
-    { name: "Liam O'Connor", subject: "Pure Mathematics", goal: "Topology proofs", color: "amber" },
-    { name: "Mei-Ling Zhou", subject: "Biochemistry", goal: "Enzyme kinetics", color: "emerald" },
-    { name: "Julian Santos", subject: "Microeconomics", goal: "Game theory models", color: "cyan" },
-    { name: "Chloe Bennett", subject: "Literature", goal: "Romantic poetry essay", color: "purple" },
-    { name: "Devon Vance", subject: "Data Structures", goal: "Graph algorithms", color: "blue" },
-    { name: "Ananya Sharma", subject: "Cell Biology", goal: "Signal transduction", color: "orange" },
-    { name: "Nico Rossi", subject: "World History", goal: "Renaissance archives", color: "slate" },
-    { name: "Zara Al-Mansoor", subject: "Civil Law", goal: "Constitutional precedents", color: "teal" },
-    { name: "Ethan Wright", subject: "Fluid Dynamics", goal: "Navier-Stokes solutions", color: "indigo" },
-    { name: "Kavita Rao", subject: "Molecular Genetics", goal: "CRISPR gene editing notes", color: "rose" },
-    { name: "Oliver Kim", subject: "Astrophysics", goal: "Stellar nucleosynthesis", color: "amber" },
-    { name: "Priya Nair", subject: "Cognitive Science", goal: "Memory consolidation study", color: "emerald" },
-    { name: "Siddharth Sen", subject: "Linear Algebra", goal: "Eigenvector decomposition", color: "blue" },
-    { name: "Elena Rostova", subject: "Classical Music Theory", goal: "Counterpoint analysis", color: "purple" },
-    { name: "Lucas Vance", subject: "Constitutional Law", goal: "Case brief annotations", color: "amber" },
-    { name: "Nadia Kowalski", subject: "Astrodynamics", goal: "Orbital transfer equations", color: "teal" },
-    { name: "Haruto Takahashi", subject: "Machine Learning", goal: "Transformer attention proof", color: "indigo" }
-  ];
-
-  if (ctx.simStep === 1) {
-    // Step 1: Fill Ground Floor to >= 85% so 2nd Floor (Upper Mezzanine) unlocks
-    const targetGroundFill = Math.ceil(groundLimit * 0.85);
-    let filled = 0;
-    libraryRoomState.desks.forEach(function (desk) {
-      if (desk.id >= 1 && desk.id <= groundLimit && filled < targetGroundFill) {
-        if (!isDeskMine(desk) && !desk.occupiedBy) {
-          const partner = samplePartners[filled % samplePartners.length];
-          desk.occupiedBy = {
-            userId: 900 + desk.id,
-            displayName: partner.name,
-            avatarColor: partner.color,
-            subject: partner.subject,
-            goal: partner.goal,
-            lampOn: true,
-            posture: ["reading", "writing", "typing", "coffee"][filled % 4],
-            timerSeconds: 1500 + filled * 120,
-            isSimulated: true
-          };
-          filled++;
-        } else if (desk.occupiedBy || isDeskMine(desk)) {
-          filled++;
-        }
-      }
-    });
-    // Seat 4 scholars across the newly unlocked 2nd Floor (Desks 21, 25, 29, 33) so it feels alive right away
-    [21, 25, 29, 33].forEach(function (dId, idx) {
-      const d = libraryRoomState.desks.find(function (x) { return x.id === dId; });
-      if (d && !d.occupiedBy) {
-        const partner = samplePartners[(12 + idx) % samplePartners.length];
-        d.occupiedBy = {
-          userId: 900 + dId,
-          displayName: partner.name,
-          avatarColor: partner.color,
-          subject: partner.subject,
-          goal: partner.goal,
-          lampOn: true,
-          posture: ["reading", "typing", "writing", "reading"][idx % 4],
-          timerSeconds: 1840 + idx * 300,
-          isSimulated: true
-        };
-      }
-    });
-  } else if (ctx.simStep === 2) {
-    // Step 2: Fill 2nd Floor (Desks 21-36) to >= 85% (14 of 16 desks) so Archive Wing unlocks
-    let mezzFilled = 0;
-    libraryRoomState.desks.forEach(function (desk) {
-      if (desk.id >= 21 && desk.id <= 36 && mezzFilled < 14) {
-        if (!isDeskMine(desk) && !desk.occupiedBy) {
-          const partner = samplePartners[(desk.id + mezzFilled) % samplePartners.length];
-          desk.occupiedBy = {
-            userId: 900 + desk.id,
-            displayName: partner.name,
-            avatarColor: partner.color,
-            subject: partner.subject,
-            goal: partner.goal,
-            lampOn: true,
-            posture: ["reading", "writing", "typing"][mezzFilled % 3],
-            timerSeconds: 1320 + mezzFilled * 180,
-            isSimulated: true
-          };
-          mezzFilled++;
-        } else if (desk.occupiedBy || isDeskMine(desk)) {
-          mezzFilled++;
-        }
-      }
-    });
-    // Seat 4 scholars across the newly unlocked Archive Wing (Desks 37, 41, 45, 49)
-    [37, 41, 45, 49].forEach(function (dId, idx) {
-      const d = libraryRoomState.desks.find(function (x) { return x.id === dId; });
-      if (d && !d.occupiedBy) {
-        const partner = samplePartners[(15 + idx) % samplePartners.length];
-        d.occupiedBy = {
-          userId: 900 + dId,
-          displayName: partner.name,
-          avatarColor: partner.color,
-          subject: partner.subject,
-          goal: partner.goal,
-          lampOn: true,
-          posture: ["reading", "writing", "typing", "reading"][idx % 4],
-          timerSeconds: 2100 + idx * 240,
-          isSimulated: true
-        };
-      }
-    });
-  } else {
-    // Step 0: Reset simulated scholars back to default
-    libraryRoomState.desks.forEach(function (d) {
-      if (!isDeskMine(d) && d.occupiedBy && d.occupiedBy.isSimulated) {
-        d.occupiedBy = null;
-      }
-    });
-  }
-
-  renderLibraryDesks();
-  renderLibraryTimer();
-  updateLibraryFloorCapacityUI();
-
-  if (typeof showToast === "function") {
-    if (ctx.simStep === 1) {
-      showToast("✨ Ground Floor reached 85% capacity! 2nd Floor (Upper Mezzanine) is now unlocked.");
-    } else if (ctx.simStep === 2) {
-      showToast("🏛️ 2nd Floor reached 85% capacity! West Archive Wing is now unlocked.");
-    } else {
-      showToast("Library floor occupancy reset.");
-    }
-  }
+  // Demo bots purged per requirements; desks initialize 100% empty.
 }
 window.toggleSimulateFullLibrary = toggleSimulateFullLibrary;
 window.updateLibraryFloorCapacityUI = updateLibraryFloorCapacityUI;
