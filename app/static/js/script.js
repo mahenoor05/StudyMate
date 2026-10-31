@@ -472,7 +472,9 @@ const challengePrevButton = document.getElementById("challenge-prev-button");
 const challengeNextButton = document.getElementById("challenge-next-button");
 const challengeCreateButton = document.getElementById("challenge-create-button");
 
+const sessionRingCircle = document.getElementById("session-ring-circle");
 let sessionTimerId = null;
+let currentSession = null;
 let roomTimerId = null;
 let isCompletingSession = false;
 let activeSessionRecoveryPromptToken = 0;
@@ -480,6 +482,73 @@ const discardedActiveSessionIds = new Set();
 let appData = createDefaultData();
 let selectedExamPreset = null;
 let challengeDraft = createChallengeDraft();
+
+function syncGlobalSessionRef() {
+  currentSession = appData && appData.activeSession ? appData.activeSession : null;
+  if (typeof window !== "undefined") {
+    window.currentSession = currentSession;
+  }
+  return currentSession;
+}
+
+function stopCurrentSession(options = {}) {
+  const opts = {
+    clearServer: true,
+    vacateLibraryDesk: true,
+    nextState: "pre-session",
+    ...options
+  };
+
+  const endedId =
+    (appData && appData.activeSession && appData.activeSession.id) ||
+    (currentSession && currentSession.id) ||
+    confirmedActiveSessionId;
+
+  if (endedId) {
+    discardedActiveSessionIds.add(endedId);
+  }
+
+  activeSessionRecoveryPromptToken += 1;
+  confirmedActiveSessionId = null;
+  currentSession = null;
+  if (typeof window !== "undefined") {
+    window.currentSession = null;
+  }
+
+  if (sessionTimerId) {
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+  }
+
+  if (appData) {
+    appData.activeSession = null;
+    if (opts.nextState !== "complete") {
+      appData.pendingSessionReview = null;
+    }
+    appData.sessionState = opts.nextState;
+  }
+
+  if (opts.clearServer) {
+    clearActiveFocusSession();
+  }
+
+  if (opts.vacateLibraryDesk && typeof leaveDesk === "function") {
+    leaveDesk(null, { silent: true, skipStopSession: true });
+  }
+
+  document.title = "StudyMate";
+
+  if (sessionStatus && opts.nextState === "pre-session") {
+    sessionStatus.textContent = "Idle";
+  }
+  if (homeActiveStatus && opts.nextState === "pre-session") {
+    homeActiveStatus.textContent = "Idle";
+  }
+  if (typeof renderLibraryTimer === "function") {
+    renderLibraryTimer();
+  }
+}
+window.stopCurrentSession = stopCurrentSession;
 
 function createDefaultData() {
   const subjects = [];
@@ -950,12 +1019,14 @@ function applyBackendActiveSession(activeSession) {
   if (activeSession && discardedActiveSessionIds.has(activeSession.id)) {
     appData.activeSession = null;
     appData.sessionState = "pre-session";
+    syncGlobalSessionRef();
     return false;
   }
 
   if (isActiveSessionStale(activeSession)) {
     appData.activeSession = freezeStaleActiveSession(activeSession);
     appData.sessionState = "paused";
+    syncGlobalSessionRef();
     updateAllDisplays();
     showActiveSessionRecoveryPrompt();
     return Boolean(appData.activeSession);
@@ -965,6 +1036,7 @@ function applyBackendActiveSession(activeSession) {
   appData.sessionState = appData.activeSession
     ? (appData.activeSession.state === "paused" ? "paused" : appData.activeSession.phase === "break" ? "break" : "active")
     : "pre-session";
+  syncGlobalSessionRef();
 
   return Boolean(appData.activeSession);
 }
@@ -1233,6 +1305,8 @@ function normalizeTask(task) {
     date: task.date || "",
     subjectId: task.subjectId || "",
     repeat,
+    priority: ["low", "normal", "high", "urgent"].includes(task.priority) ? task.priority : "normal",
+    durationMinutes: Math.max(5, Number(task.durationMinutes || 25)),
     completedDates
   };
 }
@@ -1696,20 +1770,20 @@ async function syncActiveFocusFromServer() {
 
     if (!server) {
       if (local && confirmedActiveSessionId === local.id) {
-        clearInterval(sessionTimerId);
-        sessionTimerId = null;
-        appData.activeSession = null;
-        appData.sessionState = "pre-session";
-        confirmedActiveSessionId = null;
-        document.title = "StudyMate";
+        stopCurrentSession({ clearServer: false, vacateLibraryDesk: true, nextState: "pre-session" });
         updateAllDisplays();
       }
       return;
     }
 
     if (discardedActiveSessionIds.has(server.id)) return;
-    const changed = !local
-      || local.id !== server.id
+
+    // Prevent phantom "General Study" auto-start when local session is stopped/idle
+    if (!local) {
+      return;
+    }
+
+    const changed = local.id !== server.id
       || local.phase !== server.phase
       || local.state !== server.state
       || Number(local.totalPausedSeconds || 0) !== Number(server.totalPausedSeconds || 0)
@@ -1739,43 +1813,21 @@ async function clearActiveFocusSession() {
 }
 
 async function discardActiveSession(shouldConfirm = true) {
-    if (shouldConfirm) {
-        const confirmed = window.confirm(
-            "Discard this unfinished session? No study time will be saved."
-        );
+  if (shouldConfirm) {
+    const confirmed = window.confirm(
+      "Discard this unfinished session? No study time will be saved."
+    );
+    if (!confirmed) return;
+  }
 
-        if (!confirmed) return;
-    }
+  stopCurrentSession({
+    clearServer: true,
+    vacateLibraryDesk: true,
+    nextState: "pre-session"
+  });
 
-    const discardedId = appData.activeSession?.id;
-
-    try {
-        await studyMateApi("focus/active", {
-            method: "DELETE"
-        });
-
-        // Invalidate any delayed recovery prompt.
-        activeSessionRecoveryPromptToken += 1;
-
-        if (discardedId) {
-            discardedActiveSessionIds.add(discardedId);
-        }
-
-        // Destroy every local reference BEFORE saving.
-        appData.activeSession = null;
-        appData.pendingSessionReview = null;
-        appData.sessionState = "pre-session";
-
-        clearInterval(sessionTimerId);
-        sessionTimerId = null;
-
-        document.title = "StudyMate";
-
-        saveData();
-        updateAllDisplays();
-    } catch (error) {
-        console.warn(error.message);
-    }
+  saveData();
+  updateAllDisplays();
 }
 
 async function resumeRecoveredActiveSession() {
@@ -2706,9 +2758,10 @@ function updateHome() {
 
   if (appData.activeSession) {
     const activeSubject = getActiveSessionSubject();
+    const isPaused = appData.sessionState === "paused";
     homeActiveSubject.textContent = appData.activeSession.phase === "break" ? "Break" : `● Studying ${activeSubject.name}`;
     homeActiveCopy.textContent = formatLongTime(getSessionElapsedSeconds());
-    homeActiveStatus.textContent = appData.activeSession.phase === "break" ? "Break" : "Studying";
+    homeActiveStatus.textContent = isPaused ? "Paused" : (appData.activeSession.phase === "break" ? "Break" : "Studying");
     homeSessionStart.textContent = appData.activeSession.mode;
     homeSessionMode.textContent = "";
     homeSessionElapsed.textContent = "";
@@ -2717,7 +2770,7 @@ function updateHome() {
   } else {
     homeActiveSubject.textContent = "Quick Focus";
     homeActiveCopy.textContent = "Choose a subject and start a fresh stopwatch session.";
-    homeActiveStatus.textContent = "";
+    homeActiveStatus.textContent = "Idle";
     homeSessionStart.textContent = "";
     homeSessionMode.textContent = "";
     homeSessionElapsed.textContent = "";
@@ -2781,6 +2834,7 @@ function updateSessionPage() {
   focusComplete.hidden = state !== "complete";
   focusOptionalSetup.hidden = state !== "pre-session";
   if (state === "complete") renderCompletionReview(appData.pendingSessionReview);
+  syncGlobalSessionRef();
   sessionDisplay.textContent = isCountdown ? formatLongTime(remaining) : formatLongTime(elapsed);
   sessionStatus.textContent = getFocusStatusLabel(state);
   sessionPhaseLabel.textContent = appData.activeSession && appData.activeSession.phase === "break" ? "Break" : "Focus";
@@ -2797,6 +2851,15 @@ function updateSessionPage() {
   sessionResetButton.hidden = appData.activeSession && appData.activeSession.modeId === "stopwatch";
   sessionSkipButton.hidden = !appData.activeSession || appData.activeSession.modeId === "stopwatch";
   sessionProgressBar.style.width = `${progressPercent}%`;
+  if (sessionRingCircle) {
+    const circumference = 2 * Math.PI * 110; // r = 110 -> ~691.15
+    const ringPct = isCountdown
+      ? Math.max(0, Math.min(100, progressPercent))
+      : (appData.activeSession ? ((elapsed % 60) / 60) * 100 : 0);
+    const offset = circumference - (ringPct / 100) * circumference;
+    sessionRingCircle.style.strokeDasharray = `${circumference.toFixed(2)}`;
+    sessionRingCircle.style.strokeDashoffset = `${offset.toFixed(2)}`;
+  }
   sessionTotalToday.textContent = formatShortTime(getTodayStudySeconds());
   focusGoalProgress.textContent = `${getGoalPercent()}%`;
   focusSessionCount.textContent = getSessionsForDate(getTodayKey()).length;
@@ -2878,13 +2941,13 @@ function getFocusState() {
 
 function getFocusStatusLabel(state) {
   const labels = {
-    "pre-session": "Not started",
+    "pre-session": "Idle",
     active: "Studying",
     paused: "Paused",
     break: "Break",
     complete: "Complete"
   };
-  return labels[state] || "Not started";
+  return labels[state] || "Idle";
 }
 
 function getNextPhaseCopy() {
@@ -4419,6 +4482,7 @@ async function startSession() {
     breakSeconds: getTimerBreakSeconds()
   };
   appData.sessionState = "active";
+  syncGlobalSessionRef();
 
   await saveActiveFocusSession("start");
   saveData();
@@ -4427,7 +4491,15 @@ async function startSession() {
 }
 
 function resumeSessionTimer() {
-  if (sessionTimerId) return;
+  if (!appData.activeSession) {
+    clearInterval(sessionTimerId);
+    sessionTimerId = null;
+    return;
+  }
+  syncGlobalSessionRef();
+  if (sessionTimerId) {
+    clearInterval(sessionTimerId);
+  }
   sessionTimerId = setInterval(tickStudySession, 1000);
 }
 
@@ -4500,17 +4572,16 @@ function toggleSessionPause() {
 }
 
 function resetActiveSession() {
-  if (!appData.activeSession) return;
-  clearActiveFocusSession();
-  appData.activeSession = null;
-  appData.sessionState = "pre-session";
-  clearInterval(sessionTimerId);
-  sessionTimerId = null;
+  stopCurrentSession({
+    clearServer: true,
+    vacateLibraryDesk: true,
+    nextState: "pre-session"
+  });
   saveData();
   updateAllDisplays();
 }
 
-async function finalizeFocusSession(shouldShowReview = true) {
+async function finalizeFocusSession(shouldShowReview = true, options = {}) {
   if (!appData.activeSession) return null;
   if (isCompletingSession) return null;
   isCompletingSession = true;
@@ -4518,6 +4589,12 @@ async function finalizeFocusSession(shouldShowReview = true) {
   const durationSeconds = getSessionElapsedSeconds();
   const subject = getSubjectById(appData.activeSession.subjectId) || getSelectedSubject();
   const activeSession = appData.activeSession;
+  const shouldVacateDesk = options.vacateLibraryDesk !== false;
+
+  // Immediately mark this session ID as ended so background sync never resurrects it
+  if (activeSession.id) {
+    discardedActiveSessionIds.add(activeSession.id);
+  }
 
   let review = null;
   if (durationSeconds > 0 && activeSession.phase === "focus") {
@@ -4546,10 +4623,12 @@ async function finalizeFocusSession(shouldShowReview = true) {
     }
   }
 
-  appData.activeSession = null;
-  appData.sessionState = shouldShowReview && review ? "complete" : "pre-session";
-  clearInterval(sessionTimerId);
-  sessionTimerId = null;
+  stopCurrentSession({
+    clearServer: true,
+    vacateLibraryDesk: shouldVacateDesk,
+    nextState: shouldShowReview && review ? "complete" : "pre-session"
+  });
+
   saveData();
   await persistAppDataNow();
   updateAllDisplays();
@@ -4560,10 +4639,11 @@ async function finalizeFocusSession(shouldShowReview = true) {
 async function completeFocusPhase() {
   const activeSession = appData.activeSession;
   if (!activeSession) return;
+  const hasBreak = Number(activeSession.breakSeconds || 0) > 0;
 
-  await finalizeFocusSession(!activeSession.breakSeconds);
+  await finalizeFocusSession(!hasBreak, { vacateLibraryDesk: !hasBreak });
 
-  if (activeSession.breakSeconds > 0) {
+  if (hasBreak) {
     appData.activeSession = {
       id: createId(),
       mode: activeSession.mode,
@@ -4581,6 +4661,7 @@ async function completeFocusPhase() {
       breakSeconds: 0
     };
     appData.sessionState = "break";
+    syncGlobalSessionRef();
     saveActiveFocusSession("break");
     saveData();
     resumeSessionTimer();
@@ -4590,12 +4671,11 @@ async function completeFocusPhase() {
 }
 
 function completeBreakPhase() {
-  if (!appData.activeSession) return;
-  clearActiveFocusSession();
-  appData.activeSession = null;
-  appData.sessionState = "pre-session";
-  clearInterval(sessionTimerId);
-  sessionTimerId = null;
+  stopCurrentSession({
+    clearServer: true,
+    vacateLibraryDesk: true,
+    nextState: "pre-session"
+  });
   saveData();
   updateAllDisplays();
 }
@@ -4621,22 +4701,28 @@ function finishSession() {
 
 function renderCompletionReview(review) {
   if (!review) return;
-  completeSessionTitle.textContent = `${review.subjectName} complete`;
+  completeSessionTitle.textContent = `${review.subjectName || "Study Session"} — Completed`;
   completeSessionSummary.innerHTML = "";
-  [
-    ["Subject", review.subjectName],
-    ["Mode", review.mode],
-    ["Duration", formatShortTime(review.durationSeconds)],
-    ["Goal", review.goal || "No goal set"]
-  ].forEach(function (item) {
-    const block = document.createElement("div");
+  const pills = [
+    ["Subject", review.subjectName || "General Study"],
+    ["Mode", review.mode || "Pomodoro"],
+    ["Duration", formatShortTime(review.durationSeconds || 0)]
+  ];
+  if (review.goal) {
+    pills.push(["Goal", review.goal]);
+  }
+  pills.forEach(function (item) {
+    const pill = document.createElement("div");
+    pill.className = "complete-kv-pill";
     const label = document.createElement("span");
+    label.className = "kv-label";
     const value = document.createElement("strong");
+    value.className = "kv-value";
     label.textContent = item[0];
     value.textContent = item[1];
-    block.appendChild(label);
-    block.appendChild(value);
-    completeSessionSummary.appendChild(block);
+    pill.appendChild(label);
+    pill.appendChild(value);
+    completeSessionSummary.appendChild(pill);
   });
   setGoalResult(review.goalResult || "yes");
   sessionReviewNote.value = review.reviewNote || "";
@@ -4657,6 +4743,9 @@ function saveSessionReview(startAnother = false) {
     goalResult: appData.pendingSessionReview.goalResult || "yes",
     reviewNote: sessionReviewNote.value.trim()
   };
+  if (review.id) {
+    discardedActiveSessionIds.add(review.id);
+  }
   const index = appData.sessions.findIndex(function (session) { return session.id === review.id; });
   if (index >= 0) {
     appData.sessions[index] = review;
@@ -4664,11 +4753,20 @@ function saveSessionReview(startAnother = false) {
     appData.sessions.unshift(review);
   }
   appData.pendingSessionReview = null;
-  appData.sessionState = "pre-session";
-  if (startAnother) appData.currentSessionDraft.goal = "";
+  stopCurrentSession({
+    clearServer: true,
+    vacateLibraryDesk: !startAnother,
+    nextState: "pre-session"
+  });
+  if (startAnother) {
+    appData.currentSessionDraft.goal = "";
+  }
   saveData();
   persistAppDataNow();
   updateAllDisplays();
+  if (startAnother) {
+    startSession();
+  }
 }
 
 function changeTimerMode(direction) {
@@ -4784,6 +4882,31 @@ function saveIntention(event) {
   updateAllDisplays();
 }
 
+function dispatchTasksUpdated(reason = "sync") {
+  if (Array.isArray(appData.tasks)) {
+    appData.tasks = appData.tasks.map(normalizeTask);
+  }
+  syncDailyHistory(getTodayKey());
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("tasks-updated", { detail: { reason, tasks: appData.tasks } }));
+  } else {
+    renderTasks();
+    renderPlanner();
+    updateAllDisplays();
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("tasks-updated", function () {
+    renderTasks();
+    renderPlanner();
+    updateHome();
+    updateSessionPage();
+    updateGoal();
+    updateInsights();
+  });
+}
+
 function createTask(text, date, subjectId, repeat, priority = "normal", durationMinutes = 25) {
   return {
     id: createId(),
@@ -4815,9 +4938,25 @@ function addTask(event) {
   taskRepeatInput.value = "never";
   saveData();
   closeTaskModal();
-  renderTasks();
-  updateAllDisplays();
+  dispatchTasksUpdated("add-task");
 }
+
+function editTask(taskId, updates = {}) {
+  let updated = false;
+  appData.tasks = appData.tasks.map(function (task) {
+    if (task.id !== taskId) return task;
+    updated = true;
+    return normalizeTask({
+      ...task,
+      ...updates,
+      text: typeof updates.text === "string" ? (updates.text.trim() || task.text) : task.text
+    });
+  });
+  if (!updated) return;
+  saveData();
+  dispatchTasksUpdated("edit-task");
+}
+window.editTask = editTask;
 
 function startFocusOnTask(task) {
   if (task.subjectId) {
@@ -4891,22 +5030,22 @@ function clearCompletedTasks() {
   });
 
   saveData();
-  renderTasks();
-  updateAllDisplays();
+  dispatchTasksUpdated("clear-completed");
 }
 
-function toggleTask(taskId) {
+function toggleTask(taskId, targetDateKey) {
+  const dateKey = targetDateKey || getTodayKey();
   appData.tasks = appData.tasks.map(function (task) {
     if (task.id !== taskId) return task;
 
     if (task.repeat === "daily") {
       const completedDates = Array.isArray(task.completedDates) ? task.completedDates.slice() : [];
-      const todayIndex = completedDates.indexOf(getTodayKey());
+      const dayIndex = completedDates.indexOf(dateKey);
 
-      if (todayIndex >= 0) {
-        completedDates.splice(todayIndex, 1);
+      if (dayIndex >= 0) {
+        completedDates.splice(dayIndex, 1);
       } else {
-        completedDates.push(getTodayKey());
+        completedDates.push(dateKey);
       }
 
       return { ...task, completed: completedDates.includes(getTodayKey()), completedDates };
@@ -4915,8 +5054,7 @@ function toggleTask(taskId) {
     return { ...task, completed: !task.completed };
   });
   saveData();
-  renderTasks();
-  updateAllDisplays();
+  dispatchTasksUpdated("toggle-task");
 }
 
 function deleteTask(taskId) {
@@ -4924,8 +5062,7 @@ function deleteTask(taskId) {
     return task.id !== taskId;
   });
   saveData();
-  renderTasks();
-  updateAllDisplays();
+  dispatchTasksUpdated("delete-task");
 }
 
 function renderTasks() {
@@ -4992,20 +5129,22 @@ function renderTasks() {
     clearCompletedTasksButton.hidden = completedTasks.length === 0;
   }
 
-  renderTaskGroup(pendingTaskList, filteredPending);
-  renderTaskGroup(completedTaskList, completedTasks);
+  renderTaskGroup(pendingTaskList, filteredPending, getTodayKey());
+  renderTaskGroup(completedTaskList, completedTasks, getTodayKey());
 }
 
-function renderTaskGroup(listElement, tasks) {
+function renderTaskGroup(listElement, tasks, targetDateKey) {
+  const dateKey = targetDateKey || getTodayKey();
   if (tasks.length === 0) {
     appendSimpleItem(listElement, listElement === pendingTaskList ? "No tasks matching current filter." : "Completed tasks will appear here.");
     return;
   }
 
   tasks.forEach(function (task) {
+    const isCompleted = isTaskCompletedOnDate(task, dateKey);
     const listItem = document.createElement("li");
     listItem.className = "task-row";
-    if (task.completed) listItem.classList.add("completed");
+    if (isCompleted) listItem.classList.add("completed");
     if (task.priority === "urgent") listItem.classList.add("is-urgent");
     if (task.priority === "high") listItem.classList.add("is-high");
     if (task.subjectId) listItem.style.borderLeft = `3px solid ${getSubjectColorValue(getSubjectById(task.subjectId) || "blue")}`;
@@ -5013,9 +5152,9 @@ function renderTaskGroup(listElement, tasks) {
     const checkbox = document.createElement("input");
     checkbox.className = "task-checkbox";
     checkbox.type = "checkbox";
-    checkbox.checked = isTaskCompletedToday(task);
+    checkbox.checked = isCompleted;
     checkbox.setAttribute("aria-label", `Mark ${task.text} as complete`);
-    checkbox.addEventListener("change", function () { toggleTask(task.id); });
+    checkbox.addEventListener("change", function () { toggleTask(task.id, dateKey); });
 
     const taskContent = document.createElement("span");
     taskContent.className = "task-content";
@@ -5026,6 +5165,35 @@ function renderTaskGroup(listElement, tasks) {
     const taskText = document.createElement("span");
     taskText.className = "task-text";
     taskText.textContent = task.text;
+    taskText.title = "Double-click to edit task";
+    taskText.addEventListener("dblclick", function () {
+      const inlineEdit = document.createElement("input");
+      inlineEdit.type = "text";
+      inlineEdit.className = "task-inline-edit-input";
+      inlineEdit.value = task.text;
+      const commitEdit = function () {
+        const nextText = inlineEdit.value.trim();
+        if (nextText && nextText !== task.text) {
+          editTask(task.id, { text: nextText });
+        } else {
+          renderTasks();
+          renderPlanner();
+        }
+      };
+      inlineEdit.addEventListener("blur", commitEdit);
+      inlineEdit.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") {
+          ev.preventDefault();
+          inlineEdit.blur();
+        } else if (ev.key === "Escape") {
+          inlineEdit.value = task.text;
+          inlineEdit.blur();
+        }
+      });
+      taskHeader.replaceChild(inlineEdit, taskText);
+      inlineEdit.focus();
+      inlineEdit.select();
+    });
     taskHeader.appendChild(taskText);
 
     if (task.priority && task.priority !== "normal") {
@@ -5056,7 +5224,7 @@ function renderTaskGroup(listElement, tasks) {
     const actionsWrap = document.createElement("div");
     actionsWrap.className = "task-row-actions";
 
-    if (listElement === pendingTaskList) {
+    if (!isCompleted) {
       const focusBtn = document.createElement("button");
       focusBtn.type = "button";
       focusBtn.className = "task-focus-button";
@@ -5222,9 +5390,7 @@ function addPlannerItem(event) {
   appData.tasks.push(newTask);
   if (plannerTitleInput) plannerTitleInput.value = "";
   saveData();
-  renderTasks();
-  renderPlanner();
-  updateAllDisplays();
+  dispatchTasksUpdated("add-planner-task");
 }
 
 function renderPlannerItems() {
@@ -5263,7 +5429,7 @@ function renderPlannerItems() {
   } else {
     const taskList = document.createElement("ul");
     taskList.className = "task-list shared-list";
-    renderTaskGroup(taskList, tasksForDay);
+    renderTaskGroup(taskList, tasksForDay, appData.selectedPlannerDate);
     taskSection.appendChild(taskList);
   }
   plannerItems.appendChild(taskSection);
@@ -7441,8 +7607,7 @@ if (inlineTaskForm && inlineTaskInput) {
     appData.tasks.push(createTask(taskText, getTodayKey(), "", "never", priority, duration));
     inlineTaskInput.value = "";
     saveData();
-    renderTasks();
-    updateAllDisplays();
+    dispatchTasksUpdated("inline-add-task");
   });
 }
 goalForm.addEventListener("submit", saveGoal);
@@ -7522,8 +7687,7 @@ if (taskHudCheckbox) {
       appData.activeSession.taskId = newTask.id;
     }
     saveData();
-    renderTasks();
-    updateSessionPage();
+    dispatchTasksUpdated("focus-hud-toggle");
   });
 }
 
@@ -7600,9 +7764,7 @@ if (calendarQuickTaskForm) {
     appData.tasks.push(newTask);
     input.value = "";
     saveData();
-    renderTasks();
-    renderPlanner();
-    updateAllDisplays();
+    dispatchTasksUpdated("calendar-quick-add");
   });
 }
 
@@ -8242,6 +8404,9 @@ function sendLibraryRealtimeEvent(payload) {
   }
 }
 
+let libraryWsUnreachable = false;
+let libraryWsWarnedOnce = false;
+
 function initLibraryBroadcastChannel() {
   if (libraryBroadcastChannel || typeof BroadcastChannel === "undefined") return;
   try {
@@ -8250,7 +8415,7 @@ function initLibraryBroadcastChannel() {
       const data = event.data;
       if (!data || data.fromPeerId === libraryPeerId) return;
 
-      // Mirror cross-tab WebRTC & desk events when testing across multiple tabs/windows
+      // Mirror cross-tab WebRTC & desk events when operating in local/offline or BroadcastChannel mode
       if (data.type === "signal:offer" || data.type === "offer") {
         if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
           handleRemoteOffer(data.fromPeerId, data.offer, data.user);
@@ -8262,6 +8427,28 @@ function initLibraryBroadcastChannel() {
       } else if (data.type === "signal:ice_candidate" || data.type === "ice-candidate") {
         if (!data.targetPeerId || data.targetPeerId === libraryPeerId) {
           handleRemoteIceCandidate(data.fromPeerId, data.candidate);
+        }
+      } else if (data.type === "desk:take" && libraryRoomState && Array.isArray(libraryRoomState.desks)) {
+        const d = libraryRoomState.desks.find(function (x) { return x.id === Number(data.deskId); });
+        if (d) {
+          d.occupiedBy = {
+            peerId: data.fromPeerId,
+            userId: data.userId || 99,
+            displayName: data.displayName || "Study Partner",
+            avatarColor: data.avatarColor || "teal",
+            subject: data.subject || "Focus Study",
+            goal: data.goal || "",
+            timerSeconds: data.timerSeconds || 1500,
+            lampOn: data.lampOn !== false,
+            posture: data.posture || "reading"
+          };
+          renderLibraryDesks();
+        }
+      } else if (data.type === "desk:leave" && libraryRoomState && Array.isArray(libraryRoomState.desks)) {
+        const d = libraryRoomState.desks.find(function (x) { return x.id === Number(data.deskId); });
+        if (d) {
+          d.occupiedBy = null;
+          renderLibraryDesks();
         }
       }
     };
@@ -8315,6 +8502,16 @@ function vacateMyExistingDesks(exceptDeskId) {
 function connectLibraryWs() {
   initLibraryBroadcastChannel();
 
+  // Bypass WebSocket connection if already known to be unreachable or on static/WSGI host without /ws/library
+  if (libraryWsUnreachable || (window.location.hostname && window.location.hostname.includes("onrender.com"))) {
+    if (!libraryWsWarnedOnce) {
+      libraryWsWarnedOnce = true;
+      console.warn("Library WebSocket endpoint unavailable on this host — using local room state & BroadcastChannel sync.");
+    }
+    libraryWsUnreachable = true;
+    return;
+  }
+
   if (libraryWs && (libraryWs.readyState === WebSocket.OPEN || libraryWs.readyState === WebSocket.CONNECTING)) {
     return;
   }
@@ -8323,9 +8520,11 @@ function connectLibraryWs() {
   const wsUrl = `${wsProtocol}//${window.location.host}/ws/library`;
 
   try {
+    let openedOnce = false;
     libraryWs = new WebSocket(wsUrl);
 
     libraryWs.addEventListener("open", function () {
+      openedOnce = true;
       const user = window.STUDYMATE_USER || { id: 1, displayName: "Mahenoor" };
       libraryWs.send(JSON.stringify({
         type: "join:library",
@@ -8349,16 +8548,34 @@ function connectLibraryWs() {
       }
     });
 
-    libraryWs.addEventListener("close", function () {
-      setTimeout(function () {
-        const cozySection = document.getElementById("cozy-library");
-        if (cozySection && cozySection.classList.contains("active")) {
-          connectLibraryWs();
+    libraryWs.addEventListener("error", function () {
+      if (!openedOnce) {
+        libraryWsUnreachable = true;
+        if (!libraryWsWarnedOnce) {
+          libraryWsWarnedOnce = true;
+          console.warn("Library WebSocket endpoint unreachable — falling back to local offline room state.");
         }
-      }, 3000);
+      }
+    });
+
+    libraryWs.addEventListener("close", function () {
+      libraryWs = null;
+      if (!openedOnce) {
+        // Endpoint does not support WebSockets (e.g. 404/400 on WSGI); disable reconnect loop permanently
+        libraryWsUnreachable = true;
+        if (!libraryWsWarnedOnce) {
+          libraryWsWarnedOnce = true;
+          console.warn("Library WebSocket closed before opening — disabling reconnect loop and using local room state.");
+        }
+        return;
+      }
     });
   } catch (e) {
-    console.warn("WebSocket connection failure:", e);
+    libraryWsUnreachable = true;
+    if (!libraryWsWarnedOnce) {
+      libraryWsWarnedOnce = true;
+      console.warn("WebSocket connection failure — using local room state:", e);
+    }
   }
 }
 
@@ -8848,24 +9065,42 @@ function createDefaultLibraryRoomFallback(roomId = "common") {
 
 async function fetchAndInitLibraryRoom(roomId) {
   const targetRoomId = roomId || currentLibraryRoomId || "common";
+
+  // 1. Immediately seed default offline room state & mount 3D scene so UI never halts or waits on network
+  if (!libraryRoomState) {
+    libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+    enforceSingleSeatRuleOnState();
+    renderAllLibraryComponents();
+  }
+  initLibrary3D();
+
+  // 2. Attempt non-blocking fetch to /api/library/room; on 404 or network error, keep offline default state
   try {
     const res = await fetch("/api/library/room?roomId=" + encodeURIComponent(targetRoomId));
-    if (res.ok) {
+    if (res && res.ok) {
       const data = await res.json();
       if (data && data.room) {
         libraryRoomState = ensureRoomHas36Desks(data.room);
         enforceSingleSeatRuleOnState();
         renderAllLibraryComponents();
       }
+    } else {
+      // 404 or non-200 status: keep default fallback room state and continue rendering 3D room
+      if (!libraryRoomState) {
+        libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+      }
+      renderAllLibraryComponents();
     }
   } catch (e) {
-    console.warn("Library room fetch error:", e);
-  }
-  if (!libraryRoomState) {
-    libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+    console.warn("Library room fetch unavailable — using default offline 3D room state:", e);
+    if (!libraryRoomState) {
+      libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+    }
     renderAllLibraryComponents();
   }
+
   syncCozyLibrary3DNow();
+
   if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
     const user = window.STUDYMATE_USER || { id: 1, displayName: "Mahenoor" };
     libraryWs.send(JSON.stringify({
@@ -9658,7 +9893,7 @@ function renderLibraryTimer() {
     return;
   }
 
-  // Fallback when no personal Focus session is running yet
+  // Fallback when no personal Focus session is running (Idle state)
   const selectedMode = getSelectedTimerMode ? getSelectedTimerMode() : { id: "pomodoro", focusMinutes: 25 };
   const focusMins = selectedMode.id === "custom" ? (appData.customFocusMinutes || 25) : (selectedMode.focusMinutes || 25);
   const defaultSecs = focusMins * 60;
@@ -9668,16 +9903,15 @@ function renderLibraryTimer() {
   digits.textContent = `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 
   if (modeLabel) {
-    modeLabel.textContent = "Focus";
+    modeLabel.textContent = "Idle";
   }
   if (subjectLabel) {
     const myDesk = libraryRoomState?.desks?.find(function (d) { return isDeskMine(d); });
-    const subjName = myDesk?.occupiedBy?.subject || (typeof getSelectedSubject === "function" ? getSelectedSubject()?.name : "Ready");
-    subjectLabel.textContent = subjName || "Ready";
+    subjectLabel.textContent = myDesk?.occupiedBy?.subject || "Idle";
   }
   if (dot) {
-    dot.style.background = "#22C55E";
-    dot.style.boxShadow = "0 0 6px #22C55E";
+    dot.style.background = "#64748B";
+    dot.style.boxShadow = "none";
   }
   if (pill) {
     pill.classList.remove("break");
@@ -9883,22 +10117,25 @@ function closeDeskModal() {
   if (modal) modal.hidden = true;
 }
 
-function leaveDesk(deskId) {
+function leaveDesk(deskId, options = {}) {
   let targetId = deskId ? Number(deskId) : null;
   if (!targetId && libraryRoomState?.desks) {
     const mine = libraryRoomState.desks.find(function (d) { return isDeskMine(d); });
     if (mine) targetId = mine.id;
   }
-  if (!targetId) return;
 
-  sendLibraryRealtimeEvent({
-    type: "desk:leave",
-    deskId: targetId
-  });
+  const hadOccupiedDesk = Boolean(targetId);
+
+  if (hadOccupiedDesk) {
+    sendLibraryRealtimeEvent({
+      type: "desk:leave",
+      deskId: targetId
+    });
+  }
 
   if (libraryRoomState && Array.isArray(libraryRoomState.desks)) {
     libraryRoomState.desks.forEach(function (d) {
-      if (d.id === targetId || isDeskMine(d)) {
+      if ((targetId && d.id === targetId) || isDeskMine(d)) {
         d.occupiedBy = null;
       }
     });
@@ -9909,8 +10146,20 @@ function leaveDesk(deskId) {
       window.cozyLibrary3D.syncDesks(libraryRoomState.desks, window.STUDYMATE_USER?.id || 1, isGroupLibrary);
     }
   }
+
+  // If the user explicitly left their desk from the Library UI, also stop any active session
+  if (!options.skipStopSession && appData && appData.activeSession) {
+    if (appData.activeSession.phase === "focus" && getSessionElapsedSeconds() > 0) {
+      finalizeFocusSession(false, { vacateLibraryDesk: false });
+    } else {
+      stopCurrentSession({ clearServer: true, vacateLibraryDesk: false, nextState: "pre-session" });
+      saveData();
+      updateAllDisplays();
+    }
+  }
+
   closeDeskModal();
-  if (typeof showToast === "function") {
+  if (hadOccupiedDesk && !options.silent && typeof showToast === "function") {
     showToast("You stood up and left your study desk.");
   }
 }
@@ -10720,46 +10969,60 @@ function syncCozyLibrary3DNow() {
 }
 window.syncCozyLibrary3DNow = syncCozyLibrary3DNow;
 
+function initLibrary3D() {
+  const targetRoomId = currentLibraryRoomId || "common";
+  if (!libraryRoomState) {
+    libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
+    enforceSingleSeatRuleOnState();
+  }
+  const canvasWrap =
+    document.getElementById("library-canvas-container") ||
+    document.getElementById("cozy-library-3d-canvas-wrap");
+  const labelsWrap = document.getElementById("cozy-library-3d-labels");
+  if (window.cozyLibrary3D && canvasWrap) {
+    if (!window.cozyLibrary3D.renderer || !canvasWrap.querySelector("canvas")) {
+      window.cozyLibrary3D.init(canvasWrap, labelsWrap);
+    }
+    if (typeof window.cozyLibrary3D.handleResize === "function") {
+      window.cozyLibrary3D.handleResize();
+    }
+    syncCozyLibrary3DNow();
+  }
+}
+window.initLibrary3D = initLibrary3D;
+
 // Global hook called when user opens the Cozy Library tab
 async function initCozyLibrary() {
   updateLibraryGroupTitle();
   const targetRoomId = currentLibraryRoomId || "common";
+
+  // 1. Immediately populate default offline room data & mount the 3D scene before any network request
   if (!libraryRoomState) {
-    try {
-      const res = await fetch("/api/library/room?roomId=" + encodeURIComponent(targetRoomId));
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.room) {
-          libraryRoomState = ensureRoomHas36Desks(data.room);
-          enforceSingleSeatRuleOnState();
-          renderAllLibraryComponents();
-        }
-      }
-    } catch (e) {
-      console.warn("Initial library room HTTP fetch error:", e);
-    }
-    if (!libraryRoomState) {
-      libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
-      renderAllLibraryComponents();
-    }
-  } else {
-    ensureRoomHas36Desks(libraryRoomState);
+    libraryRoomState = ensureRoomHas36Desks(createDefaultLibraryRoomFallback(targetRoomId));
     enforceSingleSeatRuleOnState();
-    renderAllLibraryComponents();
   }
+  renderAllLibraryComponents();
+  initLibrary3D();
   requestAnimationFrame(function () {
-    const canvasWrap = document.getElementById("cozy-library-3d-canvas-wrap");
-    const labelsWrap = document.getElementById("cozy-library-3d-labels");
-    if (window.cozyLibrary3D) {
-      if (!window.cozyLibrary3D.renderer && canvasWrap) {
-        window.cozyLibrary3D.init(canvasWrap, labelsWrap);
-      }
-      if (typeof window.cozyLibrary3D.handleResize === "function") {
-        window.cozyLibrary3D.handleResize();
-      }
-      syncCozyLibrary3DNow();
-    }
+    initLibrary3D();
   });
+
+  // 2. Non-blocking fetch to /api/library/room wrapped in try/catch; never halts on 404 or failure
+  try {
+    const res = await fetch("/api/library/room?roomId=" + encodeURIComponent(targetRoomId));
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data && data.room) {
+        libraryRoomState = ensureRoomHas36Desks(data.room);
+        enforceSingleSeatRuleOnState();
+        renderAllLibraryComponents();
+      }
+    }
+  } catch (e) {
+    console.warn("Initial library room HTTP fetch unavailable — continuing with default 3D room state:", e);
+  }
+
+  syncCozyLibrary3DNow();
   connectLibraryWs();
 }
 

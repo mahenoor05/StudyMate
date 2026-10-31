@@ -1,5 +1,5 @@
-import * as THREE from "/vendor/three/build/three.module.js";
-import { OrbitControls } from "/vendor/three/examples/jsm/controls/OrbitControls.js";
+import * as THREE from "/static/vendor/three/build/three.module.js";
+import { OrbitControls } from "/static/vendor/three/examples/jsm/controls/OrbitControls.js";
 
 /**
  * StudyMate — 3D Cutaway Cozy Library Engine (Dark Academia Edition)
@@ -749,9 +749,13 @@ export class CozyLibrary3DEngine {
   }
 
   init(containerEl, labelsContainerEl) {
-    if (!containerEl) return;
-    this.container = containerEl;
-    this.labelsContainer = labelsContainerEl;
+    const resolvedContainer =
+      containerEl ||
+      document.getElementById("library-canvas-container") ||
+      document.getElementById("cozy-library-3d-canvas-wrap");
+    if (!resolvedContainer) return;
+    this.container = resolvedContainer;
+    this.labelsContainer = labelsContainerEl || document.getElementById("cozy-library-3d-labels");
 
     const oldCanvas = this.container.querySelector("canvas");
     if (oldCanvas) oldCanvas.remove();
@@ -841,7 +845,43 @@ export class CozyLibrary3DEngine {
     this.buildArchiveWing();
     this.buildDesksAndChairs();
     this.updateFloorVisibility();
-    this.applyTheme(this.currentAtmosphere || "Daylight");
+    this.applyTheme(this.currentAtmosphere || "Cozy Night");
+
+    // Seed default offline desks immediately so the 3D scene renders desks, chairs, bookshelves & fireplace right away
+    if (!this.currentDesksData || this.currentDesksData.length === 0) {
+      const defaultDesks = DESK_LAYOUTS.map((d) => ({
+        id: d.id,
+        label: d.label,
+        occupiedBy:
+          d.id === 1
+            ? {
+                userId: 2,
+                displayName: "Elena Rostova",
+                avatarColor: "blue",
+                subject: "Calculus III",
+                goal: "Stokes' Theorem problem set",
+                timerSeconds: 1140,
+                lampOn: true,
+                posture: "reading",
+                isBuddy: true
+              }
+            : d.id === 3
+            ? {
+                userId: 3,
+                displayName: "Dev Patel",
+                avatarColor: "amber",
+                subject: "Algorithms",
+                goal: "Graph traversals & DFS/BFS",
+                timerSeconds: 960,
+                lampOn: true,
+                posture: "typing",
+                isBuddy: true
+              }
+            : null,
+        reservedBy: null
+      }));
+      this.syncDesks(defaultDesks, window.STUDYMATE_USER?.id || 1, false);
+    }
 
     // 6. Bind Pointer / Raycaster / Resize Listeners
     this.bindEvents();
@@ -4320,16 +4360,21 @@ window.DESK_LAYOUTS = DESK_LAYOUTS;
 window.applyTheme = (themeName) => cozyLibrary3D.applyTheme(themeName);
 
 function mountCozy3DIfReady() {
-  const canvasWrap = document.getElementById("cozy-library-3d-canvas-wrap");
+  const canvasWrap =
+    document.getElementById("library-canvas-container") ||
+    document.getElementById("cozy-library-3d-canvas-wrap");
   const labelsWrap = document.getElementById("cozy-library-3d-labels");
   if (canvasWrap) {
-    cozyLibrary3D.init(canvasWrap, labelsWrap);
+    if (!cozyLibrary3D.renderer || !canvasWrap.querySelector("canvas")) {
+      cozyLibrary3D.init(canvasWrap, labelsWrap);
+    }
     if (typeof window.syncCozyLibrary3DNow === "function") {
       window.syncCozyLibrary3DNow();
     }
     window.dispatchEvent(new CustomEvent("cozyLibrary3DReady"));
   }
 }
+window.mountCozy3DIfReady = mountCozy3DIfReady;
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", mountCozy3DIfReady);

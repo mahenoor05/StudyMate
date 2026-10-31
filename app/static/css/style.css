@@ -1466,15 +1466,79 @@ button.profile-banner:hover {
   gap: 1rem;
 }
 
-.timer-display {
-  color: var(--text);
-  font-size: clamp(2.5rem, 8vw, 5rem);
+.timer-display,
+#pre-session-display,
+#session-display,
+.focus-active .timer-display {
+  color: #f4f1ea !important;
+  font-family: var(--font-mono);
+  font-size: clamp(2.85rem, 7vw, 4.75rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1;
-  margin: 0.5rem 0;
+  margin: 0;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-shadow: 0 0 24px rgba(82, 183, 136, 0.28), 0 0 6px rgba(64, 145, 108, 0.18);
+}
+
+.timer-readout-shell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.35rem 2.75rem;
+  margin: 0.5rem auto;
+  border-radius: 20px;
+  background: radial-gradient(circle at 50% 50%, rgba(45, 106, 79, 0.18), rgba(17, 27, 21, 0.92));
+  border: 1px solid rgba(82, 183, 136, 0.26);
+  box-shadow:
+    0 0 32px rgba(64, 145, 108, 0.14),
+    inset 0 1px 0 rgba(244, 241, 234, 0.08);
+}
+
+.timer-ring-readout {
+  position: relative;
+  width: 248px;
+  height: 248px;
+  display: grid;
+  place-items: center;
+  margin: 0.35rem auto;
+}
+
+.timer-ring-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+  filter: drop-shadow(0 0 14px rgba(82, 183, 136, 0.22));
+}
+
+.timer-ring-track {
+  fill: rgba(17, 27, 21, 0.72);
+  stroke: rgba(82, 183, 136, 0.16);
+  stroke-width: 6;
+}
+
+.timer-ring-progress {
+  fill: none;
+  stroke: #52b788;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 350ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.timer-ring-readout #session-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(2.5rem, 5.2vw, 3.45rem);
+}
+
+.focus-timer-face .timer-progress {
+  display: none !important;
 }
 
 .field-label,
@@ -1513,13 +1577,16 @@ button.profile-banner:hover {
   min-width: 0;
 }
 
+.focus-card,
 .focus-workspace {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   min-height: 0;
-  padding: var(--space-5);
+  max-width: 1040px;
+  width: 100%;
+  padding: 32px;
   transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
@@ -1531,10 +1598,6 @@ button.profile-banner:hover {
 .focus-workspace[data-session-state="paused"] {
   opacity: 0.95;
   border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
-}
-
-.focus-active .timer-display {
-  color: var(--coral);
 }
 
 .focus-setup,
@@ -1992,65 +2055,71 @@ button.delete-button:hover {
   margin-top: 0.45rem;
 }
 
-.task-checkbox {
+.task-checkbox,
+input[type="checkbox"].task-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  background: var(--surface-elevated);
-  border: 1.5px solid var(--border-focus);
-  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  border-radius: 6px;
+  border: 2px solid #3d5a45;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 13px 13px;
   cursor: pointer;
-  display: inline-grid;
-  place-content: center;
-  flex: 0 0 auto;
-  height: 1.25rem;
-  width: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
   margin: 0;
   padding: 0;
   position: relative;
-  transition: all 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
   vertical-align: middle;
 }
 
+.task-checkbox::before,
+.task-checkbox::after,
+.task-checkbox:checked::before,
+.task-checkbox:checked::after {
+  content: none !important;
+  display: none !important;
+}
+
 .task-checkbox:hover {
-  background: var(--interactive-hover);
-  border-color: var(--primary-hover);
-  box-shadow: 0 0 0 3px var(--primary-subtle);
+  background-color: rgba(61, 90, 69, 0.14);
+  border-color: #52b788;
+  box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.14);
 }
 
 .task-checkbox:focus-visible {
-  outline: 2px solid var(--primary-hover);
+  outline: 2px solid #52b788;
   outline-offset: 2px;
 }
 
-.task-checkbox:checked {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
-}
-
-.task-checkbox:checked::after {
-  content: "";
-  width: 5px;
-  height: 9px;
-  border: solid #FFFFFF;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-  margin-top: -2px;
-  display: block;
+.task-checkbox:checked,
+input[type="checkbox"].task-checkbox:checked {
+  background-color: #3d5a45 !important;
+  border-color: #52b788 !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M3.5 8.2L6.6 11.3L12.5 4.8' stroke='%23f4f1ea' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
 }
 
 [data-theme="dark"] .task-checkbox {
-  background: #192620;
-  border-color: #52B788;
+  background-color: rgba(25, 38, 32, 0.65);
+  border-color: #3d5a45;
 }
 
 [data-theme="dark"] .task-checkbox:hover {
-  background: #24352C;
-  border-color: #74C69D;
+  background-color: rgba(45, 106, 79, 0.22);
+  border-color: #52b788;
 }
 
 [data-theme="dark"] .task-checkbox:checked {
-  background: #40916C !important;
-  border-color: #52B788 !important;
+  background-color: #3d5a45 !important;
+  border-color: #52b788 !important;
 }
 
 .task-text {
@@ -3789,47 +3858,7 @@ button.option-card.active {
   color: var(--muted);
 }
 
-.task-checkbox {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 1.2rem;
-  height: 1.2rem;
-  border: 1.5px solid var(--border-focus);
-  border-radius: 4px;
-  background: var(--surface);
-  cursor: pointer;
-  display: inline-grid;
-  place-content: center;
-  transition: all 140ms cubic-bezier(0.16, 1, 0.3, 1);
-  flex-shrink: 0;
-  margin: 0;
-  padding: 0;
-}
-
-.task-checkbox::before {
-  content: "";
-  width: 0.52rem;
-  height: 0.3rem;
-  border-left: 2px solid #FFFFFF;
-  border-bottom: 2px solid #FFFFFF;
-  transform: rotate(-45deg) scale(0);
-  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
-  margin-top: -2px;
-}
-
-[data-theme="dark"] .task-checkbox::before {
-  border-color: #171E19;
-}
-
-.task-checkbox:checked {
-  background: var(--primary);
-  border-color: var(--primary);
-  transform: scale(1.05);
-}
-
-.task-checkbox:checked::before {
-  transform: rotate(-45deg) scale(1);
-}
+/* Duplicate .task-checkbox pseudo-element rules removed to prevent double checkmarks */
 
 /* Big Exam Countdown styling */
 .exam-big-countdown-card {
@@ -4162,23 +4191,64 @@ button.ambient-play-btn.playing {
   opacity: 0.88;
 }
 
-/* Celebratory completion banner with confetti & glow */
-.focus-complete:not([hidden]) {
-  animation: celebrationGlow 800ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  position: relative;
+/* Refined Session Completed summary card (no garish emojis) */
+.focus-complete:not([hidden]),
+.focus-complete-card:not([hidden]) {
+  padding: 24px;
+  background: color-mix(in srgb, var(--surface-soft) 65%, var(--surface));
+  border: 1px solid rgba(82, 183, 136, 0.24);
   border-radius: var(--radius-lg);
+  display: grid;
+  gap: 20px;
 }
 
 .focus-complete:not([hidden])::before {
-  content: "✨ 🎉 🌿 SESSION COMPLETED 🌿 🎉 ✨";
-  display: block;
-  font-size: 0.84rem;
+  content: none !important;
+  display: none !important;
+}
+
+.focus-complete-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.complete-summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.complete-kv-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(25, 38, 32, 0.72);
+  border: 1px solid rgba(82, 183, 136, 0.25);
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+[data-theme="light"] .complete-kv-pill {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.complete-kv-pill .kv-label {
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+}
+
+.complete-kv-pill .kv-value {
+  color: var(--text);
   font-weight: 700;
-  letter-spacing: 0.14em;
-  text-align: center;
-  color: var(--primary);
-  margin-bottom: var(--space-2);
-  animation: confettiBurst 650ms ease-out forwards;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Celebratory animation upon completing a task */
@@ -5673,10 +5743,11 @@ body.modal-open {
    Clean Centered Focus Layout: Zero dead space, tight margins, minimal cards
    ========================================================================== */
 
+.focus-container,
 .focus-centered-layout {
   display: grid;
   gap: 1.25rem;
-  max-width: min(100%, 56rem);
+  max-width: 1040px;
   margin: 0.5rem auto 2rem;
   width: 100%;
 }

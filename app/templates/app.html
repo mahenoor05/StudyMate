@@ -30,8 +30,8 @@
   <script type="importmap">
     {
       "imports": {
-        "three": "/vendor/three/build/three.module.js",
-        "three/addons/": "/vendor/three/examples/jsm/"
+        "three": "/static/vendor/three/build/three.module.js",
+        "three/addons/": "/static/vendor/three/examples/jsm/"
       }
     }
   </script>
@@ -299,11 +299,11 @@
           <h2>Focus</h2>
         </div>
         <div class="focus-header-actions">
-          <span class="status-pill" id="session-status">Not started</span>
+          <span class="status-pill" id="session-status">Idle</span>
         </div>
       </div>
 
-      <div class="focus-centered-layout">
+      <div class="focus-centered-layout focus-container">
         <div class="focus-stats-strip">
           <div class="focus-stat-item">
             <span class="stat-label">Today</span>
@@ -319,7 +319,7 @@
           </div>
         </div>
 
-        <article class="focus-workspace" id="focus-workspace" data-session-state="pre-session">
+        <article class="focus-workspace focus-card" id="focus-workspace" data-session-state="pre-session">
           <div class="focus-ambient-bar" id="focus-ambient-bar">
             <div class="ambient-audio-controls">
               <button type="button" class="ambient-play-btn" id="ambient-toggle-btn" aria-label="Toggle ambient focus sound">
@@ -361,9 +361,11 @@
                 <button type="button" class="secondary-button icon-only-button" id="timer-mode-next" aria-label="Next timer mode">&gt;</button>
               </div>
               <div class="mode-indicators compact" id="timer-mode-indicators"></div>
-              
-              <div class="timer-display pre-session-timer" id="pre-session-display">0h 00m 00s</div>
-              
+
+              <div class="timer-readout-shell">
+                <div class="timer-display pre-session-timer" id="pre-session-display">0h 00m 00s</div>
+              </div>
+
               <span id="timer-mode-description" style="display:none !important;" aria-hidden="true"></span>
               <span id="pre-session-mode-meta" style="display:none !important;" aria-hidden="true"></span>
 
@@ -372,7 +374,7 @@
                   <select id="session-subject-select" aria-label="Session subject"></select>
                   <button type="button" class="text-button focus-add-subject" id="open-subject-modal">+ Subject</button>
                 </div>
-                
+
                 <div class="session-goal-inline-wrap">
                   <input id="session-goal-input" type="text" maxlength="160" placeholder="Session goal (optional)..." autocomplete="off">
                 </div>
@@ -404,11 +406,17 @@
             </div>
 
             <div class="focus-timer-face">
-              <div class="timer-display" id="session-display">0h 00m 00s</div>
+              <div class="timer-ring-readout" id="timer-ring-readout">
+                <svg class="timer-ring-svg" viewBox="0 0 220 220" aria-hidden="true">
+                  <circle class="timer-ring-track" cx="110" cy="110" r="98"></circle>
+                  <circle class="timer-ring-progress" id="session-ring-circle" cx="110" cy="110" r="98"></circle>
+                </svg>
+                <div class="timer-display" id="session-display">0h 00m 00s</div>
+              </div>
               <span id="session-phase-copy" style="display:none !important;" aria-hidden="true"></span>
               <span id="session-next-phase" style="display:none !important;" aria-hidden="true"></span>
-              
-              <div class="progress-bar timer-progress" aria-label="Current timer progress">
+
+              <div class="progress-bar timer-progress" aria-label="Current timer progress" hidden>
                 <span id="session-progress-bar"></span>
               </div>
 
@@ -443,20 +451,28 @@
           </div>
 
           <div class="focus-complete" id="focus-complete" hidden>
-            <p class="eyebrow">Complete</p>
-            <h3 id="complete-session-title">Session Complete</h3>
-            <div class="summary-strip compact" id="complete-session-summary"></div>
-            <label class="field-label">Goal completed?</label>
-            <div class="goal-result-options" id="goal-result-options">
-              <button type="button" class="option-chip active" data-goal-result="yes">Yes</button>
-              <button type="button" class="option-chip" data-goal-result="partly">Partly</button>
-              <button type="button" class="option-chip" data-goal-result="no">No</button>
-            </div>
-            <label class="field-label" for="session-review-note">Notes</label>
-            <textarea id="session-review-note" rows="2" maxlength="180" placeholder="Optional review note..."></textarea>
-            <div class="button-row">
-              <button type="button" id="save-session-review">Save Session</button>
-              <button type="button" class="secondary-button" id="start-another-session">Start Another</button>
+            <div class="focus-complete-card">
+              <div class="focus-complete-header">
+                <p class="eyebrow">Session Summary</p>
+                <h3 id="complete-session-title">Session Complete</h3>
+              </div>
+              <div class="complete-summary-pills" id="complete-session-summary"></div>
+              <div class="complete-review-field">
+                <label class="field-label">Goal completed?</label>
+                <div class="goal-result-options" id="goal-result-options">
+                  <button type="button" class="option-chip active" data-goal-result="yes">Yes</button>
+                  <button type="button" class="option-chip" data-goal-result="partly">Partly</button>
+                  <button type="button" class="option-chip" data-goal-result="no">No</button>
+                </div>
+              </div>
+              <div class="complete-review-field">
+                <label class="field-label" for="session-review-note">Notes</label>
+                <textarea id="session-review-note" rows="2" maxlength="180" placeholder="Optional review note..."></textarea>
+              </div>
+              <div class="button-row complete-actions-row">
+                <button type="button" id="save-session-review">Save Session</button>
+                <button type="button" class="secondary-button" id="start-another-session">New Setup</button>
+              </div>
             </div>
           </div>
         </article>
@@ -1202,7 +1218,9 @@
         <!-- VIEW 1: Interactive 3D WebGL Cutaway Library Diorama -->
         <div class="cozy-spatial-room active" id="cozy-library-room">
           <!-- WebGL Canvas Container -->
-          <div class="cozy-3d-canvas-wrap" id="cozy-library-3d-canvas-wrap" aria-label="Interactive 3D Cozy Study Library"></div>
+          <div class="cozy-3d-canvas-wrap" id="cozy-library-3d-canvas-wrap" aria-label="Interactive 3D Cozy Study Library">
+            <div class="cozy-3d-canvas-wrap" id="library-canvas-container"></div>
+          </div>
 
           <!-- 3D-Projected Floating Name Tags, Sit Buttons & Study Note Popovers -->
           <div class="cozy-3d-labels-layer" id="cozy-library-3d-labels"></div>
