@@ -872,176 +872,24 @@ const defaultLibraryRoom = {
     remainingSeconds: 23 * 60 + 40,
     lastTick: Date.now()
   },
-  desks: [
-    {
-      id: 1,
-      label: "Window Nook 1",
-      occupiedBy: {
-        userId: 2,
-        displayName: "Elena Rostova",
-        avatarStyle: "orbit",
-        avatarColor: "blue",
-        subject: "Calculus III",
-        goal: "Stokes' Theorem problem set",
-        timerSeconds: 1140,
-        lampOn: true,
-        posture: "reading",
-        isBuddy: true
-      }
-    },
-    {
-      id: 2,
-      label: "Window Nook 2",
-      occupiedBy: null
-    },
-    {
-      id: 3,
-      label: "Window Nook 3",
-      occupiedBy: {
-        userId: 3,
-        displayName: "Dev Patel",
-        avatarStyle: "spark",
-        avatarColor: "amber",
-        subject: "Algorithms",
-        goal: "Graph traversals & DFS/BFS",
-        timerSeconds: 960,
-        lampOn: true,
-        posture: "typing",
-        isBuddy: true
-      }
-    },
-    {
-      id: 4,
-      label: "Window Nook 4",
-      occupiedBy: null
-    },
-    {
-      id: 5,
-      label: "Window Nook 5",
-      occupiedBy: null
-    },
-    {
-      id: 6,
-      label: "Hearthside 6",
-      occupiedBy: null
-    },
-    {
-      id: 7,
-      label: "Hearthside 7",
-      occupiedBy: null
-    },
-    {
-      id: 8,
-      label: "Hearthside 8",
-      occupiedBy: null
-    },
-    {
-      id: 9,
-      label: "Hearthside 9",
-      occupiedBy: null
-    },
-    {
-      id: 10,
-      label: "Hearthside 10",
-      occupiedBy: null
-    },
-    {
-      id: 11,
-      label: "Main Archive 11",
-      occupiedBy: null
-    },
-    {
-      id: 12,
-      label: "Main Archive 12",
-      occupiedBy: null
-    },
-    {
-      id: 13,
-      label: "Main Archive 13",
-      occupiedBy: null
-    },
-    {
-      id: 14,
-      label: "Main Archive 14",
-      occupiedBy: null
-    },
-    {
-      id: 15,
-      label: "Main Archive 15",
-      occupiedBy: null
-    },
-    {
-      id: 16,
-      label: "Quiet Corner 16",
-      occupiedBy: null
-    },
-    {
-      id: 17,
-      label: "Quiet Corner 17",
-      occupiedBy: null
-    },
-    {
-      id: 18,
-      label: "Quiet Corner 18",
-      occupiedBy: null
-    },
-    {
-      id: 19,
-      label: "Quiet Corner 19",
-      occupiedBy: null
-    },
-    {
-      id: 20,
-      label: "Quiet Corner 20",
-      occupiedBy: null
-    },
-    ...Array.from({ length: 16 }, (_, idx) => ({
-      id: 21 + idx,
-      label: `2nd Floor Mezzanine ${21 + idx}`,
+  desks: Array.from({ length: 52 }, (_, idx) => {
+    const i = idx + 1;
+    const zone = (
+      i <= 5 ? "Window Nook" :
+      i <= 10 ? "Hearthside" :
+      i <= 15 ? "Main Archive" :
+      i <= 20 ? "Quiet Corner" :
+      i <= 36 ? "2nd Floor Mezzanine" : "Archive Wing"
+    );
+    return {
+      id: i,
+      label: `${zone} ${i}`,
       occupiedBy: null,
       reservedBy: null
-    })),
-    ...Array.from({ length: 16 }, (_, idx) => ({
-      id: 37 + idx,
-      label: `Archive Wing ${37 + idx}`,
-      occupiedBy: null,
-      reservedBy: null
-    }))
-  ],
-  stickyNotes: [
-    {
-      id: "note-1",
-      author: "Elena R.",
-      color: "sage",
-      content: "Reminder: Review vector calculus problem set before 3pm tomorrow!",
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: "note-2",
-      author: "Dev P.",
-      color: "amber",
-      content: "2 more 25m pomodoros today. Phones away, deep focus mode!",
-      createdAt: new Date().toISOString()
-    }
-  ],
-  messages: [
-    {
-      id: "msg-1",
-      senderName: "Elena Rostova",
-      senderAvatarStyle: "orbit",
-      senderAvatarColor: "blue",
-      content: "Welcome to the study library! The rain outside makes it so peaceful today.",
-      createdAt: new Date(Date.now() - 1800000).toISOString()
-    },
-    {
-      id: "msg-2",
-      senderName: "Dev Patel",
-      senderAvatarStyle: "spark",
-      senderAvatarColor: "amber",
-      content: "Starting a 25m focus sprint on algorithms. Feel free to join VC anytime!",
-      createdAt: new Date(Date.now() - 600000).toISOString()
-    }
-  ],
+    };
+  }),
+  stickyNotes: [],
+  messages: [],
   vcParticipants: new Map() // peerId -> { peerId, userId, displayName, avatarStyle, avatarColor, hasVideo, hasAudio, isScreenSharing, isSpeaking }
 };
 libraryRooms.set("grand-oak", defaultLibraryRoom);
@@ -1056,57 +904,22 @@ function getOrCreateLibraryRoom(roomId = "common") {
     return defaultLibraryRoom;
   }
   const isGroup = normId.startsWith("group:");
-  const desks = [];
-  const deskCount = 52;
-  for (let i = 1; i <= deskCount; i++) {
-    const zone = i <= 5 ? "Window Nook" : (i <= 10 ? "Hearthside" : (i <= 15 ? "Main Archive" : (i <= 20 ? "Quiet Corner" : (i <= 36 ? "2nd Floor Mezzanine" : "Archive Wing"))));
-    desks.push({
+  const desks = Array.from({ length: 52 }, (_, idx) => {
+    const i = idx + 1;
+    const zone = (
+      i <= 5 ? "Window Nook" :
+      i <= 10 ? "Hearthside" :
+      i <= 15 ? "Main Archive" :
+      i <= 20 ? "Quiet Corner" :
+      i <= 36 ? "2nd Floor Mezzanine" : "Archive Wing"
+    );
+    return {
       id: i,
       label: `${zone} ${i}`,
       occupiedBy: null,
       reservedBy: null
-    });
-  }
-  desks[0].occupiedBy = {
-    userId: 2,
-    displayName: "Elena Rostova",
-    avatarStyle: "orbit",
-    avatarColor: "blue",
-    subject: "Calculus III",
-    goal: "Stokes' Theorem problem set",
-    timerSeconds: 1140,
-    lampOn: true,
-    posture: "reading",
-    isBuddy: true
-  };
-  desks[2].occupiedBy = {
-    userId: 3,
-    displayName: "Dev Patel",
-    avatarStyle: "spark",
-    avatarColor: "amber",
-    subject: "Algorithms",
-    goal: "Graph traversals & DFS/BFS",
-    timerSeconds: 960,
-    lampOn: true,
-    posture: "typing",
-    isBuddy: true
-  };
-  if (isGroup) {
-    desks[1].reservedBy = {
-      userId: 102,
-      displayName: "Aarav Sharma",
-      avatarStyle: "spark",
-      avatarColor: "rose",
-      subject: "Quantum Mechanics"
     };
-    desks[3].reservedBy = {
-      userId: 103,
-      displayName: "Sophia Chen",
-      avatarStyle: "orbit",
-      avatarColor: "purple",
-      subject: "Organic Chemistry"
-    };
-  }
+  });
   const newRoom = {
     id: normId,
     name: isGroup ? "Group Library" : "Common Library",

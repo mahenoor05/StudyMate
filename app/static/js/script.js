@@ -3228,7 +3228,6 @@ function updateAllDisplays() {
   renderRecentSessions();
   renderPlanner();
   renderExams();
-  renderLeaderboard();
   renderProfile();
 }
 
@@ -7783,37 +7782,8 @@ function renderDistractions() {
 }
 
 function renderLeaderboard() {
+  if (!leaderboardTable) return;
   leaderboardTable.innerHTML = "";
-  const range = appData.selectedLeaderboardRange;
-
-  leaderboardTabs.forEach(function (tab) {
-    const isActive = tab.dataset.leaderboardRange === range;
-    tab.classList.toggle("active", isActive);
-    tab.classList.toggle("secondary-button", !isActive);
-  });
-
-  studyMateApi(`leaderboard?range=${range}`)
-    .then(function (response) {
-      if (!response.rows || response.rows.length === 0) {
-        appendSimpleItem(leaderboardTable, "No leaderboard activity yet.");
-        return;
-      }
-
-      response.rows.forEach(function (user, index) {
-        const row = document.createElement("div");
-        row.className = "leaderboard-row";
-        row.innerHTML = `
-          <strong>#${index + 1}</strong>
-          <span class="group-avatar">${escapeHtml(getInitials(user.name))}</span>
-          <span>${escapeHtml(user.name)}</span>
-          <span>${formatShortTime(user.totalSeconds)}</span>
-        `;
-        leaderboardTable.appendChild(row);
-      });
-    })
-    .catch(function (error) {
-      appendSimpleItem(leaderboardTable, error.message);
-    });
 }
 
 function renderThemes() {
@@ -7971,7 +7941,6 @@ async function savePrivacySettings() {
   await saveProfilePayload({
     leaderboardVisibility: leaderboardVisibilityInput.value
   });
-  renderLeaderboard();
 }
 
 function leaveFocusRoom(shouldRender = true) {
@@ -8102,11 +8071,15 @@ function renderGroupWorkspace(circle) {
   groupWorkspaceName.textContent = circle.name;
   groupWorkspaceDescription.textContent = circle.description;
   groupWorkspaceMeta.innerHTML = "";
-  [`${circle.members.length} members`, `${getActiveMemberCount(circle)} studying now`, `${circle.rooms.length} rooms`].forEach(function (label) {
+  [`${circle.members.length} members`, `${getActiveMemberCount(circle)} studying now`].forEach(function (label) {
     const item = document.createElement("span");
     item.textContent = label;
     groupWorkspaceMeta.appendChild(item);
   });
+
+  if (appData.selectedCircleTab === "rooms") {
+    appData.selectedCircleTab = "overview";
+  }
 
   groupTabs.forEach(function (tab) {
     tab.classList.toggle("active", tab.dataset.groupTab === appData.selectedCircleTab);
@@ -8117,7 +8090,6 @@ function renderGroupWorkspace(circle) {
   });
 
   renderGroupOverview(circle);
-  renderGroupRooms(circle);
   renderGroupChallenges(circle);
   renderGroupMembers(circle);
   renderGroupRanking(circle);
@@ -8198,6 +8170,7 @@ function renderGroupActivity(circle) {
 }
 
 function renderGroupRooms(circle) {
+  if (!groupRoomList || !circle) return;
   groupRoomList.innerHTML = "";
   if (circle.rooms.length === 0) {
     appendSimpleItem(groupRoomList, "No focus rooms active. Start a room when you're ready to study together.");
@@ -8554,7 +8527,7 @@ function joinFocusRoom(roomId) {
   }
 
   appData.activeRoomId = room.id;
-  appData.selectedCircleTab = "rooms";
+  appData.selectedCircleTab = "overview";
   const circle = getCircleForRoom(room.id);
   if (circle) addGroupActivity(circle, `You joined ${room.name}.`);
   saveData();
@@ -8562,6 +8535,7 @@ function joinFocusRoom(roomId) {
 }
 
 function renderActiveRoom() {
+  if (!groupRoomLive) return;
   const room = getRoomById(appData.activeRoomId);
 
   if (!room) {
@@ -9469,13 +9443,15 @@ inviteModal.addEventListener("click", function (event) {
   if (event.target === inviteModal) closeInviteModal();
 });
 copyInviteButton.addEventListener("click", copyInviteCode);
-createRoomButton.addEventListener("click", openRoomModal);
-closeRoomModalButton.addEventListener("click", closeRoomModal);
-roomModal.addEventListener("click", function (event) {
-  if (event.target === roomModal) closeRoomModal();
-});
-roomForm.addEventListener("submit", createFocusRoom);
-leaveRoomButton.addEventListener("click", function () { leaveFocusRoom(true); });
+if (createRoomButton) createRoomButton.addEventListener("click", openRoomModal);
+if (closeRoomModalButton) closeRoomModalButton.addEventListener("click", closeRoomModal);
+if (roomModal) {
+  roomModal.addEventListener("click", function (event) {
+    if (event.target === roomModal) closeRoomModal();
+  });
+}
+if (roomForm) roomForm.addEventListener("submit", createFocusRoom);
+if (leaveRoomButton) leaveRoomButton.addEventListener("click", function () { leaveFocusRoom(true); });
 createChallengeButton.addEventListener("click", openChallengeModal);
 closeChallengeModalButton.addEventListener("click", closeChallengeModal);
 challengeModal.addEventListener("click", function (event) {
@@ -9559,13 +9535,15 @@ analyticsTabs.forEach(function (tab) {
   });
 });
 
-leaderboardTabs.forEach(function (tab) {
-  tab.addEventListener("click", function () {
-    appData.selectedLeaderboardRange = tab.dataset.leaderboardRange;
-    saveData();
-    renderLeaderboard();
+if (leaderboardTabs && leaderboardTabs.length > 0) {
+  leaderboardTabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      appData.selectedLeaderboardRange = tab.dataset.leaderboardRange;
+      saveData();
+      renderLeaderboard();
+    });
   });
-});
+}
 
 if (importLocalDataButton) {
   importLocalDataButton.addEventListener("click", importLegacyLocalData);
@@ -10001,17 +9979,117 @@ const rtcConfig = {
   ]
 };
 
+function isDeskMine(deskOrOccupant) {
+  if (!deskOrOccupant) return false;
+
+  const currentUserId = window.currentUser?.id || window.currentUser?.userId || window.STUDYMATE_USER?.id || null;
+  const currentUsername = window.currentUser?.username || window.currentUser?.name || window.STUDYMATE_USER?.username || window.STUDYMATE_USER?.displayName || null;
+
+  // Direct match on user ID or username string
+  if (typeof deskOrOccupant === "string") {
+    return (
+      deskOrOccupant === currentUserId ||
+      String(deskOrOccupant) === String(currentUserId) ||
+      deskOrOccupant === currentUsername
+    );
+  }
+
+  // Direct match on desk object properties
+  if (deskOrOccupant.userId && currentUserId && (deskOrOccupant.userId === currentUserId || String(deskOrOccupant.userId) === String(currentUserId))) return true;
+  if (deskOrOccupant.user_id && currentUserId && (deskOrOccupant.user_id === currentUserId || String(deskOrOccupant.user_id) === String(currentUserId))) return true;
+  if (deskOrOccupant.id && currentUserId && (deskOrOccupant.id === currentUserId || String(deskOrOccupant.id) === String(currentUserId))) return true;
+  if (deskOrOccupant.username && currentUsername && deskOrOccupant.username === currentUsername) return true;
+
+  // Nested occupant structure: desk.occupiedBy, desk.occupant or desk.userData.occupant
+  const occupant = deskOrOccupant.occupiedBy || deskOrOccupant.occupant || deskOrOccupant.userData?.occupant;
+  if (occupant) {
+    if (occupant.id && currentUserId && (occupant.id === currentUserId || String(occupant.id) === String(currentUserId))) return true;
+    if (occupant.userId && currentUserId && (occupant.userId === currentUserId || String(occupant.userId) === String(currentUserId))) return true;
+    if (occupant.username && currentUsername && occupant.username === currentUsername) return true;
+    if (occupant.name && currentUsername && occupant.name === currentUsername) return true;
+    if (occupant.displayName && currentUsername && occupant.displayName === currentUsername) return true;
+  }
+
+  return false;
+}
+window.isDeskMine = isDeskMine;
+
+function vacateMyExistingDesks(exceptDeskId = null) {
+  if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+  libraryRoomState.desks.forEach(function (d) {
+    if (isDeskMine(d) && (!exceptDeskId || Number(d.id) !== Number(exceptDeskId))) {
+      d.occupiedBy = null;
+    }
+  });
+}
+window.vacateMyExistingDesks = vacateMyExistingDesks;
+
+let libraryWs = null;
+
 function connectLibraryWs() {
   initLibraryRealtimePresence();
+  initLocalLibraryWebSocket();
+}
+
+function initLocalLibraryWebSocket() {
+  if (typeof WebSocket === "undefined") return;
+  if (libraryWs && (libraryWs.readyState === WebSocket.OPEN || libraryWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+  try {
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const wsUrl = `${wsProto}//${window.location.host}/ws/library`;
+    libraryWs = new WebSocket(wsUrl);
+
+    libraryWs.onopen = function () {
+      const user = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
+      const targetRoomId = currentLibraryRoomId || "common";
+      libraryWs.send(JSON.stringify({
+        type: "join:library",
+        roomId: targetRoomId,
+        user: {
+          id: user.id,
+          displayName: user.displayName || user.username || "Student",
+          avatarStyle: user.avatarStyle || "initials",
+          avatarColor: user.avatarColor || "teal",
+          avatarUrl: user.avatarUrl || null
+        }
+      }));
+    };
+
+    libraryWs.onmessage = function (event) {
+      try {
+        const data = JSON.parse(event.data);
+        handleLibraryWsMessage(data);
+      } catch (err) {
+        console.warn("WS message parse error:", err);
+      }
+    };
+
+    libraryWs.onclose = function () {
+      libraryWs = null;
+    };
+
+    libraryWs.onerror = function () {};
+  } catch (err) {
+    console.warn("Local WS skipped:", err);
+  }
 }
 
 function initLibraryRealtimePresence() {
   if (!supabaseClient) {
-    console.warn("Supabase client unavailable — library running in local offline mode.");
-    return;
+    try {
+      if (typeof supabase !== "undefined" && typeof supabase.createClient === "function") {
+        const sbUrl = window.SUPABASE_URL || "https://xyzcompany.supabase.co";
+        const sbKey = window.SUPABASE_ANON_KEY || "public-anon-key";
+        supabaseClient = supabase.createClient(sbUrl, sbKey);
+      }
+    } catch (e) {
+      console.warn("Supabase init error:", e);
+    }
   }
 
-  if (currentLibraryChannel) {
+  if (currentLibraryChannel && supabaseClient) {
     try {
       supabaseClient.removeChannel(currentLibraryChannel);
     } catch (e) {}
@@ -10019,42 +10097,48 @@ function initLibraryRealtimePresence() {
   }
 
   const currentUser = window.STUDYMATE_USER || { id: "user-" + Math.random().toString(36).slice(2, 8), displayName: "Student" };
+  const currentUserId = String(currentUser.id || libraryPeerId);
   const roomKey = currentLibraryRoomId || "common";
   const channelName = roomKey.startsWith("group:") ? `library_group_${roomKey.split(":")[1]}` : "library_common_presence";
 
-  currentLibraryChannel = supabaseClient.channel(channelName, {
-    config: {
-      presence: { key: String(currentUser.id) },
-      broadcast: { self: false }
-    }
-  });
-
-  currentLibraryChannel
-    .on("presence", { event: "sync" }, () => {
-      const state = currentLibraryChannel.presenceState();
-      updateDesksFromPresenceState(state);
-      updateVCParticipantsFromPresence(state);
-    })
-    .on("broadcast", { event: "webrtc_signal" }, ({ payload }) => {
-      handleWebRtcSignal(payload);
-    })
-    .subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        const myDesk = libraryRoomState?.desks?.find(d => isDeskMine(d));
-        if (myDesk && myDesk.occupiedBy) {
-          await currentLibraryChannel.track({
-            deskId: myDesk.id,
-            user: currentUser,
-            subject: myDesk.occupiedBy.subject || "Focus Study",
-            goal: myDesk.occupiedBy.goal || "",
-            lampOn: myDesk.occupiedBy.lampOn !== false,
-            posture: myDesk.occupiedBy.posture || "reading",
-            timerSeconds: myDesk.occupiedBy.timerSeconds || 0,
-            joinedAt: Date.now()
-          });
-        }
+  if (supabaseClient) {
+    currentLibraryChannel = supabaseClient.channel(channelName, {
+      config: {
+        presence: { key: currentUserId },
+        broadcast: { self: false }
       }
     });
+
+    currentLibraryChannel
+      .on("presence", { event: "sync" }, () => {
+        const state = currentLibraryChannel.presenceState();
+        updateDesksFromPresenceState(state);
+        updateVCParticipantsFromPresence(state);
+      })
+      .on("broadcast", { event: "webrtc_offer" }, ({ payload }) => {
+        handleRemoteOffer(payload.sender, payload.sdp, payload.user);
+      })
+      .on("broadcast", { event: "webrtc_answer" }, ({ payload }) => {
+        handleRemoteAnswer(payload.sender, payload.sdp);
+      })
+      .on("broadcast", { event: "webrtc_candidate" }, ({ payload }) => {
+        handleRemoteIceCandidate(payload.sender, payload.candidate);
+      })
+      .on("broadcast", { event: "webrtc_join" }, ({ payload }) => {
+        handlePeerJoinedCall(payload);
+      })
+      .on("broadcast", { event: "webrtc_leave" }, ({ payload }) => {
+        handlePeerLeftCall(payload.peerId);
+      })
+      .on("broadcast", { event: "webrtc_media_state" }, ({ payload }) => {
+        updateRemotePeerMediaState(payload);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await syncMyPresence();
+        }
+      });
+  }
 }
 
 function enforceSingleSeatRuleOnState() {
@@ -10077,6 +10161,7 @@ function enforceSingleSeatRuleOnState() {
 
 function updateDesksFromPresenceState(state) {
   if (!libraryRoomState || !Array.isArray(libraryRoomState.desks)) return;
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
 
   libraryRoomState.desks.forEach(d => {
     if (!isDeskMine(d)) {
@@ -10084,77 +10169,179 @@ function updateDesksFromPresenceState(state) {
     }
   });
 
-  Object.keys(state).forEach(presenceKey => {
-    const entries = state[presenceKey];
-    if (Array.isArray(entries) && entries.length > 0) {
-      const latest = entries[entries.length - 1];
-      if (latest && latest.deskId) {
-        const targetDesk = libraryRoomState.desks.find(d => d.id === Number(latest.deskId));
-        const currentUserId = String(window.STUDYMATE_USER?.id || 1);
-        if (targetDesk && String(latest.user?.id) !== currentUserId) {
-          targetDesk.occupiedBy = {
-            peerId: latest.user?.id || presenceKey,
-            userId: latest.user?.id || 99,
-            displayName: latest.user?.displayName || latest.user?.username || "Study Partner",
-            avatarColor: latest.user?.avatarColor || "teal",
-            avatarStyle: latest.user?.avatarStyle || "initials",
-            subject: latest.subject || "Focus Study",
-            goal: latest.goal || "",
-            timerSeconds: latest.timerSeconds || 0,
-            lampOn: latest.lampOn !== false,
-            posture: latest.posture || "reading",
-            isBuddy: false
-          };
+  if (state && typeof state === "object") {
+    Object.keys(state).forEach(presenceKey => {
+      const entries = state[presenceKey];
+      if (Array.isArray(entries) && entries.length > 0) {
+        const latest = entries[entries.length - 1];
+        if (latest && latest.deskId) {
+          const targetDesk = libraryRoomState.desks.find(d => d.id === Number(latest.deskId));
+          const entryUserId = String(latest.user?.id || presenceKey);
+          if (targetDesk && entryUserId !== currentUserId) {
+            targetDesk.occupiedBy = {
+              peerId: latest.user?.id || presenceKey,
+              userId: latest.user?.id || entryUserId,
+              displayName: latest.user?.displayName || latest.user?.username || "Study Partner",
+              avatarColor: latest.user?.avatarColor || "teal",
+              avatarStyle: latest.user?.avatarStyle || "initials",
+              avatarUrl: latest.user?.avatarUrl || null,
+              subject: latest.subject || "Focus Study",
+              goal: latest.goal || "",
+              timerSeconds: latest.timerSeconds || 0,
+              lampOn: latest.lampOn !== false,
+              posture: latest.posture || "reading",
+              isBuddy: false
+            };
+          }
         }
       }
-    }
-  });
+    });
+  }
 
+  enforceSingleSeatRuleOnState();
   renderLibraryDesks();
   renderLibraryTimer();
   if (window.cozyLibrary3D && typeof window.cozyLibrary3D.syncDesks === "function") {
-    const currentUserId = window.STUDYMATE_USER?.id || 1;
     const isGroupLibrary = Boolean(currentLibraryRoomId && String(currentLibraryRoomId).startsWith("group:"));
-    window.cozyLibrary3D.syncDesks(libraryRoomState.desks, currentUserId, isGroupLibrary);
+    window.cozyLibrary3D.syncDesks(libraryRoomState.desks, window.STUDYMATE_USER?.id || 1, isGroupLibrary);
   }
 }
 
 function updateVCParticipantsFromPresence(state) {
-  let count = 0;
-  Object.keys(state).forEach(key => {
-    const entries = state[key];
-    if (Array.isArray(entries) && entries.length > 0) {
-      count++;
-    }
-  });
+  const participantsOnCall = [];
+  if (state && typeof state === "object") {
+    Object.keys(state).forEach(key => {
+      const entries = state[key];
+      if (Array.isArray(entries) && entries.length > 0) {
+        const latest = entries[entries.length - 1];
+        if (latest && latest.inCall) {
+          participantsOnCall.push(latest);
+        }
+      }
+    });
+  }
+
+  const count = participantsOnCall.length;
   updateVCParticipantCount(count);
+
+  const statusPill = document.getElementById("vc-lobby-status-pill");
+  const statusText = document.getElementById("vc-lobby-status-text");
+  const membersBadge = document.getElementById("vc-lobby-members-badge");
+  const membersList = document.getElementById("vc-lobby-members-list");
+  const activePeerCount = document.getElementById("vc-active-peer-count");
+
+  if (statusPill && statusText) {
+    if (count > 0) {
+      statusPill.className = "vc-status-pill live";
+      statusText.textContent = `Live Call · ${count} active`;
+    } else {
+      statusPill.className = "vc-status-pill idle";
+      statusText.textContent = "Idle · 0 active";
+    }
+  }
+
+  if (membersBadge) {
+    membersBadge.textContent = String(count);
+  }
+
+  if (activePeerCount) {
+    activePeerCount.textContent = count === 1 ? "1 participant" : `${count} participants`;
+  }
+
+  if (membersList) {
+    if (count === 0) {
+      membersList.innerHTML = `
+        <div class="vc-lobby-empty-text" id="vc-lobby-empty-text">
+          <p class="muted-text">No scholars are on call right now. Click below to start the room.</p>
+        </div>
+      `;
+    } else {
+      membersList.innerHTML = participantsOnCall.map(p => {
+        const u = p.user || {};
+        const name = u.displayName || u.username || "Scholar";
+        const initials = getInitials(name);
+        const hasMic = p.hasAudio !== false;
+        const hasCam = Boolean(p.hasVideo);
+        return `
+          <div class="vc-lobby-member-row">
+            <div class="vc-lobby-member-info">
+              <div class="vc-lobby-member-avatar">${escapeHtml(initials)}</div>
+              <span class="vc-lobby-member-name">${escapeHtml(name)}</span>
+            </div>
+            <div class="vc-lobby-member-badges">
+              <span class="vc-lobby-member-badge">${hasMic ? "🎙️ Mic Live" : "🔇 Muted"}</span>
+              ${hasCam ? '<span class="vc-lobby-member-badge">📹 Cam On</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+  }
+}
+
+async function syncMyPresence() {
+  if (!currentLibraryChannel) return;
+  const currentUser = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
+  const myDesk = libraryRoomState?.desks?.find(d => isDeskMine(d));
+  const hasAudio = Boolean(localMediaStream && localMediaStream.getAudioTracks().length > 0 && localMediaStream.getAudioTracks()[0].enabled);
+  const hasVideo = Boolean(localMediaStream && localMediaStream.getVideoTracks().length > 0 && localMediaStream.getVideoTracks()[0].enabled);
+
+  try {
+    await currentLibraryChannel.track({
+      deskId: myDesk ? Number(myDesk.id) : null,
+      inCall: Boolean(isCallJoined),
+      hasAudio: hasAudio,
+      hasVideo: hasVideo,
+      isSpeaking: false,
+      user: currentUser,
+      subject: myDesk?.occupiedBy?.subject || "Focus Study",
+      goal: myDesk?.occupiedBy?.goal || "",
+      lampOn: myDesk?.occupiedBy?.lampOn !== false,
+      posture: myDesk?.occupiedBy?.posture || "reading",
+      timerSeconds: appData.activeSession ? getSessionElapsedSeconds() : 0,
+      seatedAt: Date.now()
+    });
+  } catch (e) {
+    console.warn("Presence sync track error:", e);
+  }
 }
 
 async function trackMyDeskPresence(deskId, subject, goal, lampOn, posture) {
-  if (!currentLibraryChannel) return;
-  const currentUser = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
-  try {
-    await currentLibraryChannel.track({
-      deskId: Number(deskId),
-      user: currentUser,
-      subject: subject || "Focus Study",
-      goal: goal || "",
-      lampOn: lampOn !== false,
-      posture: posture || "reading",
-      timerSeconds: appData.activeSession ? getSessionElapsedSeconds() : 0,
-      joinedAt: Date.now()
-    });
-  } catch (e) {
-    console.warn("Presence track error:", e);
-  }
+  await syncMyPresence();
 }
 
 async function untrackMyDeskPresence() {
   if (!currentLibraryChannel) return;
   try {
-    await currentLibraryChannel.untrack();
+    if (isCallJoined) {
+      await syncMyPresence();
+    } else {
+      await currentLibraryChannel.untrack();
+    }
   } catch (e) {
     console.warn("Presence untrack error:", e);
+  }
+}
+
+function sendLibraryBroadcast(eventName, payload) {
+  if (currentLibraryChannel) {
+    try {
+      currentLibraryChannel.send({
+        type: "broadcast",
+        event: eventName,
+        payload: payload
+      });
+    } catch (e) {
+      console.warn("Supabase broadcast error:", e);
+    }
+  }
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    try {
+      libraryWs.send(JSON.stringify({
+        type: eventName,
+        ...payload
+      }));
+    } catch (e) {}
   }
 }
 
@@ -10165,45 +10352,39 @@ function sendLibraryRealtimeEvent(payload) {
   } else if (payload.type === "desk:leave") {
     untrackMyDeskPresence();
   } else if (payload.type === "desk:update_progress" || payload.type === "desk:posture") {
-    const myDesk = libraryRoomState?.desks?.find(d => isDeskMine(d));
-    if (myDesk && myDesk.occupiedBy) {
-      trackMyDeskPresence(myDesk.id, myDesk.occupiedBy.subject, myDesk.occupiedBy.goal, myDesk.occupiedBy.lampOn, myDesk.occupiedBy.posture);
-    }
+    syncMyPresence();
+  } else if (payload.type === "vc:join" || payload.type === "vc:leave") {
+    syncMyPresence();
+  } else if (payload.type === "vc:media_state") {
+    sendLibraryBroadcast("webrtc_media_state", payload);
+  }
+
+  if (libraryWs && libraryWs.readyState === WebSocket.OPEN) {
+    try {
+      libraryWs.send(JSON.stringify(payload));
+    } catch (e) {}
   }
 }
 
-function sendWebRtcSignal(targetPeerId, signalData) {
-  if (!currentLibraryChannel) return;
+function handlePeerJoinedCall(payload) {
+  if (!payload || !payload.peerId) return;
   const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
-  currentLibraryChannel.send({
-    type: "broadcast",
-    event: "webrtc_signal",
-    payload: {
-      sender: currentUserId,
-      target: targetPeerId,
-      signal: signalData
-    }
-  });
+  if (String(payload.peerId) === currentUserId) return;
+
+  if (isCallJoined) {
+    ensureRemotePeerTile(payload.peerId, null, payload.user || payload);
+    createPeerConnection(payload.peerId, true);
+  }
 }
 
-function handleWebRtcSignal(payload) {
-  if (!payload) return;
-  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
-  if (payload.target && String(payload.target) !== currentUserId) return;
-  if (String(payload.sender) === currentUserId) return;
+function handlePeerLeftCall(peerId) {
+  if (!peerId) return;
+  closePeerConnection(peerId);
+}
 
-  const fromPeerId = payload.sender;
-  const signal = payload.signal;
-
-  if (signal.sdp) {
-    if (signal.sdp.type === "offer") {
-      handleRemoteOffer(fromPeerId, signal.sdp, null);
-    } else if (signal.sdp.type === "answer") {
-      handleRemoteAnswer(fromPeerId, signal.sdp);
-    }
-  } else if (signal.iceCandidate) {
-    handleRemoteIceCandidate(fromPeerId, signal.iceCandidate);
-  }
+function updateRemotePeerMediaState(payload) {
+  if (!payload || !payload.peerId) return;
+  updateRemotePeerState(payload.peerId, payload);
 }
 
 function handleLibraryWsMessage(data) {
@@ -10424,8 +10605,7 @@ function getLibraryContextState(roomId) {
   const key = roomId || currentLibraryRoomId || "common";
   if (!libraryContextStateByRoom[key]) {
     libraryContextStateByRoom[key] = {
-      activeFloor: "ground",
-      simStep: 0
+      activeFloor: "ground"
     };
   }
   return libraryContextStateByRoom[key];
@@ -11003,7 +11183,6 @@ function updateLibraryFloorCapacityUI() {
   const archLimit = 16; // Desks 37-52 (4 per rug across 4 rugs)
 
   const ctx = getLibraryContextState(currentLibraryRoomId);
-  const simStep = ctx.simStep || 0;
 
   const desks = (libraryRoomState && Array.isArray(libraryRoomState.desks)) ? libraryRoomState.desks : [];
 
@@ -11023,8 +11202,8 @@ function updateLibraryFloorCapacityUI() {
   // Sequential floor unlocking:
   // 1) Ground Floor >= 80% unlocks 2nd Floor (Mezzanine)
   // 2) 2nd Floor >= 80% unlocks Archive Wing
-  const isMezzUnlocked = groundRatio >= 0.80 || simStep >= 1;
-  const isArchUnlocked = isMezzUnlocked && (mezzRatio >= 0.80 || simStep >= 2);
+  const isMezzUnlocked = groundRatio >= 0.80;
+  const isArchUnlocked = isMezzUnlocked && (mezzRatio >= 0.80);
 
   if (window.cozyLibrary3D && typeof window.cozyLibrary3D.setUnlockedFloors === "function") {
     window.cozyLibrary3D.setUnlockedFloors({
@@ -11037,7 +11216,6 @@ function updateLibraryFloorCapacityUI() {
   const btnMezzanine = document.getElementById("floor-btn-mezzanine");
   const btnArchive = document.getElementById("floor-btn-archive");
   const indicator = document.getElementById("library-capacity-indicator");
-  const simBtn = document.getElementById("library-sim-fill-btn");
 
   if (btnMezzanine) btnMezzanine.style.display = isMezzUnlocked ? "inline-flex" : "none";
   if (btnArchive) btnArchive.style.display = isArchUnlocked ? "inline-flex" : "none";
@@ -11053,20 +11231,6 @@ function updateLibraryFloorCapacityUI() {
       const pct = Math.round(groundRatio * 100);
       indicator.textContent = `Ground Floor (${groundOccupied}/${groundLimit} · ${pct}%)`;
       indicator.classList.remove("unlocked");
-    }
-  }
-
-  if (simBtn) {
-    simBtn.classList.toggle("sim-active", simStep > 0);
-    if (simStep === 0) {
-      simBtn.textContent = "+ Fill Floor";
-      simBtn.title = "Fill Ground Floor (85%) to unlock 2nd Floor";
-    } else if (simStep === 1) {
-      simBtn.textContent = "+ Fill 2nd Floor";
-      simBtn.title = "Fill 2nd Floor (85%) to unlock Archive Wing";
-    } else {
-      simBtn.textContent = "Reset Floors";
-      simBtn.title = "Reset simulated floor occupancy";
     }
   }
 
@@ -11681,26 +11845,49 @@ function deleteStickyNote(noteId) {
 async function joinVC() {
   if (isCallJoined) return;
 
+  const prefMic = document.getElementById("vc-join-pref-mic") ? document.getElementById("vc-join-pref-mic").checked : true;
+  const prefCam = document.getElementById("vc-join-pref-cam") ? document.getElementById("vc-join-pref-cam").checked : false;
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(function () {
-      return navigator.mediaDevices.getUserMedia({ audio: true });
-    });
+    let stream = null;
+    if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function") {
+      if (prefCam) {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(function () {
+          return navigator.mediaDevices.getUserMedia({ audio: true }).catch(function () { return null; });
+        });
+      } else {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(function () {
+          return null;
+        });
+      }
+    }
 
     localMediaStream = stream;
     isCallJoined = true;
+
+    if (localMediaStream) {
+      const audioTrack = localMediaStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = prefMic;
+      }
+      const videoTrack = localMediaStream.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = prefCam;
+      }
+    }
 
     const localVideo = document.getElementById("vc-local-video");
     const fallback = document.getElementById("vc-local-avatar-fallback");
     const localName = document.getElementById("vc-local-name");
     const micBadge = document.getElementById("vc-local-mic-badge");
 
-    if (localVideo) {
+    if (localVideo && stream && stream.getVideoTracks().length > 0) {
       localVideo.srcObject = stream;
       localVideo.play().catch(function () {});
     }
 
-    const hasVideo = stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled;
-    const hasAudio = stream.getAudioTracks().length > 0 && stream.getAudioTracks()[0].enabled;
+    const hasVideo = Boolean(stream && stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled);
+    const hasAudio = Boolean(stream && stream.getAudioTracks().length > 0 && stream.getAudioTracks()[0].enabled);
     if (fallback) fallback.style.display = hasVideo ? "none" : "flex";
     if (localName) localName.textContent = `${window.STUDYMATE_USER?.displayName || "You"} (You)`;
     if (micBadge) {
@@ -11709,31 +11896,77 @@ async function joinVC() {
     }
 
     updateMicUI(hasAudio);
-    const camBtn = document.getElementById("vc-toggle-cam");
-    if (camBtn) camBtn.classList.toggle("active", hasVideo);
+    updateCamUI(hasVideo);
 
-    setupAudioAnalyser(stream);
+    if (stream && stream.getAudioTracks().length > 0) {
+      setupAudioAnalyser(stream);
+    }
 
-    sendLibraryRealtimeEvent({
-      type: "vc:join",
-      hasVideo,
-      hasAudio
-    });
+    // Switch view to active call stage
+    const lobbyEl = document.getElementById("vc-lobby-container");
+    const stageEl = document.getElementById("vc-active-stage");
+    if (lobbyEl) lobbyEl.hidden = true;
+    if (stageEl) stageEl.hidden = false;
 
     updateVCButtonStates(true);
     switchLibraryView("vc");
+
+    await syncMyPresence();
+
+    const currentUser = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
+    const currentUserId = String(currentUser.id || libraryPeerId);
+    sendLibraryBroadcast("webrtc_join", {
+      peerId: currentUserId,
+      user: currentUser,
+      hasAudio,
+      hasVideo
+    });
+
+    initiateConnectionsToExistingCallPeers();
   } catch (err) {
     console.warn("Unable to capture media devices:", err);
     isCallJoined = true;
+
+    const lobbyEl = document.getElementById("vc-lobby-container");
+    const stageEl = document.getElementById("vc-active-stage");
+    if (lobbyEl) lobbyEl.hidden = true;
+    if (stageEl) stageEl.hidden = false;
+
     updateVCButtonStates(true);
     switchLibraryView("vc");
 
-    sendLibraryRealtimeEvent({
-      type: "vc:join",
-      hasVideo: false,
-      hasAudio: false
+    await syncMyPresence();
+
+    const currentUser = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
+    const currentUserId = String(currentUser.id || libraryPeerId);
+    sendLibraryBroadcast("webrtc_join", {
+      peerId: currentUserId,
+      user: currentUser,
+      hasAudio: false,
+      hasVideo: false
     });
+
+    initiateConnectionsToExistingCallPeers();
   }
+}
+
+function initiateConnectionsToExistingCallPeers() {
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
+  if (!currentLibraryChannel || typeof currentLibraryChannel.presenceState !== "function") return;
+  const state = currentLibraryChannel.presenceState();
+  if (!state) return;
+
+  Object.keys(state).forEach(key => {
+    const entries = state[key];
+    if (Array.isArray(entries) && entries.length > 0) {
+      const latest = entries[entries.length - 1];
+      const peerId = String(latest.user?.id || key);
+      if (latest && latest.inCall && peerId !== currentUserId) {
+        ensureRemotePeerTile(peerId, null, latest.user);
+        createPeerConnection(peerId, true);
+      }
+    }
+  });
 }
 
 function leaveVC() {
@@ -11751,7 +11984,9 @@ function leaveVC() {
 
   clearInterval(localAudioInterval);
 
-  peerConnections.forEach(function (pc) { pc.close(); });
+  peerConnections.forEach(function (pc) {
+    try { pc.close(); } catch (e) {}
+  });
   peerConnections.clear();
   pendingIceCandidates.clear();
 
@@ -11759,9 +11994,16 @@ function leaveVC() {
   if (remoteContainer) {
     remoteContainer.innerHTML = `
       <div class="vc-empty-peers" id="vc-empty-peers">
-        <div class="empty-peers-graphic">🎧</div>
-        <h4>No other members on call yet</h4>
-        <p class="muted-text">Invite group members or study buddies to turn on their cams and mic.</p>
+        <div class="empty-peers-graphic">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+        </div>
+        <h4>Waiting for study partners</h4>
+        <p class="muted-text">Group members who join the Study Call will stream live audio and video here.</p>
       </div>
     `;
   }
@@ -11771,11 +12013,19 @@ function leaveVC() {
   if (localVideo) localVideo.srcObject = null;
   if (fallback) fallback.style.display = "flex";
 
-  sendLibraryRealtimeEvent({ type: "vc:leave" });
+  const currentUser = window.STUDYMATE_USER || { id: 1, displayName: "Student" };
+  const currentUserId = String(currentUser.id || libraryPeerId);
+  sendLibraryBroadcast("webrtc_leave", { peerId: currentUserId });
 
   isCallJoined = false;
   updateVCButtonStates(false);
-  switchLibraryView("desks");
+
+  syncMyPresence();
+
+  const lobbyEl = document.getElementById("vc-lobby-container");
+  const stageEl = document.getElementById("vc-active-stage");
+  if (lobbyEl) lobbyEl.hidden = false;
+  if (stageEl) stageEl.hidden = true;
 }
 
 function toggleMic() {
@@ -12012,6 +12262,7 @@ function createPeerConnection(remotePeerId, isInitiator) {
     return peerConnections.get(remotePeerId);
   }
 
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
   const pc = new RTCPeerConnection(rtcConfig);
   peerConnections.set(remotePeerId, pc);
 
@@ -12023,9 +12274,9 @@ function createPeerConnection(remotePeerId, isInitiator) {
 
   pc.onicecandidate = function (event) {
     if (event.candidate) {
-      sendLibraryRealtimeEvent({
-        type: "signal:ice_candidate",
-        targetPeerId: remotePeerId,
+      sendLibraryBroadcast("webrtc_candidate", {
+        sender: currentUserId,
+        target: remotePeerId,
         candidate: event.candidate
       });
     }
@@ -12036,14 +12287,21 @@ function createPeerConnection(remotePeerId, isInitiator) {
     ensureRemotePeerTile(remotePeerId, remoteStream);
   };
 
+  pc.onconnectionstatechange = function () {
+    if (pc.connectionState === "disconnected" || pc.connectionState === "failed" || pc.connectionState === "closed") {
+      closePeerConnection(remotePeerId);
+    }
+  };
+
   if (isInitiator) {
     pc.createOffer()
       .then(function (offer) { return pc.setLocalDescription(offer); })
       .then(function () {
-        sendLibraryRealtimeEvent({
-          type: "signal:offer",
-          targetPeerId: remotePeerId,
-          offer: pc.localDescription
+        sendLibraryBroadcast("webrtc_offer", {
+          sender: currentUserId,
+          target: remotePeerId,
+          sdp: pc.localDescription,
+          user: window.STUDYMATE_USER
         });
       })
       .catch(function (err) {
@@ -12054,8 +12312,12 @@ function createPeerConnection(remotePeerId, isInitiator) {
   return pc;
 }
 
-function handleRemoteOffer(fromPeerId, offer, remoteUser) {
-  if (!fromPeerId || !offer) return;
+function handleRemoteOffer(fromPeerId, sdp, remoteUser) {
+  if (!fromPeerId || !sdp) return;
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
+  if (String(fromPeerId) === currentUserId) return;
+  if (!isCallJoined) return;
+
   if (remoteUser) {
     ensureRemotePeerTile(fromPeerId, null, {
       peerId: fromPeerId,
@@ -12066,17 +12328,17 @@ function handleRemoteOffer(fromPeerId, offer, remoteUser) {
     });
   }
   const pc = createPeerConnection(fromPeerId, false);
-  pc.setRemoteDescription(new RTCSessionDescription(offer))
+  pc.setRemoteDescription(new RTCSessionDescription(sdp))
     .then(function () {
       flushPendingIceCandidates(fromPeerId, pc);
       return pc.createAnswer();
     })
     .then(function (answer) { return pc.setLocalDescription(answer); })
     .then(function () {
-      sendLibraryRealtimeEvent({
-        type: "signal:answer",
-        targetPeerId: fromPeerId,
-        answer: pc.localDescription
+      sendLibraryBroadcast("webrtc_answer", {
+        sender: currentUserId,
+        target: fromPeerId,
+        sdp: pc.localDescription
       });
     })
     .catch(function (err) {
@@ -12084,11 +12346,13 @@ function handleRemoteOffer(fromPeerId, offer, remoteUser) {
     });
 }
 
-function handleRemoteAnswer(fromPeerId, answer) {
-  if (!fromPeerId || !answer) return;
+function handleRemoteAnswer(fromPeerId, sdp) {
+  if (!fromPeerId || !sdp) return;
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
+  if (String(fromPeerId) === currentUserId) return;
   const pc = peerConnections.get(fromPeerId);
   if (pc) {
-    pc.setRemoteDescription(new RTCSessionDescription(answer))
+    pc.setRemoteDescription(new RTCSessionDescription(sdp))
       .then(function () {
         flushPendingIceCandidates(fromPeerId, pc);
       })
@@ -12100,6 +12364,8 @@ function handleRemoteAnswer(fromPeerId, answer) {
 
 function handleRemoteIceCandidate(fromPeerId, candidate) {
   if (!fromPeerId || !candidate) return;
+  const currentUserId = String(window.STUDYMATE_USER?.id || libraryPeerId);
+  if (String(fromPeerId) === currentUserId) return;
   const pc = peerConnections.get(fromPeerId);
   if (pc && pc.remoteDescription && pc.remoteDescription.type) {
     pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(function (err) {
@@ -12196,7 +12462,7 @@ function updateRemotePeerState(peerId, participant) {
 function closePeerConnection(peerId) {
   const pc = peerConnections.get(peerId);
   if (pc) {
-    pc.close();
+    try { pc.close(); } catch (e) {}
     peerConnections.delete(peerId);
   }
   pendingIceCandidates.delete(peerId);
@@ -12234,6 +12500,13 @@ function switchLibraryView(view) {
     }
     if (desksBtn) desksBtn.classList.remove("active");
     if (vcBtn) vcBtn.classList.add("active");
+
+    const lobbyEl = document.getElementById("vc-lobby-container");
+    const stageEl = document.getElementById("vc-active-stage");
+    if (lobbyEl && stageEl) {
+      lobbyEl.hidden = Boolean(isCallJoined);
+      stageEl.hidden = !isCallJoined;
+    }
   } else {
     if (roomView) {
       roomView.classList.add("active");
@@ -12462,7 +12735,20 @@ function initCozyLibraryUI() {
 
   // Quick join button
   const quickJoinBtn = document.getElementById("quick-join-vc-btn");
-  if (quickJoinBtn) quickJoinBtn.addEventListener("click", joinVC);
+  if (quickJoinBtn) quickJoinBtn.addEventListener("click", function () {
+    if (isCallJoined) {
+      leaveVC();
+    } else {
+      joinVC();
+    }
+  });
+
+  // Pre-join Lobby and Active Call toolbar buttons
+  const lobbyJoinBtn = document.getElementById("vc-lobby-join-btn");
+  if (lobbyJoinBtn) lobbyJoinBtn.addEventListener("click", joinVC);
+
+  const activeLeaveBtn = document.getElementById("vc-active-leave-btn");
+  if (activeLeaveBtn) activeLeaveBtn.addEventListener("click", leaveVC);
 
   // Group workspace Cozy Library jump button
   const groupCozyBtn = document.getElementById("group-cozy-library-button");
@@ -12894,6 +13180,7 @@ window.togglePeerPopover = togglePeerPopover;
 window.closeAllPeerPopovers = closeAllPeerPopovers;
 window.setMyDeskPosture = setMyDeskPosture;
 window.toggleMyDeskLamp = toggleMyDeskLamp;
+window.isDeskMine = isDeskMine;
 
 async function initializeApp() {
   await loadData();

@@ -1,123 +1,115 @@
-# Exam Workspace AI Roadmap, Timed Mock Exam Simulator & Cozy Library PIP Video Call
+# Removal of Leaderboard & Group Focus Rooms
 
-An overhaul of the Exam Workspace with interactive hierarchical syllabus management, AI study plan generation, timed mock exams with instant AI auto-grading, mistake logging, and a standalone Cozy Library video call experience supporting Picture-in-Picture (PiP).
+Comprehensive architectural plan to safely purge the global Leaderboard view and Group workspace Focus Rooms feature, streamlining StudyMate's navigation and community workspace while strictly safeguarding the 3D Cozy Library, study timers, group chat, and remaining core modules.
 
-## User Review & Critical Decisions
+### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> The following user preferences were confirmed during clarification:
-> - **Test Analysis, Mocks & Practice Questions Location**: Integrated directly as sub-tabs inside each **Exam Workspace** (`Syllabus`, `Plan & Roadmap`, `Mock Tests & Practice`, `Test Analysis & Mistakes`).
-> - **Mock Test & Analysis Scope**:
->   1. **AI Mock Test & Practice Question Generator** (custom topic/difficulty, timed test runner with immediate AI auto-grading and step-by-step solutions).
->   2. **Score Tracker & Weak-Topic Radar** (accuracy %, speed per question, subject strengths vs. gaps).
->   3. **Mistake Log** (tag errors by type: *Silly Error*, *Conceptual Gap*, *Time Pressure*, or *Formula Slip* with AI revision tips).
-> - **Cozy Library VC & Picture-in-Picture (PiP)**:
->   - Joining/leaving the Voice & Video Call is **independent of sitting on a desk**. Users can join a study call without taking a desk seat or sit on a desk without being on a video call.
->   - Modern Video Call interface with grid view, floating call control bar, camera/mic toggle, screen share, and a **Picture-in-Picture (PiP)** floating video window so users can keep study partners visible while navigating other tabs or writing notes.
+> Both features to be removed have clear, self-contained footprints:
+> - **Leaderboard**: Sidebar navigation button, main view container (`#leaderboard`), and client-side rendering handlers will be purged. The backend `/api/leaderboard` endpoint can remain as a harmless dormant query route or be simplified so no existing API contracts are abruptly broken.
+> - **Group Focus Rooms**: The "Focus Rooms" tab button and live room container (`#group-tab-rooms`) within the Group workspace will be removed. The Group workspace will focus cleanly on **Overview**, **Challenges**, **Members**, **Ranking**, and **Chat**, alongside direct access to the **3D Group Library**.
+> - **Zero Side-Effect Guarantee**: All references to removed DOM elements in `script.js` are either removed or guarded with null-checks to prevent runtime exceptions (`TypeError: Cannot read properties of null`).
 
 ---
 
-## 1. Overview & Core Concept
+### 1. Overview & Core Concept
 
-1. **Hierarchical Syllabus Management**:
-   - Clean 3-level structure: **Subject ➔ Units / Chapters ➔ Topics** with 4-stage revision pills (`Not Started`, `Studied`, `Revision 1`, `Mastered`).
-   - Dedicated buttons for **Add Subject**, **Add Chapter**, **Add Topic**, **Rename**, and **Delete** with clean prompt/inline editing.
-   - **Load Built-in Syllabus** populates curated exam blueprints on demand.
-   - **AI Search & Load Syllabus** (`POST /api/exams/ai-syllabus`) dynamically retrieves official unit topics via Google Search grounded Gemini AI.
-
-2. **AI Study Plan & Roadmap Generator**:
-   - Endpoint (`POST /api/exams/ai-plan`) creates a personalized phased preparation roadmap (e.g., *Phase 1: Foundation*, *Phase 2: High-Weightage Drills*, *Phase 3: Full Mocks & Revision*).
-   - Includes **One-Click Sync** to push generated milestones and daily revision tasks straight into `Today's Plan` and `Calendar`.
-
-3. **Timed Mock Exam Simulator & Test Analysis**:
-   - Timed exam runner with countdown timer, question palette, question flagging, and instant AI grading (`POST /api/exams/ai-mock`).
-   - Detailed score card: percentage, accuracy, time per question, and AI recommendations.
-   - Mistake Logger allowing students to tag wrong questions by error category (*Silly Error*, *Conceptual Gap*, *Time Pressure*) and review weak concepts.
-
-4. **Cozy Library Standalone Call & Picture-in-Picture**:
-   - Decoupled VC session from physical desk occupancy.
-   - Floating video canvas with HTML Video Picture-in-Picture API support (`video.requestPictureInPicture()`) allowing the user's call partner stream or grid to stay active on-screen anywhere in the browser.
+- **What It Does**: Removes two legacy prototype features (the global competitive Leaderboard and group-level mock Focus Rooms) to eliminate clutter and focus StudyMate on calm, distraction-free studying, personal metrics, collaborative study circles, and the immersive 3D Cozy Library.
+- **Target Audience / Persona**: Students preparing for high-stakes exams who prefer intentional focus over noisy mock leaderboards and fragmented focus room controls.
+- **Key Value**: Cleaner UI, reduced cognitive overhead, zero non-functional or redundant room controls, and faster navigation between core workspaces.
 
 ---
 
-## 2. User Experience & Visual Design
+### 2. User Experience & Visual Design
 
-### Exam Workspace Layout & Sub-Tabs
-- **Workspace Navigation**:
-  - `Overview` ➔ Exam countdown card, target date, subject completion summary.
-  - `Syllabus` ➔ Interactive 3-level tree (Subject ➔ Unit ➔ Topics) with revision stage pills, `+ Subject`, `+ Chapter`, `+ Topic`, `Rename`, `Delete`, `Load Built-In Syllabus`, `✦ AI Search & Load Syllabus`.
-  - `Plan & Roadmap` ➔ AI Plan generator button (`✦ Generate AI Study Plan`), phased roadmap timeline, milestones, and `+ Today's Plan` sync actions.
-  - `Mock Tests & Practice` ➔ AI Mock Generator (`Length`, `Difficulty`, `Subject/Unit Filter`), active timed exam interface with countdown timer and question navigator, instant auto-grading report.
-  - `Test Analysis & Mistakes` ➔ Historical test scores, subject accuracy chart, weak-topic radar, and filterable Mistake Log (*Silly Error*, *Conceptual Gap*, *Time Pressure*).
-
-### Cozy Library Call UI
-- **Call Control Bar**: Floating pill bar at the bottom containing Mic toggle, Camera toggle, Screen Share, Grid/Focus view switcher, **Picture-in-Picture (PiP) toggle button**, and Leave Call.
-- **PiP Behavior**: Clicking the PiP icon transfers the active remote video stream or call canvas to the native browser Picture-in-Picture window.
-
----
-
-## 3. Key Product Decisions & Trade-Offs
-
-1. **In-Workspace Mock Simulator vs. Standalone Page**:
-   - *Chosen*: Integrated as a dedicated tab within each Exam Workspace.
-   - *Why*: Keeps test performance and mistake logs closely tied to the target exam's syllabus and study roadmap.
-
-2. **Decoupled Library Call vs. Mandatory Desk Occupancy**:
-   - *Chosen*: Decouple VC joining/leaving from desk occupancy in `script.js`.
-   - *Why*: Students often want to join a casual study voice call with group members without taking up a physical desk slot in the 3D room.
-
-3. **Client Canvas PiP / HTML Video PiP**:
-   - *Chosen*: Use standard HTML5 Video `requestPictureInPicture()` for the active peer video or composite video element in Chrome/Edge/Firefox, with graceful fallback.
-
----
-
-## 4. Technical Architecture & Data Strategy
-
+#### Navigation Flow After Removal
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                            STUDYMATE FRONTEND                               │
-├───────────────────┬────────────────────────┬────────────────────────────────┤
-│  Exam Workspace   │  Mock Test Simulator   │    Cozy Library Video Call     │
-│  - Syllabus Tree  │  - Timed Question Test │  - Modern Call Grid & Controls  │
-│  - AI Plan & Sync │  - AI Auto-Grading     │  - Picture-in-Picture (PiP)    │
-│  - Stage Revision │  - Mistake Log Tracker │  - Desk Unbound Standalone VC   │
-└─────────┬─────────┴───────────┬────────────┴───────────────┬────────────────┘
-          │                     │                            │
-          ▼                     ▼                            ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             BACKEND ROUTES (Python)                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  POST /api/exams/ai-syllabus ➔ Gemini 3.8 Flash + Google Search Grounding    │
-│  POST /api/exams/ai-plan     ➔ Gemini 3.8 Flash Phased Plan & Daily Tasks   │
-│  POST /api/exams/ai-mock     ➔ Gemini 3.8 Flash Question & Solution Generator│
-└─────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────┐
+│ Main Sidebar Navigation                                │
+├──────────────────────────┬─────────────────────────────┤
+│ Main:                    │ • Home                      │
+│ Study:                   │ • Focus (Stopwatch/Timer)   │
+│ Planning:                │ • Plan                      │
+│                          │ • Calendar                  │
+│                          │ • Exams                     │
+│ Progress:                │ • Insights (Analytics)      │
+│ Community:               │ • Common Library (& VC)     │
+│                          │ • Groups (Study Circles)    │
+│ Personal:                │ • Settings                  │
+└──────────────────────────┴─────────────────────────────┘
 ```
 
-### Data Schema Extensions (`appData.exams[i]`)
-- `mockTests`: Array of `{ id, title, durationMinutes, totalQuestions, score, totalMarks, accuracyPercent, dateCompleted, questions: [{ id, text, options, answer, explanation, userChoice, isCorrect, errorTag }] }`
-- `mistakes`: Array of `{ id, mockId, questionText, subjectName, chapterName, userChoice, correctChoice, errorTag, notes, dateLogged }`
-- `aiPlan`: `{ generatedAt, phasedRoadmap: [{ phaseName, duration, objectives, suggestedTasks: [] }] }`
+#### Group Workspace Tabs After Removal
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│ [← Back to Groups]  Calculus Study Circle                [📖 Group Library]│
+│ 12 members · 4 studying now                                               │
+├───────────────────────────────────────────────────────────────────────────┤
+│ [ Overview ]  [ Challenges ]  [ Members ]  [ Ranking ]  [ Chat ]          │
+│                                                                           │
+│ (Focus Rooms tab button and container completely excised)                 │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Visual Cleanliness**: The Community section in the sidebar retains only the essential social surfaces: **Common Library** and **Groups**.
+- **Responsive Navigation**: Tab switching in both sidebar and Group workspace operates cleanly without broken references or empty panel states.
 
 ---
 
-## Implementation Steps
+### 3. Key Product Decisions & Trade-Offs
 
-1. **Backend Endpoints (`app/api/routes.py`)**:
-   - Verify `POST /api/exams/ai-syllabus`.
-   - Add `POST /api/exams/ai-plan` (generates phased roadmap & daily tasks from subject list & days left).
-   - Add `POST /api/exams/ai-mock` (generates structured multiple choice questions with options & explanations).
+- **Decision 1: Removal of Leaderboard Button & View**
+  - *Chosen Approach*: Remove the sidebar link `[data-section="leaderboard"]` and the `<section class="app-section" id="leaderboard">` from `app/templates/app.html`. In `script.js`, remove calls to `renderLeaderboard()` inside `updateAllDisplays()`, purge the `leaderboardTabs` click listener, and remove `leaderboardTable` DOM dependencies.
+  - *Why*: Eliminates clutter and prevents empty/mock ranking states.
+  - *Preserved*: Group member ranking within private circles remains intact under the group "Ranking" sub-tab.
 
-2. **Frontend Exam Workspace UI (`app/templates/app.html` & `app/static/js/script.js`)**:
-   - Fix **Load Built-In Syllabus** to populate curated subjects/chapters/topics when clicked.
-   - Fix **Add Subject**, **Add Chapter**, **Add Topic**, **Rename**, and **Delete** actions across all 3 hierarchy levels.
-   - Add `Plan & Roadmap` tab with `✦ Generate AI Study Plan` button and roadmap timeline.
-   - Add `Mock Tests & Practice` tab with Mock Generator, Timed Exam Runner, and auto-grader.
-   - Add `Test Analysis & Mistakes` tab with Score Tracker and Mistake Logger.
+- **Decision 2: Removal of Group Focus Rooms Sub-Tab & Container**
+  - *Chosen Approach*: Delete `<button class="group-tab" data-group-tab="rooms">Focus Rooms</button>` and the entire `<div class="group-tab-panel" id="group-tab-rooms">...</div>` markup. Remove room member count badge from group header metadata. In `script.js`, clean up `renderGroupRooms()` and associated room button listeners.
+  - *Why*: The dedicated **3D Cozy Library** (available for both Common Library and Group Libraries with real-time desk presence and Study VC) provides the modern, superior collaborative study experience, rendering the legacy 2D "Focus Rooms" redundant.
 
-3. **Cozy Library VC Uncoupling & Picture-in-Picture (`script.js` & `app.html`)**:
-   - Update `joinVC()` and `leaveVC()` so joining or leaving the call is independent of sitting on a 3D desk.
-   - Add PiP button to `#vc-call-controls` that invokes `videoElement.requestPictureInPicture()` on the active video stream.
+---
 
-4. **Verification & Testing**:
-   - Validate JS syntax with `node --check`.
-   - Compile and verify dev server health.
+### 4. Technical Architecture & Component Mapping
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    StudyMate Frontend Engine                 │
+└──────────────┬──────────────────────────────┬────────────────┘
+               │                              │
+     ┌─────────▼─────────┐          ┌─────────▼─────────┐
+     │ app/templates/    │          │ app/static/js/    │
+     │ app.html          │          │ script.js         │
+     └─────────┬─────────┘          └─────────┬─────────┘
+               │                              │
+ ┌─────────────┴─────────────┐  ┌─────────────┴─────────────┐
+ │ 1. Delete Leaderboard nav │  │ 1. Remove leaderboardTable│
+ │    link (lines 192-195)   │  │    & tab listeners        │
+ │ 2. Delete Leaderboard     │  │ 2. Remove renderLeader-   │
+ │    section (1557-1576)    │  │    board() from display   │
+ │ 3. Delete Focus Rooms tab │  │ 3. Remove groupRoomList & │
+ │    button (line 907)      │  │    room creation listeners│
+ │ 4. Delete Focus Rooms     │  │ 4. Remove renderGroup-    │
+ │    panel (lines 934-957)  │  │    Rooms() from group tab │
+ └───────────────────────────┘  └───────────────────────────┘
+```
+
+#### Detailed Step-by-Step Implementation
+
+1. **`app/templates/app.html`**:
+   - Locate and delete the Leaderboard nav item (`<button class="nav-link" type="button" data-section="leaderboard" ...>`).
+   - Locate and delete `<section class="app-section" id="leaderboard">...</section>`.
+   - In `<div class="group-tabs" id="group-tabs">`, delete `<button type="button" class="group-tab" data-group-tab="rooms">Focus Rooms</button>`.
+   - In group tab panels, delete `<div class="group-tab-panel" id="group-tab-rooms">...</div>`.
+
+2. **`app/static/js/script.js`**:
+   - Remove `leaderboardTable` and `leaderboardTabs` constants, or make them safe against nulls.
+   - Remove `renderLeaderboard()` call from `updateAllDisplays()`.
+   - Remove the `leaderboardTabs.forEach(...)` listener.
+   - Remove `groupRoomList`, `createRoomButton`, `groupRoomLive`, and `leaveRoomButton` DOM bindings or guard them.
+   - Remove `renderGroupRooms(circle)` call from `renderGroupWorkspace()` and remove `${circle.rooms.length} rooms` from the header metadata badge.
+   - Ensure `appData.selectedCircleTab` defaults to `"overview"` if previously set to `"rooms"`.
+
+3. **Verification**:
+   - Run `node --check app/static/js/script.js` to ensure zero syntax errors.
+   - Run `compile_applet` to confirm the applet builds without issue.
+   - Test tab switching across all remaining sidebar tabs (Home, Focus, Plan, Calendar, Exams, Insights, Common Library, Groups, Settings).
