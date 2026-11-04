@@ -12,6 +12,7 @@
 - `BREVO_API_KEY`, `MAIL_FROM_EMAIL`, `MAIL_FROM_NAME`, `APP_BASE_URL` (password reset emails)
 - `AI_REQUESTS_PER_HOUR` (optional, default 20 per user)
 - `GEMINI_MODEL` (optional, default `gemini-3.6-flash`; check Google's current model list)
+- `TURN_CREDENTIALS_URL` (free option for calls across networks: your Metered Open Relay credentials address including the API key; keep it secret)
 - `TURN_URLS`, `TURN_USERNAME`, `TURN_CREDENTIAL` (optional but needed for reliable video calls across different networks; `TURN_URLS` can hold several comma-separated `turn:` or `turns:` addresses)
 
 ## Render Commands

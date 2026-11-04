@@ -20,8 +20,8 @@ class LibraryExamsFixesTestCase(unittest.TestCase):
         self.assertIn("ai_rate_limited()", ROUTES)
 
     def test_library_only_connects_when_configured(self):
-        self.assertNotIn("xyzcompany.supabase.co", SCRIPT)
-        self.assertNotIn("public-anon-key", SCRIPT)
+        self.assertNotIn("https://iqxtbgcyotugyqdaxnuv.supabase.co", SCRIPT)
+        self.assertNotIn("https://iqxtbgcyotugyqdaxnuv.supabase.co", SCRIPT)
         self.assertIn("function realtimeIsConfigured()", SCRIPT)
         self.assertIn("window.LIBRARY_WS_URL", SCRIPT)
         self.assertIn("window.SUPABASE_ANON_KEY = ", APP_HTML)
@@ -78,6 +78,11 @@ class LibraryExamsFixesTestCase(unittest.TestCase):
         self.assertIn('os.environ.get("GEMINI_MODEL"', ROUTES)
         self.assertIn('@api_bp.get("/library/ice-servers")', ROUTES)
         self.assertIn("async function loadIceServers()", SCRIPT)
+
+    def test_calls_can_use_a_free_provider_for_turn(self):
+        self.assertIn('os.environ.get("TURN_CREDENTIALS_URL")', ROUTES)
+        self.assertIn("def fetch_provider_ice_servers():", ROUTES)
+        self.assertIn("iceServersLoadedAt", SCRIPT)
 
     def test_missing_helpers_exist(self):
         self.assertIn("function showLibraryToast(message)", SCRIPT)

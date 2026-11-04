@@ -1860,11 +1860,41 @@ def generate_exam_mock():
     return jsonify({"mockTest": fallback_mock, "source": "built-in"})
 
 
+_ice_cache = {"servers": None, "expires": 0.0}
+ICE_CACHE_SECONDS = 20 * 60
+
+
+def fetch_provider_ice_servers():
+    """Gets ready-made call servers (including a TURN relay) from a provider such as Metered's free Open Relay.
+    TURN_CREDENTIALS_URL is the provider's credentials address, including your secret API key. It stays on the server."""
+    url = (os.environ.get("TURN_CREDENTIALS_URL") or "").strip()
+    if not url:
+        return []
+    now = time.time()
+    if _ice_cache["servers"] is not None and now < _ice_cache["expires"]:
+        return _ice_cache["servers"]
+    try:
+        with urlopen(Request(url, headers={"Accept": "application/json"}), timeout=5) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        current_app.logger.warning("Could not load TURN servers from the provider.")
+        return _ice_cache["servers"] or []
+    if isinstance(data, dict):
+        data = data.get("iceServers", [])
+    cleaned = [item for item in data if isinstance(item, dict) and item.get("urls")] if isinstance(data, list) else []
+    if cleaned:
+        _ice_cache["servers"] = cleaned
+        _ice_cache["expires"] = now + ICE_CACHE_SECONDS
+    return cleaned
+
+
 @api_bp.get("/library/ice-servers")
 @login_required
 def get_ice_servers():
-    """Servers the browser uses to connect calls. Add a TURN relay with TURN_URLS, TURN_USERNAME and TURN_CREDENTIAL."""
+    """Servers the browser uses to connect calls.
+    Free option: set TURN_CREDENTIALS_URL (Metered Open Relay). Or set TURN_URLS, TURN_USERNAME and TURN_CREDENTIAL."""
     servers = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]
+    servers.extend(fetch_provider_ice_servers())
     turn_urls = [url.strip() for url in (os.environ.get("TURN_URLS") or "").split(",") if url.strip()]
     if turn_urls:
         servers.append({

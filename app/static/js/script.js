@@ -10249,10 +10249,11 @@ const rtcConfig = {
   ]
 };
 let iceServersLoaded = false;
+let iceServersLoadedAt = 0;
 
 // Asks the server for the call servers (including a TURN relay when one is configured).
 async function loadIceServers() {
-  if (iceServersLoaded) return;
+  if (iceServersLoaded && Date.now() - iceServersLoadedAt < 20 * 60 * 1000) return; // credentials can expire, so ask again after 20 minutes
   try {
     const response = await fetch("/api/library/ice-servers", { credentials: "same-origin" });
     if (!response.ok) return;
@@ -10260,6 +10261,7 @@ async function loadIceServers() {
     if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
       rtcConfig.iceServers = data.iceServers;
       iceServersLoaded = true;
+      iceServersLoadedAt = Date.now();
     }
   } catch (error) {
     console.warn("Using the default call servers:", error);
