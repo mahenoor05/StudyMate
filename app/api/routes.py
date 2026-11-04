@@ -4,6 +4,7 @@ import random
 import re
 import secrets
 import string
+import time
 from datetime import date, datetime, timedelta, timezone
 from uuid import uuid4
 from urllib.error import HTTPError, URLError
@@ -223,7 +224,7 @@ def serialize_profile(user):
         "country": user.country or "",
         "timezone": normalize_timezone_name(user.timezone or DEFAULT_TIMEZONE),
         "studyDayStartTime": normalize_study_day_start(getattr(user, "study_day_start_time", "00:00")),
-        "preferredTheme": user.preferred_theme or "system",
+        "preferredTheme": user.preferred_theme if user.preferred_theme and user.preferred_theme != "system" else "dark",
         "profileVisibility": user.profile_visibility or "private",
         "groupVisibility": user.group_visibility or "members",
         "leaderboardVisibility": user.leaderboard_visibility or "public",
@@ -1060,7 +1061,7 @@ def update_profile():
     if "studyDayStartTime" in data:
         current_user.study_day_start_time = normalize_study_day_start(data.get("studyDayStartTime"))
     if "preferredTheme" in data:
-        current_user.preferred_theme = str(data.get("preferredTheme") or "system").strip()[:40] or "system"
+        current_user.preferred_theme = str(data.get("preferredTheme") or "dark").strip()[:40] or "dark"
 
     profile_visibility = str(data.get("profileVisibility") or current_user.profile_visibility or "private")
     group_visibility = str(data.get("groupVisibility") or current_user.group_visibility or "members")
@@ -1497,3 +1498,421 @@ def delete_exam(record_id):
     db.session.delete(exam)
     db.session.commit()
     return jsonify({"ok": True})
+
+
+AI_REQUESTS_PER_HOUR = int(os.environ.get("AI_REQUESTS_PER_HOUR", "20"))
+_ai_request_log = {}
+
+
+def ai_rate_limited():
+    """Stops one account from using up the Gemini quota. Returns an error response when over the limit."""
+    now = time.time()
+    recent = [stamp for stamp in _ai_request_log.get(current_user.id, []) if now - stamp < 3600]
+    if len(recent) >= AI_REQUESTS_PER_HOUR:
+        _ai_request_log[current_user.id] = recent
+        return jsonify({"error": "You have reached the hourly limit for AI tools. Please try again later."}), 429
+    recent.append(now)
+    _ai_request_log[current_user.id] = recent
+    return None
+
+
+@api_bp.post("/exams/ai-syllabus")
+@login_required
+def generate_exam_ai_syllabus():
+    limited = ai_rate_limited()
+    if limited:
+        return limited
+    data = request.get_json(silent=True) or {}
+    exam_name = str(data.get("examName") or data.get("examType") or "Competitive Exam").strip()
+    exam_type = str(data.get("examType") or exam_name).strip()
+    requested_subjects = data.get("subjects")
+    if isinstance(requested_subjects, list):
+        subject_list = [str(s).strip() for s in requested_subjects if str(s).strip()]
+    else:
+        subject_list = []
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(headers={"User-Agent": "aistudio-build"}),
+            )
+            subj_hint = (
+                f"Focus on these subjects: {', '.join(subject_list)}."
+                if subject_list
+                else "Include the standard official subjects for this exam."
+            )
+            prompt = (
+                f"Search and provide the official, up-to-date exam syllabus for '{exam_name}' ({exam_type}). "
+                f"{subj_hint}\n"
+                "Return ONLY valid JSON (no markdown fences) matching this exact structure:\n"
+                "{\n"
+                '  "subjects": [\n'
+                "    {\n"
+                '      "name": "Subject Name",\n'
+                '      "chapters": [\n'
+                "        {\n"
+                '          "name": "Unit / Chapter Name",\n'
+                '          "topics": ["Topic 1", "Topic 2", "Topic 3", "Topic 4"]\n'
+                "        }\n"
+                "      ]\n"
+                "    }\n"
+                "  ]\n"
+                "}\n"
+                "Include 5 to 8 key high-yield chapters per subject and 3 to 5 specific topics per chapter."
+            )
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                    temperature=0.2,
+                ),
+            )
+            raw_text = (response.text or "").strip()
+            if "```" in raw_text:
+                match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+                if match:
+                    raw_text = match.group(1)
+            first_brace = raw_text.find("{")
+            last_brace = raw_text.rfind("}")
+            if first_brace != -1 and last_brace != -1:
+                parsed = json.loads(raw_text[first_brace : last_brace + 1])
+                if isinstance(parsed.get("subjects"), list) and len(parsed["subjects"]) > 0:
+                    return jsonify({"syllabus": parsed, "source": "ai"})
+        except Exception as exc:
+            current_app.logger.warning("AI syllabus generation fallback for %s: %s", exam_name, exc)
+
+    fallback_subjects = subject_list or ["Core Subject 1", "Core Subject 2", "Aptitude & Practice"]
+    generated_subjects = []
+    for subj in fallback_subjects:
+        generated_subjects.append({
+            "name": subj,
+            "chapters": [
+                {
+                    "name": f"Unit 1: Foundations of {subj}",
+                    "topics": [
+                        f"Core Principles & Definitions in {subj}",
+                        "Fundamental Laws & Standard Formulas",
+                        "Conceptual Application & Examples",
+                    ],
+                },
+                {
+                    "name": f"Unit 2: Intermediate {subj} & Problem Solving",
+                    "topics": [
+                        "Analytical Techniques & Derivations",
+                        "High-Weightage Exam Patterns",
+                        "Previous Year Questions (PYQs) Set 1",
+                    ],
+                },
+                {
+                    "name": f"Unit 3: Advanced {subj} & Revision",
+                    "topics": [
+                        "Complex Multi-Concept Problems",
+                        "Common Pitfalls & Speed Tricks",
+                        "Full-Length Mock Analysis & Formula Sheet",
+                    ],
+                },
+            ],
+        })
+    return jsonify({"syllabus": {"subjects": generated_subjects}, "source": "built-in"})
+
+
+@api_bp.post("/exams/ai-plan")
+@login_required
+def generate_exam_plan():
+    limited = ai_rate_limited()
+    if limited:
+        return limited
+    payload = request.get_json(silent=True) or {}
+    exam_name = payload.get("examName") or "Upcoming Exam"
+    exam_type = payload.get("examType") or "Custom Exam"
+    days_left = payload.get("daysLeft") or 30
+    subjects = payload.get("subjects") or ["Physics", "Chemistry", "Mathematics"]
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(headers={"User-Agent": "aistudio-build"}),
+            )
+            prompt = (
+                f"Create a realistic, structured preparation plan and roadmap for '{exam_name}' ({exam_type}) "
+                f"with {days_left} days remaining. Subjects: {', '.join(subjects)}.\n"
+                "Return ONLY valid JSON (no markdown fences) matching this structure:\n"
+                "{\n"
+                '  "summary": "Strategic overview sentence",\n'
+                '  "phases": [\n'
+                "    {\n"
+                '      "phaseName": "Phase 1: Foundation & Core Concepts",\n'
+                '      "durationDays": 10,\n'
+                '      "description": "Focus on high-weightage topics and core problem sets",\n'
+                '      "weeklyTasks": ["Task 1", "Task 2", "Task 3"]\n'
+                "    }\n"
+                "  ],\n"
+                '  "suggestedMilestones": [\n'
+                '    {"title": "Complete 50% Syllabus Review", "daysFromNow": 10},\n'
+                '    {"title": "First Full Timed Mock Test", "daysFromNow": 20}\n'
+                "  ]\n"
+                "}\n"
+                "Include 3 distinct phases covering the total days left and 3 actionable milestones."
+            )
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                ),
+            )
+            raw_text = (response.text or "").strip()
+            if "```" in raw_text:
+                match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+                if match:
+                    raw_text = match.group(1)
+            first_brace = raw_text.find("{")
+            last_brace = raw_text.rfind("}")
+            if first_brace != -1 and last_brace != -1:
+                parsed = json.loads(raw_text[first_brace : last_brace + 1])
+                if isinstance(parsed.get("phases"), list) and len(parsed["phases"]) > 0:
+                    return jsonify({"plan": parsed, "source": "ai"})
+        except Exception as exc:
+            current_app.logger.warning("AI plan generation fallback: %s", exc)
+
+    # Structured fallback plan
+    p1 = max(3, int(days_left * 0.4))
+    p2 = max(3, int(days_left * 0.4))
+    p3 = max(2, days_left - p1 - p2)
+
+    fallback_plan = {
+        "summary": f"Strategic {days_left}-day roadmap divided into concept mastery, targeted drills, and mock testing for {exam_name}.",
+        "phases": [
+            {
+                "phaseName": "Phase 1: Concept Mastery & High-Yield Units",
+                "durationDays": p1,
+                "description": f"Focus on core principles and problem-solving techniques for {', '.join(subjects[:2]) if subjects else 'all subjects'}.",
+                "weeklyTasks": [
+                    "Review fundamental formulas and unit derivations",
+                    "Solve 20 high-yield practice questions per subject daily",
+                    "Build a concise formula flashcard deck"
+                ]
+            },
+            {
+                "phaseName": "Phase 2: Topic Drills & PYQ Practice",
+                "durationDays": p2,
+                "description": "Work through previous year questions and identify speed bottlenecks.",
+                "weeklyTasks": [
+                    "Solve topic-wise previous year question sets under time limits",
+                    "Log all incorrect answers into the Mistake Tracker",
+                    "Conduct weekly mini-mock quizzes"
+                ]
+            },
+            {
+                "phaseName": "Phase 3: Full Mock Tests & Final Refinement",
+                "durationDays": p3,
+                "description": "Full-length exam simulations, mistake log review, and rapid formula recap.",
+                "weeklyTasks": [
+                    "Take 2 full-length timed mock tests with strict environment setup",
+                    "Analyze mistake log for silly errors vs conceptual gaps",
+                    "Perform final day formula & flashcard rapid review"
+                ]
+            }
+        ],
+        "suggestedMilestones": [
+            {"title": "Finish Phase 1 Core Syllabus Review", "daysFromNow": p1},
+            {"title": "Complete 5 Timed Topic Drills", "daysFromNow": p1 + int(p2 / 2)},
+            {"title": "First Full Timed Mock Test", "daysFromNow": p1 + p2},
+            {"title": "Final Formula Sheet & Mistake Log Review", "daysFromNow": max(1, days_left - 1)}
+        ]
+    }
+    return jsonify({"plan": fallback_plan, "source": "built-in"})
+
+
+@api_bp.post("/exams/ai-mock")
+@login_required
+def generate_exam_mock():
+    limited = ai_rate_limited()
+    if limited:
+        return limited
+    payload = request.get_json(silent=True) or {}
+    exam_name = payload.get("examName") or "Competitive Exam"
+    exam_type = payload.get("examType") or "Custom Exam"
+    subject = payload.get("subject") or "General"
+    num_questions = min(15, max(3, int(payload.get("numQuestions") or 5)))
+    difficulty = payload.get("difficulty") or "medium"
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if api_key:
+        try:
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(
+                api_key=api_key,
+                http_options=types.HttpOptions(headers={"User-Agent": "aistudio-build"}),
+            )
+            prompt = (
+                f"Generate a realistic {difficulty}-level multiple-choice practice test for '{exam_name}' ({exam_type}). "
+                f"Subject: {subject}. Number of questions: {num_questions}.\n"
+                "Return ONLY valid JSON (no markdown fences) matching this structure:\n"
+                "{\n"
+                '  "title": "Practice Test Name",\n'
+                '  "subject": "Subject Name",\n'
+                '  "timeLimitMinutes": 10,\n'
+                '  "questions": [\n'
+                "    {\n"
+                '      "id": "q1",\n'
+                '      "subject": "Physics/Chemistry/Math",\n'
+                '      "chapter": "Chapter Name",\n'
+                '      "questionText": "Clear question formulation?",\n'
+                '      "options": ["Option A", "Option B", "Option C", "Option D"],\n'
+                '      "correctIndex": 0,\n'
+                '      "explanation": "Concise step-by-step solution explanation"\n'
+                "    }\n"
+                "  ]\n"
+                "}\n"
+                f"Ensure exact count of {num_questions} questions with 4 distinct options each and correctIndex between 0 and 3."
+            )
+            response = client.models.generate_content(
+                model=os.environ.get("GEMINI_MODEL", "gemini-3.6-flash"),
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.3,
+                ),
+            )
+            raw_text = (response.text or "").strip()
+            if "```" in raw_text:
+                match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_text, re.DOTALL)
+                if match:
+                    raw_text = match.group(1)
+            first_brace = raw_text.find("{")
+            last_brace = raw_text.rfind("}")
+            if first_brace != -1 and last_brace != -1:
+                parsed = json.loads(raw_text[first_brace : last_brace + 1])
+                if isinstance(parsed.get("questions"), list) and len(parsed["questions"]) > 0:
+                    return jsonify({"mockTest": parsed, "source": "ai"})
+        except Exception as exc:
+            current_app.logger.warning("AI mock generation fallback: %s", exc)
+
+    # High quality static fallback questions
+    sample_questions = [
+        {
+            "id": "q1",
+            "subject": subject if subject != "All" else "Physics",
+            "chapter": "Mechanics & Kinematics",
+            "questionText": "A particle moves in a straight line with uniform acceleration a. If its velocity changes from u to v in distance s, which relation is correct?",
+            "options": ["v² = u² + 2as", "v = u + as²", "s = ut + 2at²", "v² = u² - as"],
+            "correctIndex": 0,
+            "explanation": "By third equation of motion under constant acceleration, v² - u² = 2as, so v² = u² + 2as."
+        },
+        {
+            "id": "q2",
+            "subject": subject if subject != "All" else "Chemistry",
+            "chapter": "Chemical Kinetics & Equilibrium",
+            "questionText": "For a first-order chemical reaction A → Products, if the half-life t½ is 20 minutes, what is the rate constant k?",
+            "options": ["0.0346 min⁻¹", "0.693 min⁻¹", "0.020 min⁻¹", "1.386 min⁻¹"],
+            "correctIndex": 0,
+            "explanation": "For a first order reaction, k = ln(2) / t½ = 0.69315 / 20 ≈ 0.03465 min⁻¹."
+        },
+        {
+            "id": "q3",
+            "subject": subject if subject != "All" else "Mathematics",
+            "chapter": "Calculus & Limits",
+            "questionText": "What is the value of the limit lim_{x → 0} (sin x) / x ?",
+            "options": ["1", "0", "∞", "Undefined"],
+            "correctIndex": 0,
+            "explanation": "By standard trigonometric limit or L'Hôpital's rule, lim_{x → 0} (sin x) / x = 1."
+        },
+        {
+            "id": "q4",
+            "subject": subject if subject != "All" else "General Aptitude",
+            "chapter": "Logical Reasoning & Speed",
+            "questionText": "If a train traveling at 72 km/h crosses a 200m long platform in 20 seconds, what is the length of the train?",
+            "options": ["200 m", "150 m", "250 m", "300 m"],
+            "correctIndex": 0,
+            "explanation": "Speed = 72 * (5/18) = 20 m/s. Total distance in 20s = 20 * 20 = 400m. Train length = 400m - 200m = 200m."
+        },
+        {
+            "id": "q5",
+            "subject": subject if subject != "All" else "Core Concepts",
+            "chapter": "Thermodynamics",
+            "questionText": "According to the First Law of Thermodynamics, ΔU = Q - W. In an isothermal process for an ideal gas, what is ΔU?",
+            "options": ["0", "Q", "W", "Infinite"],
+            "correctIndex": 0,
+            "explanation": "For an ideal gas, internal energy U depends solely on temperature T. In an isothermal process (constant T), ΔU = 0."
+        }
+    ]
+
+    fallback_mock = {
+        "title": f"{exam_name} High-Yield Practice Mock",
+        "subject": subject,
+        "difficulty": difficulty,
+        "timeLimitMinutes": max(5, num_questions * 2),
+        "questions": sample_questions[:num_questions]
+    }
+    return jsonify({"mockTest": fallback_mock, "source": "built-in"})
+
+
+@api_bp.get("/library/ice-servers")
+@login_required
+def get_ice_servers():
+    """Servers the browser uses to connect calls. Add a TURN relay with TURN_URLS, TURN_USERNAME and TURN_CREDENTIAL."""
+    servers = [{"urls": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"]}]
+    turn_urls = [url.strip() for url in (os.environ.get("TURN_URLS") or "").split(",") if url.strip()]
+    if turn_urls:
+        servers.append({
+            "urls": turn_urls,
+            "username": os.environ.get("TURN_USERNAME", ""),
+            "credential": os.environ.get("TURN_CREDENTIAL", ""),
+        })
+    return jsonify({"iceServers": servers})
+
+
+@api_bp.get("/library/room")
+@login_required
+def get_library_room():
+    room_id = request.args.get("roomId") or "common"
+    is_group = str(room_id).startswith("group:")
+    desks = []
+    for i in range(1, 53):
+        zone = (
+            "Window Nook" if i <= 5 else
+            "Hearthside" if i <= 10 else
+            "Main Archive" if i <= 15 else
+            "Quiet Corner" if i <= 20 else
+            "2nd Floor Mezzanine" if i <= 36 else
+            "Archive Wing"
+        )
+        desks.append({
+            "id": i,
+            "label": f"{zone} {i}",
+            "occupiedBy": None,
+            "reservedBy": None,
+        })
+    return jsonify({
+        "room": {
+            "id": room_id,
+            "name": "Group Library" if is_group else "Common Library",
+            "atmosphere": "midnight",
+            "activeFloor": "ground",
+            "syncTimer": {
+                "status": "running",
+                "mode": "focus",
+                "focusMinutes": 25,
+                "breakMinutes": 5,
+                "remainingSeconds": 1420,
+            },
+            "desks": desks,
+            "stickyNotes": [],
+            "messages": [],
+            "vcParticipants": [],
+        }
+    })
+

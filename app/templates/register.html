@@ -1,13 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Register - StudyMate</title>
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/studymate-mark.svg') }}">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("studymate-theme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body class="auth-page">
+<body class="auth-page" data-theme="dark">
   <main class="auth-shell">
     <section class="auth-brand-panel">
       <img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt="" class="auth-logo">

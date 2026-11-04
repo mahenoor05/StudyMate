@@ -1,5 +1,6 @@
-from flask import Blueprint, redirect, render_template, url_for
+from flask import Blueprint, current_app, redirect, render_template, send_from_directory, url_for
 from flask_login import current_user, login_required
+import os
 
 
 main_bp = Blueprint("main", __name__)
@@ -20,4 +21,15 @@ def health():
 @main_bp.route("/app")
 @login_required
 def app_home():
-    return render_template("app.html")
+    return render_template(
+        "app.html",
+        supabase_url=os.environ.get("SUPABASE_URL", ""),
+        supabase_anon_key=os.environ.get("SUPABASE_ANON_KEY", ""),
+    )
+
+
+@main_bp.route("/vendor/three/<path:filename>")
+def serve_vendor_three(filename):
+    vendor_dir = os.path.join(current_app.root_path, "static", "vendor", "three")
+    return send_from_directory(vendor_dir, filename)
+

@@ -1,13 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StudyMate</title>
+  <meta name="description" content="A calm, focused study companion and productivity dashboard with timers, tasks, subjects, analytics, and study groups.">
+  <meta property="og:title" content="StudyMate">
+  <meta property="og:description" content="A calm, focused study companion and productivity dashboard with timers, tasks, subjects, analytics, and study groups.">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='assets/studymate-mark.svg') }}">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("studymate-theme");
+        if (!t) {
+          var a = localStorage.getItem("studymate-account-data");
+          if (a) {
+            var p = JSON.parse(a);
+            if (p && (p.theme === "light" || p.theme === "dark")) t = p.theme;
+          }
+        }
+        var theme = (t === "light") ? "light" : "dark";
+        document.documentElement.setAttribute("data-theme", theme);
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "/static/vendor/three/build/three.module.js",
+        "three/addons/": "/static/vendor/three/examples/jsm/"
+      }
+    }
+  </script>
 </head>
-<body>
+<body data-theme="dark">
   <div class="app-loader" id="app-loader" aria-live="polite">
     <img src="{{ url_for('static', filename='assets/studymate-mark.svg') }}" alt="" class="loader-mark">
     <strong>StudyMate</strong>
@@ -73,7 +102,7 @@
         <h2>Your profile</h2>
         <form class="stacked-form" id="onboarding-profile-form">
           <input id="onboarding-avatar-style" type="hidden" value="initials">
-          <input id="onboarding-avatar-color" type="hidden" value="{{ current_user.avatar_color or 'violet' }}">
+          <input id="onboarding-avatar-color" type="hidden" value="{{ current_user.avatar_color or 'teal' }}">
           <div class="avatar-picker-block">
             <span class="field-label">Profile photo</span>
             <div class="avatar-upload-row">
@@ -151,13 +180,14 @@
       </button>
 
       <p class="nav-group">Community</p>
+      <button class="nav-link" type="button" data-section="cozy-library" id="nav-common-library" title="Common Library & VC">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path><path d="M9 7h6M9 11h6"></path></svg>
+        <span>Common Library</span>
+      </button>
+      <div id="sidebar-group-library-item"></div>
       <button class="nav-link" type="button" data-section="study-circle" title="Groups">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><circle cx="17" cy="9" r="3"></circle><path d="M3 20c.8-3 2.6-5 5-5s4.2 2 5 5"></path><path d="M13 19c.8-2.4 2.3-4 4-4 2.1 0 3.5 1.6 4 4"></path></svg>
         <span>Groups</span>
-      </button>
-      <button class="nav-link" type="button" data-section="leaderboard" title="Leaderboard">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 21V10h4v11"></path><path d="M16 21V6h4v15"></path><path d="M2 21v-7h4v7"></path></svg>
-        <span>Leaderboard</span>
       </button>
 
       <p class="nav-group">Personal</p>
@@ -216,192 +246,251 @@
         </aside>
       </div>
 
-      <article class="workspace-surface home-timeline-card">
-        <div class="section-mini-header">
-          <div>
-            <p class="eyebrow">Your Day</p>
-            <h3 id="home-timeline-title">Today timeline</h3>
-          </div>
-          <div class="timeline-controls">
-            <button type="button" class="secondary-button icon-only-button" id="timeline-prev-day" aria-label="Previous day">&lt;</button>
-            <input id="timeline-date-input" type="date" aria-label="Timeline date">
-            <button type="button" class="secondary-button icon-only-button" id="timeline-next-day" aria-label="Next day">&gt;</button>
-            <button type="button" class="text-button" id="timeline-today">Today</button>
-            <button type="button" id="open-study-log-modal">+ Add Study Log</button>
-          </div>
-        </div>
-        <div class="day-timeline-list" id="home-day-timeline"></div>
-      </article>
-
-      <div class="home-lower-grid">
+      <div class="home-lower-grid home-two-col-grid">
         <article class="inline-section home-list-card">
           <div class="section-mini-header">
             <div>
-              <h3>Today's List</h3>
+              <p class="eyebrow">Today's Focus</p>
+              <h3>To-Do List</h3>
               <p class="muted-text" id="home-task-count">0 tasks left</p>
             </div>
-            <button class="text-button" type="button" id="home-open-plan">Open Plan</button>
+            <button class="text-button" type="button" id="home-open-plan">Open Plan →</button>
           </div>
           <ul class="shared-list preview-list" id="home-task-preview"></ul>
         </article>
 
         <article class="inline-section next-exam-card">
-          <h3>Next Exam</h3>
-          <div id="home-next-exam" class="compact-empty">No exams saved yet.</div>
-        </article>
-
-        <article class="inline-section week-card">
-          <h3>This Week</h3>
-          <div class="week-preview" id="home-week-preview"></div>
-        </article>
-
-        <article class="inline-section subjects-card">
           <div class="section-mini-header">
-            <h3>Subjects Today</h3>
             <div>
-              <button class="text-button" type="button" id="home-add-subject" aria-label="Add subject">+</button>
-              <button class="text-button" type="button" id="home-open-session">Focus</button>
+              <p class="eyebrow">Upcoming Exam</p>
+              <h3 id="home-exam-title">Upcoming Exam</h3>
             </div>
           </div>
-          <div class="shared-list subject-breakdown" id="home-subject-list"></div>
+          <div id="home-next-exam" class="compact-empty">No exams saved yet.</div>
         </article>
+      </div>
 
-        <article class="inline-section home-distractions-card">
-          <h3>Today's Distractions</h3>
-          <ul class="shared-list preview-list" id="home-distraction-list"></ul>
+      <!-- Preserved DOM elements for script.js compatibility without UI clutter -->
+      <div class="home-preserved-hooks" style="display: none !important;" aria-hidden="true">
+        <article class="home-timeline-card">
+          <h3 id="home-timeline-title">Today timeline</h3>
+          <button type="button" id="timeline-prev-day">&lt;</button>
+          <input id="timeline-date-input" type="date">
+          <button type="button" id="timeline-next-day">&gt;</button>
+          <button type="button" id="timeline-today">Today</button>
+          <button type="button" id="open-study-log-modal">+ Add Study Log</button>
+          <div id="home-day-timeline"></div>
         </article>
+        <div id="home-week-preview"></div>
+        <div id="home-subject-list"></div>
+        <button type="button" id="home-add-subject">+</button>
+        <button type="button" id="home-open-session">Focus</button>
+        <ul id="home-distraction-list"></ul>
       </div>
     </section>
 
     <section class="app-section" id="focus-hub">
-      <div class="section-header">
+      <div class="section-header focus-page-header">
         <div>
-          <p class="eyebrow">Focus</p>
-          <h2>Study Session</h2>
-          <p class="muted-text">Set up one clear session, then protect it.</p>
+          <h2>Focus</h2>
         </div>
-        <span class="status-pill" id="session-status">Not started</span>
+        <div class="focus-header-actions">
+          <span class="status-pill" id="session-status">Idle</span>
+        </div>
       </div>
 
-      <div class="focus-layout">
-        <div class="focus-main-column">
-          <article class="focus-workspace" id="focus-workspace" data-session-state="pre-session">
-            <div class="focus-setup" id="focus-setup">
-              <div class="timer-first-card">
-                <p class="eyebrow">Focus</p>
-                <div class="timer-mode-carousel">
-                  <button type="button" class="secondary-button icon-only-button" id="timer-mode-prev" aria-label="Previous timer mode">&lt;</button>
-                  <div>
-                    <span class="muted-text">Timer mode</span>
-                    <h3 id="timer-mode-title">Stopwatch</h3>
-                  </div>
-                  <button type="button" class="secondary-button icon-only-button" id="timer-mode-next" aria-label="Next timer mode">&gt;</button>
-                </div>
-                <div class="mode-indicators compact" id="timer-mode-indicators"></div>
-                <div class="timer-display pre-session-timer" id="pre-session-display">0h 00m 00s</div>
-                <p class="muted-text selected-mode-copy" id="timer-mode-description">Count up while you study.</p>
-                <p class="muted-text" id="pre-session-mode-meta">Open timer - no break</p>
-
-                <div class="timer-subject-row">
-                  <select id="session-subject-select" aria-label="Session subject"></select>
-                  <button type="button" class="text-button focus-add-subject" id="open-subject-modal">+ Add subject</button>
-                </div>
-
-                <button type="button" id="session-start">Begin Session</button>
-              </div>
-            </div>
-
-            <div class="focus-active" id="focus-active" hidden>
-              <div class="focus-live-header">
-                <div>
-                  <p class="eyebrow" id="session-phase-label">Focus</p>
-                  <h3 id="session-active-subject">Subject</h3>
-                  <p class="muted-text" id="session-active-goal">No session goal set.</p>
-                </div>
-                <span class="status-pill" id="session-mode-pill">Stopwatch</span>
-              </div>
-
-              <div class="focus-timer-face">
-                <div class="timer-display" id="session-display">0h 00m 00s</div>
-                <p class="muted-text" id="session-phase-copy">Count up while you study.</p>
-                <div class="progress-bar timer-progress" aria-label="Current timer progress">
-                  <span id="session-progress-bar"></span>
-                </div>
-                <p class="muted-text" id="session-next-phase">Next phase appears here.</p>
-              </div>
-
-              <div class="button-row session-actions">
-                <button type="button" class="secondary-button" id="session-pause">Pause</button>
-                <button type="button" id="session-finish">Finish Session</button>
-                <button type="button" class="text-button" id="open-distraction-modal">Log Distraction</button>
-                <button type="button" class="text-button" id="session-discard">Discard Session</button>
-                <button type="button" class="text-button" id="session-reset">Reset</button>
-                <button type="button" class="text-button" id="session-skip">Skip Phase</button>
-              </div>
-            </div>
-
-            <div class="focus-complete" id="focus-complete" hidden>
-              <p class="eyebrow">Session complete</p>
-              <h3 id="complete-session-title">Nice work.</h3>
-              <div class="summary-strip compact" id="complete-session-summary"></div>
-              <label class="field-label">Did you finish your goal?</label>
-              <div class="goal-result-options" id="goal-result-options">
-                <button type="button" class="option-chip active" data-goal-result="yes">Yes</button>
-                <button type="button" class="option-chip" data-goal-result="partly">Partly</button>
-                <button type="button" class="option-chip" data-goal-result="no">No</button>
-              </div>
-              <label class="field-label" for="session-review-note">Optional note</label>
-              <textarea id="session-review-note" rows="3" maxlength="180" placeholder="What helped or got in the way?"></textarea>
-              <div class="button-row">
-                <button type="button" id="save-session-review">Save Session</button>
-                <button type="button" class="secondary-button" id="start-another-session">Start Another</button>
-              </div>
-            </div>
-          </article>
-
-          <section class="focus-optional-setup" id="focus-optional-setup">
-            <div>
-              <label class="field-label" for="session-goal-input">Session goal</label>
-              <textarea id="session-goal-input" rows="2" maxlength="160" placeholder="Finish Electrostatics notes"></textarea>
-            </div>
-            <div class="custom-timer-settings" id="custom-timer-settings">
-              <label>
-                Focus duration
-                <input id="custom-focus-input" type="number" min="1" step="1">
-              </label>
-              <label>
-                Break duration
-                <input id="custom-break-input" type="number" min="0" step="1">
-              </label>
-            </div>
-          </section>
-        </div>
-
-        <aside class="focus-side-panel">
-          <article class="secondary-surface focus-today-card">
-            <span class="eyebrow">Today</span>
+      <div class="focus-centered-layout focus-container">
+        <div class="focus-stats-strip">
+          <div class="focus-stat-item">
+            <span class="stat-label">Today</span>
             <strong id="session-total-today">0h 00m</strong>
-            <div class="focus-today-stats">
-              <div><span>Goal</span><strong id="focus-goal-progress">0%</strong></div>
-              <div><span>Sessions</span><strong id="focus-session-count">0</strong></div>
-            </div>
-            <h3>Subjects Today</h3>
-            <div class="subject-breakdown" id="session-subject-breakdown"></div>
-          </article>
-        </aside>
-      </div>
-
-      <article class="secondary-surface focus-history-panel">
-        <div class="section-mini-header">
-          <h3>Recent Sessions</h3>
-          <div class="history-tabs">
-            <button type="button" class="text-button" id="focus-open-study-log-modal">+ Add Study Log</button>
-            <button type="button" class="history-tab active" data-history-range="today">Today</button>
-            <button type="button" class="history-tab secondary-button" data-history-range="previous">Previous</button>
+          </div>
+          <div class="focus-stat-item">
+            <span class="stat-label">Goal</span>
+            <strong id="focus-goal-progress">0%</strong>
+          </div>
+          <div class="focus-stat-item">
+            <span class="stat-label">Sessions</span>
+            <strong id="focus-session-count">0</strong>
           </div>
         </div>
-        <div class="recent-sessions shared-list" id="recent-session-list"></div>
-      </article>
+
+        <article class="focus-workspace focus-card" id="focus-workspace" data-session-state="pre-session">
+          <div class="focus-ambient-bar" id="focus-ambient-bar">
+            <div class="ambient-audio-controls">
+              <button type="button" class="ambient-play-btn" id="ambient-toggle-btn" aria-label="Toggle ambient focus sound">
+                <span id="ambient-btn-icon">▶</span> <span id="ambient-btn-label">Ambient</span>
+              </button>
+              <select id="ambient-sound-select" aria-label="Select ambient soundscape" class="ambient-select">
+                <option value="chords">Lo-Fi Ambient Pad</option>
+                <option value="rain">Soft Window Rain</option>
+                <option value="waves">Gentle Ocean Waves</option>
+                <option value="forest">Forest Breeze</option>
+                <option value="brown">Deep Focus Brown Noise</option>
+                <option value="binaural">Calm 432Hz Alpha Waves</option>
+              </select>
+              <div class="ambient-volume-wrap" title="Ambient sound volume">
+                <span class="volume-icon">Vol</span>
+                <input type="range" id="ambient-volume" min="0" max="1" step="0.05" value="0.3" aria-label="Ambient volume">
+              </div>
+              <button type="button" class="ambient-chime-btn active" id="chime-toggle-btn" title="Toggle audio alert chime" aria-label="Toggle chime">
+                <span id="chime-btn-icon">Chime</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="focus-setup" id="focus-setup">
+            <div class="timer-first-card">
+              <div class="timer-presets-bar" id="timer-presets-bar" role="group" aria-label="Quick timer presets">
+                <button type="button" class="preset-chip" data-preset="pomodoro" title="25m focus, 5m break">25/5 Pomodoro</button>
+                <button type="button" class="preset-chip" data-preset="deep-focus" title="50m focus, 10m break">50/10 Deep Work</button>
+                <button type="button" class="preset-chip" data-preset="ultradian" title="90m focus, 20m break">90/20 Cycle</button>
+                <button type="button" class="preset-chip active" data-preset="stopwatch" title="Count up">Stopwatch</button>
+                <button type="button" class="preset-chip" data-preset="custom" title="Custom duration">Custom</button>
+              </div>
+
+              <div class="timer-mode-carousel">
+                <button type="button" class="secondary-button icon-only-button" id="timer-mode-prev" aria-label="Previous timer mode">&lt;</button>
+                <div>
+                  <h3 id="timer-mode-title">Stopwatch</h3>
+                </div>
+                <button type="button" class="secondary-button icon-only-button" id="timer-mode-next" aria-label="Next timer mode">&gt;</button>
+              </div>
+              <div class="mode-indicators compact" id="timer-mode-indicators"></div>
+
+              <div class="timer-readout-shell">
+                <div class="timer-display pre-session-timer" id="pre-session-display">0h 00m 00s</div>
+              </div>
+
+              <span id="timer-mode-description" style="display:none !important;" aria-hidden="true"></span>
+              <span id="pre-session-mode-meta" style="display:none !important;" aria-hidden="true"></span>
+
+              <div class="timer-setup-inline-fields">
+                <div class="timer-subject-row">
+                  <select id="session-subject-select" aria-label="Session subject"></select>
+                  <button type="button" class="text-button focus-add-subject" id="open-subject-modal">+ Subject</button>
+                </div>
+
+                <div class="session-goal-inline-wrap">
+                  <input id="session-goal-input" type="text" maxlength="160" placeholder="Session goal (optional)..." autocomplete="off">
+                </div>
+
+                <div class="custom-timer-settings" id="custom-timer-settings">
+                  <label>
+                    Focus (min)
+                    <input id="custom-focus-input" type="number" min="1" step="1" value="25">
+                  </label>
+                  <label>
+                    Break (min)
+                    <input id="custom-break-input" type="number" min="0" step="1" value="5">
+                  </label>
+                </div>
+              </div>
+
+              <button type="button" id="session-start" class="session-start-main">Begin Session</button>
+            </div>
+          </div>
+
+          <div class="focus-active" id="focus-active" hidden>
+            <div class="focus-live-header">
+              <div>
+                <span class="eyebrow" id="session-phase-label">Focus</span>
+                <h3 id="session-active-subject">Subject</h3>
+                <p class="session-active-goal-text" id="session-active-goal"></p>
+              </div>
+              <span class="status-pill" id="session-mode-pill">Stopwatch</span>
+            </div>
+
+            <div class="focus-timer-face">
+              <div class="timer-ring-readout" id="timer-ring-readout">
+                <svg class="timer-ring-svg" viewBox="0 0 220 220" aria-hidden="true">
+                  <circle class="timer-ring-track" cx="110" cy="110" r="98"></circle>
+                  <circle class="timer-ring-progress" id="session-ring-circle" cx="110" cy="110" r="98"></circle>
+                </svg>
+                <div class="timer-display" id="session-display">0h 00m 00s</div>
+              </div>
+              <span id="session-phase-copy" style="display:none !important;" aria-hidden="true"></span>
+              <span id="session-next-phase" style="display:none !important;" aria-hidden="true"></span>
+
+              <div class="progress-bar timer-progress" aria-label="Current timer progress" hidden>
+                <span id="session-progress-bar"></span>
+              </div>
+
+              <div class="session-task-hud" id="session-task-hud">
+                <div class="task-hud-row">
+                  <label class="task-hud-checkbox-label" for="task-hud-checkbox">
+                    <input type="checkbox" id="task-hud-checkbox" class="task-checkbox">
+                    <span class="task-hud-text" id="task-hud-text">Working on session objective</span>
+                  </label>
+                  <span class="task-hud-status" id="task-hud-status">In Progress</span>
+                </div>
+                <div class="task-hud-note-wrap">
+                  <input type="text" id="task-hud-note" placeholder="Quick note..." maxlength="120" autocomplete="off">
+                  <span class="task-hud-note-feedback" id="task-hud-note-feedback" hidden>Saved</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="button-row session-actions">
+              <button type="button" class="secondary-button" id="session-pause">Pause</button>
+              <button type="button" id="session-finish">Finish</button>
+              <button type="button" class="text-button" id="open-distraction-modal">Distraction</button>
+              <button type="button" class="text-button" id="session-discard">Discard</button>
+              <button type="button" class="text-button" id="session-reset">Reset</button>
+              <button type="button" class="text-button" id="session-skip">Skip</button>
+            </div>
+
+            <div class="focus-shortcuts-bar">
+              <span class="shortcut-pill"><kbd>Space</kbd> Pause</span>
+              <span class="shortcut-pill"><kbd>D</kbd> Distraction</span>
+            </div>
+          </div>
+
+          <div class="focus-complete" id="focus-complete" hidden>
+            <div class="focus-complete-card">
+              <div class="focus-complete-header">
+                <p class="eyebrow">Session Summary</p>
+                <h3 id="complete-session-title">Session Complete</h3>
+              </div>
+              <div class="complete-summary-pills" id="complete-session-summary"></div>
+              <div class="complete-review-field">
+                <label class="field-label">Goal completed?</label>
+                <div class="goal-result-options" id="goal-result-options">
+                  <button type="button" class="option-chip active" data-goal-result="yes">Yes</button>
+                  <button type="button" class="option-chip" data-goal-result="partly">Partly</button>
+                  <button type="button" class="option-chip" data-goal-result="no">No</button>
+                </div>
+              </div>
+              <div class="complete-review-field">
+                <label class="field-label" for="session-review-note">Notes</label>
+                <textarea id="session-review-note" rows="2" maxlength="180" placeholder="Optional review note..."></textarea>
+              </div>
+              <div class="button-row complete-actions-row">
+                <button type="button" id="save-session-review">Save Session</button>
+                <button type="button" class="secondary-button" id="start-another-session">New Setup</button>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <div id="focus-optional-setup" style="display:none !important;" aria-hidden="true"></div>
+
+        <details class="focus-details-accordion">
+          <summary>Subject Breakdown & Recent History</summary>
+          <div class="focus-history-compact">
+            <div class="subject-breakdown" id="session-subject-breakdown"></div>
+            <div class="section-mini-header">
+              <h3>Recent Sessions</h3>
+              <div class="history-tabs">
+                <button type="button" class="text-button" id="focus-open-study-log-modal">+ Add Log</button>
+                <button type="button" class="history-tab active" data-history-range="today">Today</button>
+                <button type="button" class="history-tab secondary-button" data-history-range="previous">Previous</button>
+              </div>
+            </div>
+            <div class="recent-sessions shared-list" id="recent-session-list"></div>
+          </div>
+        </details>
+      </div>
 
       <div class="modal-backdrop" id="subject-modal" hidden>
         <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="subject-modal-title">
@@ -453,10 +542,23 @@
         <button type="button" id="open-task-modal">+ Add task</button>
       </div>
 
-      <div class="summary-strip">
-        <div><span>Goal</span><strong id="plan-summary-goal">0h</strong></div>
-        <div><span>Planned</span><strong id="plan-summary-planned">0</strong></div>
-        <div><span>Done</span><strong id="plan-summary-done">0</strong></div>
+      <div class="summary-strip plan-metrics-bar">
+        <div class="metric-card">
+          <span class="metric-label">Daily Goal</span>
+          <strong class="metric-value" id="plan-summary-goal">0h</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Planned Tasks</span>
+          <strong class="metric-value" id="plan-summary-planned">0</strong>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Completed</span>
+          <strong class="metric-value" id="plan-summary-done">0</strong>
+        </div>
+        <div class="metric-card workload-metric-card">
+          <span class="metric-label">Est. Workload</span>
+          <strong class="metric-value" id="plan-summary-workload">0h 00m</strong>
+        </div>
       </div>
 
       <div class="plan-page-layout">
@@ -467,11 +569,51 @@
               <p class="muted-text" id="plan-task-summary">Nothing planned yet.</p>
             </div>
           </div>
-          <ul class="shared-list task-list" id="pending-task-list"></ul>
-          <details class="completed-details" id="completed-task-details">
-            <summary id="completed-task-summary">Completed (0)</summary>
-            <ul class="shared-list task-list completed-task-list" id="completed-task-list"></ul>
-          </details>
+
+          <div class="task-filter-toolbar">
+            <div class="task-filter-chips" id="task-filter-chips">
+              <button type="button" class="task-filter-chip active" data-task-filter="all">All (<span id="filter-count-all">0</span>)</button>
+              <button type="button" class="task-filter-chip" data-task-filter="high">High Priority (<span id="filter-count-high">0</span>)</button>
+              <button type="button" class="task-filter-chip" data-task-filter="today">Today Only (<span id="filter-count-today">0</span>)</button>
+            </div>
+            <select id="task-subject-filter" class="task-subject-filter" aria-label="Filter tasks by subject">
+              <option value="all">All Subjects</option>
+            </select>
+          </div>
+
+          <div id="today-list-container">
+            <form id="inline-task-form" class="inline-task-form">
+              <div class="inline-task-input-row">
+                <input id="inline-task-input" type="text" placeholder="+ Add a task for today and press Enter..." autocomplete="off">
+                <div class="inline-task-controls">
+                  <select id="inline-task-priority" aria-label="Task priority" title="Priority">
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="low">Low</option>
+                  </select>
+                  <select id="inline-task-duration" aria-label="Estimated duration" title="Estimated time">
+                    <option value="25">25m</option>
+                    <option value="15">15m</option>
+                    <option value="30">30m</option>
+                    <option value="45">45m</option>
+                    <option value="60">1h</option>
+                    <option value="90">1.5h</option>
+                    <option value="120">2h</option>
+                  </select>
+                  <button type="submit" class="secondary-button inline-add-btn">Add</button>
+                </div>
+              </div>
+            </form>
+            <ul class="shared-list task-list" id="pending-task-list"></ul>
+            <details class="completed-details" id="completed-task-details">
+              <summary id="completed-task-summary-wrap">
+                <span id="completed-task-summary">Completed (0)</span>
+                <button type="button" class="text-button subtle-action clear-completed-btn" id="clear-completed-tasks" title="Clear all completed tasks">Clear completed</button>
+              </summary>
+              <ul class="shared-list task-list completed-task-list" id="completed-task-list"></ul>
+            </details>
+          </div>
         </section>
 
         <aside class="plan-side-column">
@@ -483,9 +625,9 @@
             <p class="goal-copy" id="plan-goal-copy">0h / 0h</p>
             <div class="progress-bar"><span id="plan-goal-bar"></span></div>
             <form class="goal-stepper" id="goal-form">
-              <button type="button" class="quick-goal-button" id="goal-decrease" aria-label="Decrease goal by 15 minutes">-15m</button>
+              <button type="button" class="quick-goal-button" id="goal-decrease" aria-label="Decrease goal by 30 minutes">-30m</button>
               <strong class="goal-display" id="goal-display">2h</strong>
-              <button type="button" class="quick-goal-button" id="goal-increase" aria-label="Increase goal by 15 minutes">+15m</button>
+              <button type="button" class="quick-goal-button" id="goal-increase" aria-label="Increase goal by 30 minutes">+30m</button>
               <label class="sr-only" for="goal-input">Daily Study Goal (Hours)</label>
               <input id="goal-input" type="number" min="0.25" step="0.25" placeholder="3.5">
               <button type="submit" class="text-button">Save exact</button>
@@ -521,6 +663,23 @@
             <input id="task-date-input" type="date" aria-label="Task due date">
             <label for="task-subject-input">Subject</label>
             <select id="task-subject-input" aria-label="Task subject"></select>
+            <label for="task-priority-input">Priority</label>
+            <select id="task-priority-input">
+              <option value="normal">Normal</option>
+              <option value="high">High Priority</option>
+              <option value="urgent">Urgent</option>
+              <option value="low">Low Priority</option>
+            </select>
+            <label for="task-duration-input">Estimated Duration</label>
+            <select id="task-duration-input">
+              <option value="25">25 minutes (1 Pomodoro)</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="90">1.5 hours</option>
+              <option value="120">2 hours</option>
+            </select>
             <label for="task-repeat-input">Repeat</label>
             <select id="task-repeat-input">
               <option value="never">Never</option>
@@ -536,39 +695,60 @@
     <section class="app-section" id="goals">
       <div class="section-header">
         <div>
-          <p class="eyebrow">Planner</p>
-          <h2>Monthly Planner</h2>
+          <h2>Calendar &amp; Schedule</h2>
+          <p class="muted-text">Interactive monthly planner synced with your tasks and study timeline.</p>
         </div>
       </div>
 
       <div class="planner-layout">
-        <article class="panel">
+        <article class="panel calendar-panel">
           <div class="calendar-header">
-            <button type="button" class="secondary-button icon-only-button" id="planner-prev">‹</button>
+            <button type="button" class="secondary-button icon-only-button" id="planner-prev" aria-label="Previous month">‹</button>
             <h3 id="planner-month-label">Month Year</h3>
-            <button type="button" class="secondary-button icon-only-button" id="planner-next">›</button>
+            <button type="button" class="secondary-button icon-only-button" id="planner-next" aria-label="Next month">›</button>
           </div>
           <div class="calendar-grid calendar-weekdays">
             <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
           </div>
           <div class="calendar-grid" id="calendar-grid"></div>
+          <div class="calendar-legend">
+            <span class="legend-item"><span class="dot-sample dot-task"></span> Task</span>
+            <span class="legend-item"><span class="dot-sample dot-exam"></span> Exam</span>
+            <span class="legend-item"><span class="dot-sample dot-session"></span> Studied</span>
+          </div>
         </article>
 
-        <article class="panel">
-          <h3 id="selected-date-label">Select a date</h3>
-          <form class="stacked-form" id="planner-form">
-            <label for="planner-type-input">Type</label>
-            <select id="planner-type-input">
-              <option value="task">Task</option>
-              <option value="study">Study Plan</option>
-              <option value="reminder">Reminder</option>
-              <option value="exam">Exam</option>
-            </select>
-            <label for="planner-title-input">Title</label>
-            <input id="planner-title-input" type="text" placeholder="Revise chapter 4">
-            <button type="submit">Add to Date</button>
+        <article class="panel day-agenda-panel">
+          <div class="section-mini-header calendar-agenda-top">
+            <div>
+              <h3 id="selected-date-label">Select a date</h3>
+              <p class="muted-text" id="selected-date-summary">0 tasks scheduled</p>
+            </div>
+            <button type="button" class="secondary-button text-button" id="calendar-jump-today">Today</button>
+          </div>
+
+          <form class="inline-task-form calendar-inline-add" id="calendar-quick-task-form">
+            <div class="inline-task-input-row">
+              <input id="calendar-quick-task-input" type="text" placeholder="+ Add a task for this date..." autocomplete="off">
+              <div class="inline-task-controls">
+                <select id="calendar-quick-task-priority" aria-label="Priority" title="Priority">
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                  <option value="low">Low</option>
+                </select>
+                <button type="submit" class="secondary-button inline-add-btn">Add</button>
+              </div>
+            </div>
           </form>
+
           <div class="planner-items" id="planner-items"></div>
+
+          <!-- Preserved legacy form for script.js compatibility -->
+          <form id="planner-form" style="display: none !important;" aria-hidden="true">
+            <select id="planner-type-input"><option value="task">Task</option></select>
+            <input id="planner-title-input" type="text">
+          </form>
         </article>
       </div>
     </section>
@@ -607,14 +787,16 @@
         <div class="exam-tabs" role="tablist" aria-label="Exam workspace tabs">
           <button type="button" class="exam-tab active" data-exam-tab="overview">Overview</button>
           <button type="button" class="exam-tab secondary-button" data-exam-tab="syllabus">Syllabus</button>
-          <button type="button" class="exam-tab secondary-button" data-exam-tab="plan">Plan</button>
-          <button type="button" class="exam-tab secondary-button" data-exam-tab="progress">Progress</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="plan">Plan &amp; Roadmap</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="mocks">Mock Tests &amp; Practice</button>
+          <button type="button" class="exam-tab secondary-button" data-exam-tab="mistakes">Test Analysis &amp; Mistakes</button>
         </div>
 
         <section class="exam-tab-panel active" id="exam-tab-overview"></section>
         <section class="exam-tab-panel" id="exam-tab-syllabus"></section>
         <section class="exam-tab-panel" id="exam-tab-plan"></section>
-        <section class="exam-tab-panel" id="exam-tab-progress"></section>
+        <section class="exam-tab-panel" id="exam-tab-mocks"></section>
+        <section class="exam-tab-panel" id="exam-tab-mistakes"></section>
       </div>
 
       <div class="modal-backdrop" id="exam-modal" hidden>
@@ -644,9 +826,15 @@
             <input id="exam-title-input" type="text" placeholder="January attempt">
             <label for="exam-subjects-input">Subjects</label>
             <input id="exam-subjects-input" type="text" placeholder="Physics, Chemistry, Mathematics">
+            <div class="exam-syllabus-autoload-box" id="exam-syllabus-autoload-box">
+              <label class="exam-autoload-toggle-label" for="exam-autoload-syllabus">
+                <input type="checkbox" id="exam-autoload-syllabus" class="task-checkbox" checked>
+                <span>Pre-load official chapters &amp; unit topics automatically (fully editable)</span>
+              </label>
+            </div>
             <div class="form-footer">
               <button type="button" class="secondary-button" id="exam-back-to-presets">Back</button>
-              <button type="submit">Create Exam</button>
+              <button type="submit" id="exam-submit-button">Create Exam</button>
             </div>
           </form>
         </div>
@@ -704,6 +892,7 @@
             <div class="group-meta-row" id="group-workspace-meta"></div>
           </div>
           <div class="workspace-actions">
+            <button type="button" class="primary-button" id="group-cozy-library-button" title="Enter Group Study Library">📖 Group Library</button>
             <button type="button" class="secondary-button" id="group-invite-button">Invite</button>
             <button type="button" class="secondary-button" id="group-settings-button">Settings</button>
           </div>
@@ -711,7 +900,6 @@
 
         <div class="group-tabs" id="group-tabs">
           <button type="button" class="group-tab active" data-group-tab="overview">Overview</button>
-          <button type="button" class="group-tab" data-group-tab="rooms">Focus Rooms</button>
           <button type="button" class="group-tab" data-group-tab="challenges">Challenges</button>
           <button type="button" class="group-tab" data-group-tab="members">Members</button>
           <button type="button" class="group-tab" data-group-tab="ranking">Ranking</button>
@@ -736,31 +924,6 @@
               <div class="compact-list" id="group-activity-list"></div>
             </section>
           </div>
-        </div>
-
-        <div class="group-tab-panel" id="group-tab-rooms">
-          <div class="section-mini-header">
-            <h3>Active Rooms</h3>
-            <button type="button" id="create-room-button">+ Create Room</button>
-          </div>
-          <div class="group-room-list" id="group-room-list"></div>
-          <article class="panel group-room-live" id="group-room-live" hidden>
-            <div class="section-mini-header">
-              <div>
-                <p class="eyebrow">Inside Focus Room</p>
-                <h3 id="active-room-name">No room joined</h3>
-                <p class="muted-text" id="active-room-description">Join a room to see the local session.</p>
-              </div>
-              <button type="button" class="secondary-button" id="leave-room-button">Leave Room</button>
-            </div>
-            <div class="summary-strip">
-              <div><span>Purpose</span><strong id="active-room-subject">-</strong></div>
-              <div><span>Timer</span><strong id="active-room-timer">0h 00m</strong></div>
-              <div><span>Status</span><strong id="active-room-status">Paused</strong></div>
-            </div>
-            <div class="segmented-control" id="room-status-controls"></div>
-            <div class="compact-list" id="active-room-members"></div>
-          </article>
         </div>
 
         <div class="group-tab-panel" id="group-tab-challenges">
@@ -837,6 +1000,15 @@
             <select id="group-privacy-input">
               <option value="private">Private group</option>
               <option value="public" disabled>Public later</option>
+            </select>
+            <label for="group-library-capacity-input">Library Seating Capacity</label>
+            <select id="group-library-capacity-input">
+              <option value="auto" selected>Auto (Scales with members)</option>
+              <option value="4">4 Desks per floor</option>
+              <option value="8">8 Desks per floor</option>
+              <option value="12">12 Desks per floor</option>
+              <option value="16">16 Desks per floor</option>
+              <option value="20">20 Desks per floor</option>
             </select>
             <button type="submit" id="save-group-button">Create Group</button>
             <button type="button" class="delete-button" id="delete-group-button" hidden>Delete Group</button>
@@ -962,24 +1134,457 @@
         </div>
       </div>
     </section>
-    <section class="app-section" id="leaderboard">
-      <div class="section-header">
-        <div>
-          <p class="eyebrow">Leaderboard</p>
-          <h2>Top Focus</h2>
+
+    <!-- Cozy Study Library & Real-Time VC Lounge -->
+    <section class="app-section" id="cozy-library">
+      <!-- 1. Clean Top Bar -->
+      <div class="library-top-bar" id="library-top-bar">
+        <div class="library-title-area">
+          <h2 class="library-clean-title" id="library-group-title">Common Library</h2>
+          <!-- Floor & Hall Switcher (Sequential Unlocking per Library Context) -->
+          <div class="library-floor-switcher" id="library-floor-switcher" aria-label="Library Floors and Halls">
+            <button type="button" class="floor-pill-btn active" data-floor-id="ground" id="floor-btn-ground" title="Main Reading Hall - Ground Floor">Ground Floor</button>
+            <button type="button" class="floor-pill-btn" data-floor-id="mezzanine" id="floor-btn-mezzanine" style="display: none;" title="Upper Mezzanine - 2nd Floor (Unlocks when Ground Floor is 80% full)">2nd Floor</button>
+            <button type="button" class="floor-pill-btn" data-floor-id="archive" id="floor-btn-archive" style="display: none;" title="West Archive Wing (Unlocks when 2nd Floor is 80% full)">Archive Wing</button>
+            <span class="library-capacity-indicator" id="library-capacity-indicator">Ground · 0/20</span>
+          </div>
+
+          <!-- 3D Camera Angle Switcher -->
+          <div class="library-camera-presets" id="library-camera-presets" aria-label="3D Room Camera Angles">
+            <button type="button" class="cam-preset-btn active" data-cam-preset="overview" title="Full 3D Cutaway Overview">Overview</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="window" title="Zoom to Window Nook (Desks 1-5)">Window Nook</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="fireside" title="Zoom to Hearthside Alcove (Desks 6-10)">Fireside</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="archive" title="Zoom to Main Archive (Desks 11-15)">Archive</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="corner" title="Zoom to Quiet Corner (Desks 16-20)">Quiet Corner</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="lounge" title="Sit & Relax at Break Lounge Coffee Table">☕ Break Lounge</button>
+            <button type="button" class="cam-preset-btn" data-cam-preset="topdown" title="Bird's-Eye Top View of All Unlocked Floors">Top View</button>
+          </div>
+        </div>
+
+        <div class="library-top-actions">
+          <!-- Atmosphere Mood Cycle Button -->
+          <button type="button" class="library-atmo-btn" id="library-atmosphere-toggle" title="Cycle 3D Lighting Mood (Daylight · Golden Hour · Cozy Night)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span id="atmosphere-name">Cozy Night</span>
+          </button>
+
+          <!-- Unified Pill Switcher -->
+          <div class="library-pill-switcher" role="tablist" aria-label="Library view switcher">
+            <button type="button" class="pill-btn active" id="btn-view-desks" data-library-view="desks">
+              <span>Desks</span>
+            </button>
+            <button type="button" class="pill-btn" id="btn-view-vc" data-library-view="vc">
+              <span>Study Call (VC)</span>
+              <span class="vc-badge" id="vc-live-count" hidden>0</span>
+            </button>
+          </div>
+
+          <!-- Prominent Real-Time Study Call Join / Leave Action Button -->
+          <button type="button" class="primary-button vc-header-action-btn" id="quick-join-vc-btn" title="Join or leave live video/audio study call">
+            <span id="quick-vc-btn-label">Join Study Call</span>
+          </button>
+
+          <!-- Immersive Fullscreen Button -->
+          <button type="button" class="library-fullscreen-btn" id="btn-library-fullscreen" title="Toggle Immersive Fullscreen (Esc to exit)" aria-label="Toggle Fullscreen">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div class="leaderboard-tabs">
-        <button type="button" class="leaderboard-tab active" data-leaderboard-range="today">Today</button>
-        <button type="button" class="leaderboard-tab secondary-button" data-leaderboard-range="week">Week</button>
-        <button type="button" class="leaderboard-tab secondary-button" data-leaderboard-range="month">Month</button>
+      <!-- Main In-Canvas Stage Viewport (3D Room vs VC in the Exact Same Viewport) -->
+      <div class="cozy-library-stage" id="cozy-library-stage">
+        <!-- VIEW 1: Interactive 3D WebGL Cutaway Library Diorama -->
+        <div class="cozy-spatial-room active" id="cozy-library-room">
+          <!-- WebGL Canvas Container -->
+          <div class="cozy-3d-canvas-wrap" id="cozy-library-3d-canvas-wrap" aria-label="Interactive 3D Cozy Study Library">
+            <div class="cozy-3d-canvas-wrap" id="library-canvas-container"></div>
+          </div>
+
+          <!-- 3D-Projected Floating Name Tags, Sit Buttons & Study Note Popovers -->
+          <div class="cozy-3d-labels-layer" id="cozy-library-3d-labels"></div>
+
+          <!-- Subtle 3D Navigation Hint -->
+          <div class="cozy-3d-controls-hint" aria-hidden="true">
+            <span>Drag to orbit · Scroll to zoom · Click any desk to sit</span>
+          </div>
+
+          <!-- Preserved hidden DOM slots for legacy script hooks -->
+          <div hidden aria-hidden="true">
+            <div id="slot-zone-1"></div>
+            <div id="slot-zone-2"></div>
+            <div id="slot-zone-3"></div>
+            <div id="slot-zone-4"></div>
+          </div>
+        </div>
+
+        <!-- VIEW 2: In-Canvas Video Call View (Pre-Join Lobby & Active Stage) -->
+        <div class="cozy-vc-viewport" id="library-vc-viewport" hidden>
+          <!-- Pre-Join Lobby: Displayed before joining; No mic/camera activated -->
+          <div class="vc-lobby-container" id="vc-lobby-container">
+            <div class="vc-lobby-card">
+              <div class="vc-lobby-header">
+                <div class="vc-lobby-title-group">
+                  <div class="vc-lobby-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M15 10l5-5v14l-5-5"></path>
+                      <rect x="2" y="6" width="13" height="12" rx="2"></rect>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3>Study Call Lounge</h3>
+                    <p class="muted-text">Collaborate with peers via live audio and video while studying</p>
+                  </div>
+                </div>
+                <div id="vc-lobby-status-pill" class="vc-status-pill idle">
+                  <span class="vc-status-dot"></span>
+                  <span id="vc-lobby-status-text">Idle · 0 active</span>
+                </div>
+              </div>
+
+              <!-- List of Members Currently on Call -->
+              <div class="vc-lobby-members-box">
+                <div class="vc-lobby-members-title">
+                  <span>Scholars on Call</span>
+                  <span class="badge" id="vc-lobby-members-badge">0</span>
+                </div>
+                <div class="vc-lobby-members-list" id="vc-lobby-members-list">
+                  <div class="vc-lobby-empty-text" id="vc-lobby-empty-text">
+                    <p class="muted-text">No scholars are on call right now. Press Join Study Call at the top to start the room.</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Pre-join Hardware Preferences -->
+              <div class="vc-lobby-prefs">
+                <label class="vc-lobby-checkbox">
+                  <input type="checkbox" id="vc-join-pref-mic" checked>
+                  <span>Microphone</span>
+                </label>
+                <label class="vc-lobby-checkbox">
+                  <input type="checkbox" id="vc-join-pref-cam">
+                  <span>Camera</span>
+                </label>
+              </div>
+              <p class="muted-text vc-lobby-hint">Your microphone and camera stay off until you press <strong>Join Study Call</strong> at the top.</p>
+            </div>
+          </div>
+
+          <!-- Active Stage: Displayed only when user joins the call -->
+          <div class="vc-active-stage" id="vc-active-stage" hidden>
+            <div class="vc-active-toolbar">
+              <div class="vc-active-info">
+                <span class="vc-status-pill live">
+                  <span class="vc-status-dot"></span>
+                  <span>Live Study Call</span>
+                </span>
+                <span id="vc-active-peer-count" class="tabular-nums muted-text">1 participant</span>
+              </div>
+            </div>
+
+            <div class="vc-in-canvas-grid" id="vc-grid">
+              <!-- Local Video Tile -->
+              <div class="vc-tile local-tile" id="vc-local-tile">
+                <video id="vc-local-video" autoplay playsinline muted></video>
+                <div class="vc-avatar-fallback" id="vc-local-avatar-fallback">
+                  <span class="avatar-circle" id="vc-local-avatar-circle">ME</span>
+                  <span class="avatar-status-text">Camera Off</span>
+                </div>
+                <div class="vc-tile-footer">
+                  <span class="participant-name" id="vc-local-name">You</span>
+                  <div class="tile-indicators">
+                    <span class="audio-wave-meter" id="vc-local-audio-meter" title="Audio Level">
+                      <span class="bar bar-1"></span><span class="bar bar-2"></span><span class="bar bar-3"></span>
+                    </span>
+                    <span class="tile-badge mic-status" id="vc-local-mic-badge">Muted</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Remote Peer Tiles Container -->
+              <div class="vc-remote-container" id="vc-remote-container">
+                <div class="vc-empty-peers" id="vc-empty-peers">
+                  <div class="empty-peers-graphic">
+                    <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                      <circle cx="9" cy="7" r="4"></circle>
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                  </div>
+                  <h4>Waiting for study partners</h4>
+                  <p class="muted-text">Group members who join the Study Call will stream live audio and video here.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Screen Share Overlay (if active) -->
+            <div class="vc-screen-viewport" id="vc-screen-viewport" hidden>
+              <div class="screen-viewport-header">
+                <span id="vc-screen-sharer-name">Screen Share</span>
+                <button type="button" class="text-button" id="vc-close-screen-btn">Minimize</button>
+              </div>
+              <video id="vc-screen-video" autoplay playsinline></video>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Integrated Bottom Floating Dock with Natural Vector SVG Controls -->
+        <div class="library-bottom-dock" id="library-glass-dock">
+          <!-- Soundscape Controls -->
+          <div class="dock-soundscape-group">
+            <span class="dock-label-icon" aria-hidden="true" title="Ambient Soundscape">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+              </svg>
+            </span>
+            <select id="library-sound-select" class="dock-sound-select" aria-label="Select Ambient Sound">
+              <option value="rain">Rain on Glass</option>
+              <option value="hearth">Crackling Hearth</option>
+              <option value="lofi">Warm Lofi Chords</option>
+              <option value="pages">Library Ambience</option>
+              <option value="off">Muted</option>
+            </select>
+            <input type="range" id="library-sound-vol" class="dock-vol-slider" min="0" max="1" step="0.05" value="0.35" title="Ambient volume" aria-label="Ambient volume">
+            <button type="button" class="dock-icon-btn" id="library-sound-toggle" title="Play / Pause Soundscape" aria-label="Play or pause soundscape">
+              <svg id="sound-svg-play" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
+              </svg>
+              <svg id="sound-svg-pause" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none" hidden>
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Personal Study Posture Switcher (Vector SVG Icons) -->
+          <div class="dock-posture-group" id="dock-posture-group" title="Your 3D Character Study Posture">
+            <button type="button" class="dock-posture-btn active" data-posture="reading" title="Reading Book">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+            </button>
+            <button type="button" class="dock-posture-btn" data-posture="typing" title="Working on Laptop">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="12" rx="2" ry="2"></rect>
+                <line x1="2" y1="20" x2="22" y2="20"></line>
+              </svg>
+            </button>
+            <button type="button" class="dock-posture-btn" data-posture="writing" title="Writing Notes">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+                <path d="M2 2l7.586 7.586"></path>
+              </svg>
+            </button>
+            <button type="button" class="dock-posture-btn" data-posture="coffee" title="Coffee Break">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                <line x1="6" y1="1" x2="6" y2="4"></line>
+                <line x1="10" y1="1" x2="10" y2="4"></line>
+                <line x1="14" y1="1" x2="14" y2="4"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Bidirectional StudyMate Focus Timer -->
+          <div class="dock-timer-group" id="dock-timer-group">
+            <span class="dock-timer-dot" id="sync-timer-dot"></span>
+            <div class="dock-timer-meta">
+              <span class="dock-timer-mode" id="sync-timer-mode-label">Focus</span>
+              <span class="dock-timer-subject" id="sync-timer-subject-label">General Study</span>
+            </div>
+            <strong class="dock-timer-digits tabular-nums" id="sync-timer-digits">25:00</strong>
+            <button type="button" class="dock-icon-btn" id="sync-timer-toggle-btn" title="Start / Pause StudyMate Focus Timer" aria-label="Start or pause focus timer">
+              <svg id="timer-svg-play" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
+              </svg>
+              <svg id="timer-svg-pause" viewBox="0 0 24 24" width="15" height="15" fill="currentColor" stroke="none" hidden>
+                <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+                <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+              </svg>
+            </button>
+            <button type="button" class="dock-icon-btn" id="sync-timer-finish-btn" title="Complete & Log Focus Session" aria-label="Complete focus session" hidden>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Natural Hardware Media Controls (Mic, Camera, Screen Share) -->
+          <div class="dock-media-group">
+            <button type="button" class="dock-hardware-btn is-muted" id="vc-toggle-mic" title="Toggle Microphone" aria-label="Toggle Microphone">
+              <!-- Mic On SVG -->
+              <svg id="vc-mic-svg-on" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <!-- Mic Off / Muted SVG -->
+              <svg id="vc-mic-svg-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+                <line x1="12" y1="19" x2="12" y2="23"></line>
+                <line x1="8" y1="23" x2="16" y2="23"></line>
+              </svg>
+              <span class="hardware-btn-label" id="vc-mic-label">Mic</span>
+            </button>
+
+            <button type="button" class="dock-hardware-btn is-muted" id="vc-toggle-cam" title="Toggle Camera" aria-label="Toggle Camera">
+              <!-- Camera On SVG -->
+              <svg id="vc-cam-svg-on" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden>
+                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+              </svg>
+              <!-- Camera Off SVG -->
+              <svg id="vc-cam-svg-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+              <span class="hardware-btn-label" id="vc-cam-label">Cam</span>
+            </button>
+
+            <button type="button" class="dock-hardware-btn" id="vc-toggle-screen" title="Share Screen" aria-label="Share Screen">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+              <span class="hardware-btn-label" id="vc-screen-label">Share</span>
+            </button>
+
+            <button type="button" class="dock-hardware-btn" id="vc-toggle-pip" title="Picture-in-Picture (Pop out floating video overlay)" aria-label="Toggle Picture in Picture">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <rect x="11" y="9" width="8" height="6" rx="1" ry="1" fill="currentColor" fill-opacity="0.3"></rect>
+              </svg>
+              <span class="hardware-btn-label" id="vc-pip-label">PiP</span>
+            </button>
+          </div>
+
+          <!-- Collaboration Drawer Toggle & Leave Seat -->
+          <div class="dock-action-group">
+            <button type="button" class="dock-pill-btn" id="library-drawer-toggle" title="Open Room Chat & Pinned Notes">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>Chat & Notes</span>
+              <span class="dock-badge" id="drawer-unread-badge" hidden></span>
+            </button>
+            <button type="button" class="dock-pill-btn delete-style" id="dock-leave-seat-btn" hidden title="Stand up and leave desk">
+              <span>Leave Seat</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide-Out Drawer: Chat & Sticky Notes -->
+        <aside class="library-slide-drawer" id="library-slide-drawer" hidden>
+          <div class="drawer-header">
+            <div class="drawer-tabs">
+              <button type="button" class="collab-tab active" data-collab-tab="chat">Room Chat</button>
+              <button type="button" class="collab-tab" data-collab-tab="sticky">Notes (<span id="sticky-count">2</span>)</button>
+            </div>
+            <button type="button" class="drawer-close-btn" id="close-library-drawer" aria-label="Close Drawer">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Chat Pane -->
+          <div class="collab-pane active" id="collab-pane-chat">
+            <div class="library-chat-messages" id="library-chat-messages">
+              <!-- Messages stream here -->
+            </div>
+            <!-- Quick Cheers -->
+            <div class="quick-reactions-strip">
+              <span class="reaction-label">Encourage:</span>
+              <button type="button" class="reaction-btn" data-reaction="Coffee" title="Send Coffee">Coffee</button>
+              <button type="button" class="reaction-btn" data-reaction="Applause" title="Send Applause">Applaud</button>
+              <button type="button" class="reaction-btn" data-reaction="Focus" title="Send Focus Boost">Focus</button>
+              <button type="button" class="reaction-btn" data-reaction="Keep Going" title="Send Encouragement">Keep Going</button>
+            </div>
+            <form class="library-chat-form" id="library-chat-form">
+              <input type="text" id="library-chat-input" placeholder="Write to the study room..." maxlength="280" autocomplete="off" required>
+              <button type="submit" id="library-chat-submit">Send</button>
+            </form>
+          </div>
+
+          <!-- Sticky Notes Pane -->
+          <div class="collab-pane" id="collab-pane-sticky" hidden>
+            <div class="sticky-corkboard" id="sticky-corkboard">
+              <!-- Sticky note cards rendered here -->
+            </div>
+            <form class="new-sticky-form" id="new-sticky-form">
+              <textarea id="new-sticky-content" rows="2" placeholder="Pin a formula, resource, or session target..." maxlength="200" required></textarea>
+              <div class="sticky-form-footer">
+                <div class="sticky-color-picker">
+                  <label><input type="radio" name="sticky-color" value="amber" checked><span class="color-dot amber"></span></label>
+                  <label><input type="radio" name="sticky-color" value="sage"><span class="color-dot sage"></span></label>
+                  <label><input type="radio" name="sticky-color" value="blue"><span class="color-dot blue"></span></label>
+                  <label><input type="radio" name="sticky-color" value="rose"><span class="color-dot rose"></span></label>
+                </div>
+                <button type="submit" class="secondary-button compact-btn">Pin Note</button>
+              </div>
+            </form>
+          </div>
+        </aside>
       </div>
 
-      <article class="panel">
-        <p class="muted-text">Rankings are based on completed study sessions.</p>
-        <div class="leaderboard-table" id="leaderboard-table"></div>
-      </article>
+      <!-- Desk Action Modal (Take Desk / Set Goal & Auto-Sync Focus Timer) -->
+      <div class="modal-backdrop" id="desk-action-modal" hidden>
+        <div class="modal-card compact-modal" role="dialog" aria-modal="true" aria-labelledby="desk-action-title">
+          <div class="section-mini-header">
+            <h3 id="desk-action-title">Take Study Desk</h3>
+            <button type="button" class="icon-button" id="close-desk-modal" aria-label="Close">×</button>
+          </div>
+          <form class="stacked-form" id="desk-action-form">
+            <input type="hidden" id="desk-modal-target-id" value="">
+            <label for="desk-modal-subject">Subject (syncs with Focus tab)</label>
+            <input id="desk-modal-subject" type="text" list="subject-datalist" placeholder="e.g. Calculus, Organic Chemistry, Literature" required>
+            <label for="desk-modal-goal">Session Goal / Target</label>
+            <input id="desk-modal-goal" type="text" placeholder="e.g. Complete Chapter 4 problem set" maxlength="120">
+            <label for="desk-modal-lamp">Desk Banker's Lamp</label>
+            <div class="checkbox-row">
+              <input type="checkbox" id="desk-modal-lamp" checked>
+              <span>Illuminate 3D brass reading lamp</span>
+            </div>
+            <label>3D Character Study Posture</label>
+            <div class="modal-posture-selector">
+              <label class="modal-posture-card">
+                <input type="radio" name="modal-desk-posture" value="reading" checked>
+                <span>Reading</span>
+              </label>
+              <label class="modal-posture-card">
+                <input type="radio" name="modal-desk-posture" value="typing">
+                <span>Laptop</span>
+              </label>
+              <label class="modal-posture-card">
+                <input type="radio" name="modal-desk-posture" value="writing">
+                <span>Writing</span>
+              </label>
+              <label class="modal-posture-card">
+                <input type="radio" name="modal-desk-posture" value="coffee">
+                <span>Break</span>
+              </label>
+            </div>
+            <div class="button-row">
+              <button type="submit" id="desk-modal-submit-btn">Sit & Start Focus</button>
+              <button type="button" class="secondary-button" id="desk-modal-reserve-btn" hidden>Reserve Desk</button>
+              <button type="button" class="secondary-button" id="desk-modal-leave-btn" hidden>Leave Desk</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </section>
 
     <section class="app-section" id="distraction-log">
@@ -1063,13 +1668,6 @@
           <div class="settings-list">
             <div><span>Profile</span><strong id="privacy-profile">Private</strong></div>
             <div><span>Groups</span><strong id="privacy-groups">Members only</strong></div>
-            <div>
-              <label for="leaderboard-visibility-input">Leaderboard</label>
-              <select id="leaderboard-visibility-input">
-                <option value="public">Public</option>
-                <option value="private">Private</option>
-              </select>
-            </div>
           </div>
         </article>
       </div>
@@ -1080,10 +1678,10 @@
           <div class="theme-grid" id="theme-grid"></div>
         </article>
 
-        <article class="panel">
+        <article class="panel" id="accent-picker-panel" style="display: none;">
           <h3>Accent Color</h3>
           <div class="accent-row">
-            <input id="accent-input" type="color" value="#7c5cff">
+            <input id="accent-input" type="color" value="#1E4B35">
             <button type="button" id="save-accent">Save Accent</button>
             <button type="button" class="secondary-button" id="reset-accent">Reset Accent</button>
           </div>
@@ -1100,7 +1698,8 @@
         <form class="stacked-form" id="study-log-form">
           <input id="study-log-session-id" type="hidden">
           <label for="study-log-subject">Subject</label>
-          <select id="study-log-subject"></select>
+          <input id="study-log-subject" type="text" list="subject-datalist" placeholder="Type or choose subject (e.g. Calculus, Physics)..." autocomplete="off" required>
+          <datalist id="subject-datalist"></datalist>
           <label for="study-log-date">Date</label>
           <input id="study-log-date" type="date" required>
           <label for="study-log-start">Start time</label>
@@ -1195,14 +1794,19 @@
       country: {{ (current_user.country or '')|tojson }},
       timezone: {{ (current_user.timezone or 'Asia/Kolkata')|tojson }},
       studyDayStartTime: {{ (current_user.study_day_start_time or '00:00')|tojson }},
-      preferredTheme: {{ (current_user.preferred_theme or 'system')|tojson }},
+      preferredTheme: {{ ((current_user.preferred_theme if (current_user.preferred_theme and current_user.preferred_theme != 'system') else 'dark'))|tojson }},
       profileVisibility: {{ (current_user.profile_visibility or 'private')|tojson }},
       groupVisibility: {{ (current_user.group_visibility or 'members')|tojson }},
       leaderboardVisibility: {{ (current_user.leaderboard_visibility or 'public')|tojson }},
       createdAt: {{ current_user.created_at.isoformat()|tojson }},
       lastLoginAt: {{ (current_user.last_login_at.isoformat() if current_user.last_login_at else None)|tojson }}
     };
+    window.currentUser = window.STUDYMATE_USER;
+    window.SUPABASE_URL = {{ (supabase_url or '')|tojson }};
+    window.SUPABASE_ANON_KEY = {{ (supabase_anon_key or '')|tojson }};
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module" src="{{ url_for('static', filename='js/cozyLibrary3D.js') }}"></script>
   <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>

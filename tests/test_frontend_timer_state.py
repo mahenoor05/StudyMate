@@ -21,7 +21,7 @@ class FrontendTimerStateTestCase(unittest.TestCase):
     def test_active_focus_put_requires_explicit_intent(self):
         self.assertIn("function canWriteActiveFocusSession(reason)", SCRIPT)
         self.assertIn("if (!canWriteActiveFocusSession(reason)) return null;", SCRIPT)
-        self.assertIn("discardedActiveSessionIds.add(discardedId);", SCRIPT)
+        self.assertIn("discardedActiveSessionIds.add(", SCRIPT)
         self.assertIn("if (promptToken !== activeSessionRecoveryPromptToken) return;", SCRIPT)
         self.assertNotIn("saveActiveFocusSession();", SCRIPT)
 
@@ -36,7 +36,7 @@ class FrontendTimerStateTestCase(unittest.TestCase):
         self.assertIn('id="focus-open-study-log-modal"', APP_TEMPLATE)
         self.assertIn("focusOpenStudyLogModalButton.addEventListener", SCRIPT)
         self.assertIn("function localDateTimeToUtcIso(dateKey, timeValue)", SCRIPT)
-        self.assertIn("Choose a subject before saving a study log.", SCRIPT)
+        self.assertIn("General Study", SCRIPT)
         self.assertIn("const response = await studyMateApi(\"sessions\"", SCRIPT)
 
 

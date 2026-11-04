@@ -1,0 +1,6 @@
+{
+  "name": "StudyMate",
+  "description": "A calm, focused study companion and productivity dashboard with timers, tasks, subjects, analytics, and study groups.",
+  "permissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

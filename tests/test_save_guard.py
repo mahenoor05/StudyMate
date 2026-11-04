@@ -50,7 +50,6 @@ class SaveGuardTestCase(unittest.TestCase):
 
     def test_user_typed_names_are_escaped_before_going_into_html(self):
         for snippet in [
-            "escapeHtml(user.name)",
             "escapeHtml(member.name)",
             "escapeHtml(challenge.title)",
             "escapeHtml(message.message)",

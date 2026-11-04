@@ -4,3 +4,5 @@ Flask-Migrate==4.0.7
 Flask-SQLAlchemy==3.1.1
 gunicorn==22.0.0
 psycopg[binary]==3.2.13
+google-genai>=1.0.0
+
